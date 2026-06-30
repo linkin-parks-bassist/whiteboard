@@ -1,6 +1,6 @@
 # Whiteboard
 
-This project was created to render it a practical prospect to continue my work at [https://www.youtube.com/@boarbarktree](https://www.youtube.com/@boarbarktree).
+This project was created to render it a practical prospect to continue my work at [Boarbarktree](https://www.youtube.com/@boarbarktree).
 
 I pushed three videos, over three months, out of Adobe Animate, by sheer force of will. It damn near killed me. We're talking 18 hours a day for three months straight.
 
