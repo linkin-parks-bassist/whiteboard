@@ -1,12 +1,18 @@
 # Whiteboard
 
-Whiteboard is a deliberately vibe-coded animation engine for making whiteboard-style mathematical videos without suffering through Adobe Animate.
+This project was created to render it a practical prospect to continue my work at [https://www.youtube.com/@boarbarktree](https://www.youtube.com/@boarbarktree).
 
-The goal is simple: write a human-readable video spec, render the visuals, and get back to making videos.
+I pushed three videos, over three months, out of Adobe Animate, by sheer force of will. It damn near killed me. We're talking 18 hours a day for three months straight.
 
-This project exists to revive and continue the look and feel of the old [Boarbarktree](https://www.youtube.com/@boarbarktree) videos with far less manual animation pain.
+Then I moved to Sydney and started a PhD. I tried to keep going, but my brain said no. But I never stopped wanting to. Finally had the bright idea to automate it.
 
-Obviously, even this README is AI-generated.
+Naturally, manim wouldn't suit my stylistic preferences, and I couldn't be bothered to learn it, either. So I started writing my own. In C, of course. Well, I didn't really have enough time/energy for that to get very far, either.
+
+Then came the era of agentic coding. I thought, hmm, might as well give it a try. Oh - why don't I task it to my animation software?
+
+And thus, this slopject was born.
+
+Staying on theme, the remainder of this readme, from this point on, is AI-generated. 
 
 ## What this is
 
