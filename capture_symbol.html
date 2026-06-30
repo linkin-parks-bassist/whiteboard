@@ -1,0 +1,365 @@
+<!doctype html>
+<html lang="en">
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>Whiteboard symbol capture</title>
+	<style>
+		:root {
+			font-family: system-ui, sans-serif;
+			color: #202124;
+			background: #f6f7f8;
+		}
+		body {
+			margin: 0;
+			display: grid;
+			grid-template-rows: auto 1fr;
+			min-height: 100vh;
+		}
+		.toolbar {
+			display: flex;
+			gap: 10px;
+			align-items: center;
+			padding: 10px 12px;
+			background: white;
+			border-bottom: 1px solid #d6d9de;
+			flex-wrap: wrap;
+		}
+		label {
+			display: inline-flex;
+			align-items: center;
+			gap: 6px;
+			font-size: 14px;
+		}
+		input[type="text"], input[type="number"] {
+			width: 86px;
+			padding: 5px 7px;
+			border: 1px solid #b8bec8;
+			border-radius: 4px;
+			font: inherit;
+		}
+		#queue {
+			width: 300px;
+		}
+		button, .file-button {
+			padding: 6px 10px;
+			border: 1px solid #aeb5c0;
+			background: #fff;
+			border-radius: 4px;
+			font: inherit;
+			cursor: pointer;
+		}
+		button:hover, .file-button:hover {
+			background: #f0f3f7;
+		}
+		#bgFile {
+			display: none;
+		}
+		.stage {
+			display: grid;
+			place-items: center;
+			padding: 18px;
+		}
+		canvas {
+			background: white;
+			box-shadow: 0 1px 8px rgba(0,0,0,.16);
+			touch-action: none;
+			cursor: crosshair;
+		}
+		.status {
+			margin-left: auto;
+			font-size: 13px;
+			color: #5f6368;
+		}
+	</style>
+</head>
+<body>
+	<div class="toolbar">
+		<label>symbol <input id="symbol" type="text" value="a"></label>
+		<label style="display:none">variant <input id="variant" type="number" value="0" min="0"></label>
+		<label>queue <input id="queue" type="text"></label>
+		<button id="loadQueue">Load Queue</button>
+		<button id="skip">Skip</button>
+		<button id="done">Commit</button>
+		<button id="undoStroke">Undo Stroke</button>
+		<button id="undoEntry">Undo Last Entry</button>
+		<button id="clear">Clear</button>
+		<button id="clearSaved">Clear Saved Batch</button>
+		<label class="file-button" for="bgFile">Load Background</label>
+		<input id="bgFile" type="file" accept="image/*">
+		<button id="save">Download Batch</button>
+		<span class="status" id="status">Draw strokes, Space/Enter commits, Backspace undoes current stroke</span>
+	</div>
+	<div class="stage">
+		<canvas id="canvas" width="900" height="650"></canvas>
+	</div>
+	<script>
+		const canvas = document.getElementById("canvas");
+		const ctx = canvas.getContext("2d");
+		const symbolInput = document.getElementById("symbol");
+		const variantInput = document.getElementById("variant");
+		const queueInput = document.getElementById("queue");
+		const status = document.getElementById("status");
+		const defaultQueue = [
+			"\\delta \\epsilon \\varepsilon \\Delta",
+			"\\partial \\nabla \\int \\sum \\Sum \\prod \\Prod",
+			"\\mathbb{R} \\mathbb{C} \\mathbb{N} \\mathbb{Z} \\mathbb{Q}",
+			"\\text{a} \\text{b} \\text{c} \\text{d} \\text{e} \\text{f} \\text{g} \\text{h} \\text{i} \\text{j} \\text{k} \\text{l} \\text{m}",
+			"\\text{n} \\text{o} \\text{p} \\text{q} \\text{r} \\text{s} \\text{t} \\text{u} \\text{v} \\text{w} \\text{x} \\text{y} \\text{z}",
+			"\\text{A} \\text{B} \\text{C} \\text{D} \\text{E} \\text{F} \\text{G} \\text{H} \\text{I} \\text{J} \\text{K} \\text{L} \\text{M}",
+			"\\text{N} \\text{O} \\text{P} \\text{Q} \\text{R} \\text{S} \\text{T} \\text{U} \\text{V} \\text{W} \\text{X} \\text{Y} \\text{Z}",
+			"a b c d e f g h i j k l m n o p q r s t u v w x y z",
+			"A B C D E F G H I J K L M N O P Q R S T U V W X Y Z",
+			"0 1 2 3 4 5 6 7 8 9 + - = ( ) [ ] \\{ \\} | < > / * . , : ; ! ?",
+			"\\alpha \\beta \\gamma \\delta \\epsilon \\varepsilon \\theta \\vartheta \\lambda \\mu \\nu \\xi \\pi \\rho \\sigma \\tau \\phi \\varphi \\chi \\psi \\omega",
+			"\\Gamma \\Delta \\Theta \\Lambda \\Xi \\Pi \\Sigma \\Phi \\Psi \\Omega",
+			"\\sum \\Sum \\prod \\Prod \\int \\infty \\to \\leq \\geq \\neq \\approx \\times \\cdot \\pm \\sqrt{} \\fracbar",
+			"\\partial \\nabla \\forall \\exists \\in \\notin \\subset \\subseteq \\emptyset \\sim \\equiv"
+		].join(" ");
+		const strokes = [];
+		let batch = [];
+		let queue = [];
+		let queueIndex = 0;
+		let current = null;
+		let bg = null;
+		let t0 = performance.now();
+		const storageKey = "whiteboard_symbol_capture_batch";
+
+		function loadBatch() {
+			try {
+				const raw = localStorage.getItem(storageKey);
+				batch = raw ? JSON.parse(raw) : [];
+			} catch (e) {
+				batch = [];
+			}
+		}
+
+		function storeBatch() {
+			localStorage.setItem(storageKey, JSON.stringify(batch));
+		}
+
+		function parseQueue(text) {
+			const base = text.split(/[\s,]+/).map(s => s.trim()).filter(Boolean);
+			const seen = new Set();
+			const out = [];
+			for (const label of base) {
+				const symbol = symbolKeyFromLabel(label);
+				if (seen.has(symbol)) continue;
+				seen.add(symbol);
+				out.push({ label, symbol, variant: 0 });
+			}
+			return out;
+		}
+
+		function symbolKeyFromLabel(label) {
+			let m = label.match(/^\\text\{(.)\}$/);
+			if (m) return `text:${m[1]}`;
+			m = label.match(/^\\mathbb\{(.)\}$/);
+			if (m) return `mathbb:${m[1]}`;
+			if (label === "\\{" || label === "\\}") return label.slice(1);
+			if (label === "\\sqrt{}") return "sqrt";
+			if (label.startsWith("\\")) return label.slice(1);
+			if (/^[A-Za-z]$/.test(label)) return `math:${label}`;
+			return label;
+		}
+
+		function setCurrentFromQueue() {
+			if (queue.length && queueIndex < queue.length) {
+				symbolInput.value = queue[queueIndex].label;
+				variantInput.value = 0;
+				strokes.length = 0;
+				current = null;
+				redraw();
+			}
+		}
+
+		function redraw() {
+			ctx.clearRect(0, 0, canvas.width, canvas.height);
+			ctx.fillStyle = "#fff";
+			ctx.fillRect(0, 0, canvas.width, canvas.height);
+			if (bg) {
+				ctx.save();
+				ctx.globalAlpha = 0.28;
+				const scale = Math.min(canvas.width / bg.width, canvas.height / bg.height);
+				const w = bg.width * scale;
+				const h = bg.height * scale;
+				ctx.drawImage(bg, (canvas.width - w) / 2, (canvas.height - h) / 2, w, h);
+				ctx.restore();
+			}
+			ctx.strokeStyle = "rgba(220,220,220,.9)";
+			ctx.lineWidth = 1;
+			ctx.beginPath();
+			ctx.moveTo(0, canvas.height * 0.72);
+			ctx.lineTo(canvas.width, canvas.height * 0.72);
+			ctx.stroke();
+			for (const stroke of strokes) drawStroke(stroke, "#4d80e4", 5);
+			if (current) drawStroke(current, "#111", 3);
+			const q = queue.length ? ` | ${queueIndex + 1}/${queue.length}` : "";
+			status.textContent = `${symbolInput.value}${q} | ${strokes.length} pending stroke(s) | ${batch.length} saved`;
+		}
+
+		function drawStroke(stroke, colour, width) {
+			if (stroke.length < 2) return;
+			ctx.strokeStyle = colour;
+			ctx.lineWidth = width;
+			ctx.lineCap = "round";
+			ctx.lineJoin = "round";
+			ctx.beginPath();
+			ctx.moveTo(stroke[0].x, stroke[0].y);
+			for (let i = 1; i < stroke.length; i++) ctx.lineTo(stroke[i].x, stroke[i].y);
+			ctx.stroke();
+			ctx.fillStyle = "#2fb344";
+			ctx.beginPath();
+			ctx.arc(stroke[0].x, stroke[0].y, 4, 0, Math.PI * 2);
+			ctx.fill();
+			ctx.fillStyle = "#e03131";
+			ctx.beginPath();
+			ctx.arc(stroke[stroke.length - 1].x, stroke[stroke.length - 1].y, 4, 0, Math.PI * 2);
+			ctx.fill();
+		}
+
+		function pointFromEvent(e) {
+			const r = canvas.getBoundingClientRect();
+			return {
+				x: (e.clientX - r.left) * canvas.width / r.width,
+				y: (e.clientY - r.top) * canvas.height / r.height,
+				p: e.pressure || 0.5,
+				t: (performance.now() - t0) / 1000
+			};
+		}
+
+		canvas.addEventListener("pointerdown", e => {
+			canvas.setPointerCapture(e.pointerId);
+			t0 = performance.now();
+			current = [pointFromEvent(e)];
+			redraw();
+		});
+		canvas.addEventListener("pointermove", e => {
+			if (!current) return;
+			const p = pointFromEvent(e);
+			const q = current[current.length - 1];
+			if (Math.hypot(p.x - q.x, p.y - q.y) >= 1.2) {
+				current.push(p);
+				redraw();
+			}
+		});
+		function finish(e) {
+			if (!current) return;
+			if (current.length > 1) strokes.push(current);
+			current = null;
+			redraw();
+		}
+		canvas.addEventListener("pointerup", finish);
+		canvas.addEventListener("pointercancel", finish);
+
+		function undoStroke() {
+			strokes.pop();
+			redraw();
+		}
+		function undoEntry() {
+			if (!batch.length) return;
+			const removed = batch.pop();
+			storeBatch();
+			if (removed && Number.isFinite(removed.queue_index)) {
+				queueIndex = Math.max(0, Math.min(removed.queue_index, queue.length - 1));
+				setCurrentFromQueue();
+				return;
+			}
+			redraw();
+		}
+		document.getElementById("undoStroke").onclick = undoStroke;
+		document.getElementById("undoEntry").onclick = undoEntry;
+		document.getElementById("loadQueue").onclick = () => {
+			queue = parseQueue(queueInput.value);
+			queueIndex = 0;
+			setCurrentFromQueue();
+		};
+		document.getElementById("skip").onclick = () => {
+			if (queue.length && queueIndex < queue.length - 1) {
+				queueIndex++;
+				setCurrentFromQueue();
+			}
+		};
+		document.getElementById("clear").onclick = () => {
+			strokes.length = 0;
+			current = null;
+			redraw();
+		};
+		document.getElementById("clearSaved").onclick = () => {
+			if (!confirm("Clear all saved captures in this browser?")) return;
+			batch = [];
+			storeBatch();
+			redraw();
+		};
+		document.getElementById("bgFile").onchange = e => {
+			const file = e.target.files[0];
+			if (!file) return;
+			const img = new Image();
+			img.onload = () => { bg = img; redraw(); };
+			img.src = URL.createObjectURL(file);
+		};
+		function currentPayload() {
+			if (!strokes.length) return;
+			const symbol = symbolInput.value.trim() || "symbol";
+			const queued = queue.length && queueIndex < queue.length ? queue[queueIndex] : null;
+			const capturedStrokes = strokes.map(stroke => stroke.map(point => ({ ...point })));
+			return {
+				symbol: queued ? queued.symbol : symbolKeyFromLabel(symbol),
+				label: queued ? queued.label : symbol,
+				variant: Number(variantInput.value) || 0,
+				queue_index: queueIndex,
+				capture_order: capturedStrokes.map((_, i) => i),
+				canvas: { width: canvas.width, height: canvas.height },
+				strokes: capturedStrokes
+			};
+		}
+		function advanceAfterCommit(payload) {
+			if (queue.length && queueIndex < queue.length - 1) {
+				queueIndex++;
+				setCurrentFromQueue();
+			} else {
+				variantInput.value = 0;
+				strokes.length = 0;
+				current = null;
+				redraw();
+			}
+		}
+		function commitCurrent() {
+			const payload = currentPayload();
+			if (!payload) return;
+			batch.push(payload);
+			storeBatch();
+			advanceAfterCommit(payload);
+		}
+		function downloadBatch() {
+			const payload = {
+				created_at: new Date().toISOString(),
+				count: batch.length,
+				captures: batch
+			};
+			const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+			const a = document.createElement("a");
+			a.href = URL.createObjectURL(blob);
+			a.download = `whiteboard_symbol_batch_${new Date().toISOString().replace(/[:.]/g, "-")}.json`;
+			a.click();
+			URL.revokeObjectURL(a.href);
+		}
+		document.getElementById("save").onclick = downloadBatch;
+		document.getElementById("done").onclick = commitCurrent;
+		window.addEventListener("keydown", e => {
+			if (e.key === " " || e.key === "Enter") {
+				e.preventDefault();
+				if (!e.repeat) commitCurrent();
+			} else if (e.key === "Backspace") {
+				e.preventDefault();
+				undoStroke();
+			}
+		});
+		loadBatch();
+		queueInput.value = defaultQueue;
+		queue = parseQueue(queueInput.value);
+		setCurrentFromQueue();
+		redraw();
+	</script>
+</body>
+</html>

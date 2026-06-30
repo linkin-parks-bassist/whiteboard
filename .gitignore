@@ -1,0 +1,6 @@
+Whiteboard
+obj
+__pycache__
+*.mp4
+symbol_captures
+docs/*.md
