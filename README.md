@@ -2,7 +2,7 @@
 
 This project was created to render it a practical prospect to continue my work at [Boarbarktree](https://www.youtube.com/@boarbarktree).
 
-I pushed three videos, over three months, out of Adobe Animate, by sheer force of will. It damn near killed me. We're talking 18 hours a day for three months straight. Then I moved to Sydney and started a PhD. I tried to keep going, but my brain said no. But I never stopped wanting to. Finally had the bright idea to automate it. Naturally, 3boue1brown's [manim](https://github.com/3b1b/manim) wouldn't suit my stylistic preferences, and I couldn't be bothered to learn it, either. So I started writing my own. In C, of course. Well, I didn't really have enough time/energy for that to get very far, either. Then came the era of agentic coding. I thought, hmm, might as well give it a try. Oh - why don't I task it to my animation software?
+I pushed three videos, over three months, out of Adobe Animate, by sheer force of will. It damn near killed me. We're talking 18 hours a day for three months straight. Then I moved to Sydney and started a PhD. I tried to keep going, but my brain said no. But I never stopped wanting to. Finally had the bright idea to automate it. Naturally, 3blue1brown's [manim](https://github.com/3b1b/manim) wouldn't suit my stylistic preferences, and I couldn't be bothered to learn it, either. So I started writing my own. In C, of course. Well, I didn't really have enough time/energy for that to get very far, either. Then came the era of agentic coding. I thought, hmm, might as well give it a try. Oh - why don't I task it to my animation software?
 
 And thus, this slopject was born.
 
