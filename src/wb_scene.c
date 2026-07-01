@@ -530,6 +530,26 @@ int wb_scene_add_shade_polygon(wb_scene *scene, const wb_vec2 *points, int n_poi
 	return obj->id;
 }
 
+int wb_scene_add_point3d(wb_scene *scene, float x, float y, float z, float radius, uint32_t colour)
+{
+	wb_scene_object *obj = append_object(scene);
+	
+	if (!obj)
+		return 0;
+	
+	memset(obj, 0, sizeof(*obj));
+	obj->id = scene->next_object_id++;
+	obj->type = WB_OBJECT_POINT3D;
+	obj->layer_id = scene->current_layer_id;
+	obj->q0 = vec3(x, y, z);
+	obj->radius = radius;
+	obj->colour = colour;
+	obj->draw_progress = 1.0f;
+	obj->jitter_strength = 1.0f;
+	
+	return obj->id;
+}
+
 int wb_scene_add_line3d(wb_scene *scene, float x0, float y0, float z0, float x1, float y1, float z1, float thickness, uint32_t colour)
 {
 	wb_scene_object *obj = append_object(scene);
@@ -1253,6 +1273,13 @@ static void draw_scene_object(wb_scene_object *obj, wb_scene_layer *layer, int f
 		draw_hand_open_point(buf, obj->x + layer_offset.x, obj->y + layer_offset.y, obj->radius, obj->thickness, obj->colour, jitter_strength, frame + obj->id * 6151, obj->draw_progress);
 	else if (obj->type == WB_OBJECT_ELLIPSE)
 		draw_hand_ellipse(buf, obj->x + layer_offset.x, obj->y + layer_offset.y, obj->p0.x, obj->p0.y, obj->thickness, obj->colour, jitter_strength, frame + obj->id * 6553, obj->draw_progress);
+	else if (obj->type == WB_OBJECT_POINT3D)
+	{
+		wb_vec2 p;
+		
+		if (project_3d_point(obj->q0, layer, &p))
+			draw_disc(buf, p.x + layer_offset.x, p.y + layer_offset.y, obj->radius, obj->colour);
+	}
 	else if (obj->type == WB_OBJECT_LINE3D)
 	{
 		wb_vec2 a;
