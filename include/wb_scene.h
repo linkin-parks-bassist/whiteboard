@@ -75,6 +75,7 @@ typedef struct
 #define WB_OBJECT_CURVE3D 6
 #define WB_OBJECT_CIRCLE 7
 #define WB_OBJECT_DOTTED_LINE 8
+#define WB_OBJECT_ARROW 9
 #define WB_ACTION_MOVE 1
 #define WB_ACTION_DRAW 2
 #define WB_ACTION_LAYER_MOVE 3
@@ -122,6 +123,7 @@ void wb_scene_move_layer(wb_scene *scene, int layer_id, float start_time, float 
 int wb_scene_add_math(wb_scene *scene, const char *src, float x, float y, float size, uint32_t colour);
 int wb_scene_add_line(wb_scene *scene, float x0, float y0, float x1, float y1, float thickness, uint32_t colour);
 int wb_scene_add_dotted_line(wb_scene *scene, float x0, float y0, float x1, float y1, float thickness, float gap, uint32_t colour);
+int wb_scene_add_arrow(wb_scene *scene, float x0, float y0, float x1, float y1, float thickness, float head_size, uint32_t colour);
 int wb_scene_add_line3d(wb_scene *scene, float x0, float y0, float z0, float x1, float y1, float z1, float thickness, uint32_t colour);
 int wb_scene_add_curve3d(wb_scene *scene, float x0, float y0, float z0, float x1, float y1, float z1, float x2, float y2, float z2, float thickness, uint32_t colour);
 int wb_scene_add_point(wb_scene *scene, float x, float y, float radius, uint32_t colour);

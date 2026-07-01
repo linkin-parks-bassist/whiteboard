@@ -10,10 +10,12 @@ scene "smoke" duration 0.25s
     circle loop center (340,500) radius 88 thickness 3 colour green jitter 1.2
     line axis from (220,500) to (420,500) thickness 3 colour blue jitter 1.5
     dotted_line guide from (220,450) to (460,450) thickness 3 gap 22 colour grey jitter 1.2
+    arrow map from (500,500) to (650,450) thickness 3 head 24 colour red jitter 1.3
     open_point q at (460,500) radius 10 thickness 3 colour blue jitter 1.5
     draw loop during 0s..0.20s
     draw axis during 0.05s..0.25s
     draw guide during 0.05s..0.25s
+    draw map during 0.05s..0.25s
   layer model 3d opacity 1 jitter 1.1
     camera distance 5 scale 300 center (960,540)
     line3d edge from (-1,-0.5,0) to (1,0.8,1.5) thickness 3 colour green jitter 1.2

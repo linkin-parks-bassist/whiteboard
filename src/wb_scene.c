@@ -300,6 +300,28 @@ int wb_scene_add_dotted_line(wb_scene *scene, float x0, float y0, float x1, floa
 	return obj->id;
 }
 
+int wb_scene_add_arrow(wb_scene *scene, float x0, float y0, float x1, float y1, float thickness, float head_size, uint32_t colour)
+{
+	wb_scene_object *obj = append_object(scene);
+	
+	if (!obj)
+		return 0;
+	
+	memset(obj, 0, sizeof(*obj));
+	obj->id = scene->next_object_id++;
+	obj->type = WB_OBJECT_ARROW;
+	obj->layer_id = scene->current_layer_id;
+	obj->p0 = vec2(x0, y0);
+	obj->p1 = vec2(x1, y1);
+	obj->thickness = thickness;
+	obj->size = head_size;
+	obj->colour = colour;
+	obj->draw_progress = 1.0f;
+	obj->jitter_strength = 1.0f;
+	
+	return obj->id;
+}
+
 int wb_scene_add_line3d(wb_scene *scene, float x0, float y0, float z0, float x1, float y1, float z1, float thickness, uint32_t colour)
 {
 	wb_scene_object *obj = append_object(scene);
@@ -564,6 +586,7 @@ static void draw_curve_stroke(uint8_t *buf, wb_nurbs_pcurve *curve, float thickn
 }
 
 static void draw_hand_open_point(uint8_t *buf, float x, float y, float radius, float thickness, uint32_t colour, float jitter_strength, int seed, float progress);
+static void draw_hand_line(uint8_t *buf, wb_vec2 a, wb_vec2 b, float thickness, uint32_t colour, float jitter_strength, int seed, float progress);
 
 static void draw_hand_line(uint8_t *buf, wb_vec2 a, wb_vec2 b, float thickness, uint32_t colour, float jitter_strength, int seed, float progress)
 {
@@ -606,6 +629,39 @@ static void draw_hand_dotted_line(uint8_t *buf, wb_vec2 a, wb_vec2 b, float thic
 		
 		c = vec2(a.x + d.x * t, a.y + d.y * t);
 		draw_hand_open_point(buf, c.x, c.y, thickness * 0.9f, thickness, colour, jitter_strength, seed + i * 811, 1.0f);
+	}
+}
+
+static void draw_hand_arrow(uint8_t *buf, wb_vec2 a, wb_vec2 b, float thickness, float head_size, uint32_t colour, float jitter_strength, int seed, float progress)
+{
+	wb_vec2 d = vec2_diff(b, a);
+	float len = vec2_norm(d);
+	wb_vec2 dir;
+	wb_vec2 normal;
+	wb_vec2 left;
+	wb_vec2 right;
+	float shaft_progress;
+	float head_progress;
+	
+	if (!buf || len <= 0.0f || progress <= 0.0f)
+		return;
+	
+	progress = clamp01(progress);
+	if (head_size <= 0.0f)
+		head_size = binary_max(12.0f, thickness * 5.0f);
+	
+	dir = vec2_normalised(d);
+	normal = vec2_perp(dir);
+	left = vec2(b.x - dir.x * head_size + normal.x * head_size * 0.45f, b.y - dir.y * head_size + normal.y * head_size * 0.45f);
+	right = vec2(b.x - dir.x * head_size - normal.x * head_size * 0.45f, b.y - dir.y * head_size - normal.y * head_size * 0.45f);
+	
+	shaft_progress = progress < 0.85f ? progress / 0.85f : 1.0f;
+	head_progress = progress <= 0.85f ? 0.0f : (progress - 0.85f) / 0.15f;
+	draw_hand_line(buf, a, b, thickness, colour, jitter_strength, seed, shaft_progress);
+	if (head_progress > 0.0f)
+	{
+		draw_hand_line(buf, b, left, thickness, colour, jitter_strength, seed + 103, head_progress);
+		draw_hand_line(buf, b, right, thickness, colour, jitter_strength, seed + 211, head_progress);
 	}
 }
 
@@ -691,6 +747,8 @@ static void draw_scene_object(wb_scene_object *obj, wb_scene_layer *layer, int f
 		draw_hand_line(buf, vec2(obj->x + obj->p0.x + layer_offset.x, obj->y + obj->p0.y + layer_offset.y), vec2(obj->x + obj->p1.x + layer_offset.x, obj->y + obj->p1.y + layer_offset.y), obj->thickness, obj->colour, jitter_strength, frame + obj->id * 4099, obj->draw_progress);
 	else if (obj->type == WB_OBJECT_DOTTED_LINE)
 		draw_hand_dotted_line(buf, vec2(obj->x + obj->p0.x + layer_offset.x, obj->y + obj->p0.y + layer_offset.y), vec2(obj->x + obj->p1.x + layer_offset.x, obj->y + obj->p1.y + layer_offset.y), obj->thickness, obj->size, obj->colour, jitter_strength, frame + obj->id * 5003, obj->draw_progress);
+	else if (obj->type == WB_OBJECT_ARROW)
+		draw_hand_arrow(buf, vec2(obj->x + obj->p0.x + layer_offset.x, obj->y + obj->p0.y + layer_offset.y), vec2(obj->x + obj->p1.x + layer_offset.x, obj->y + obj->p1.y + layer_offset.y), obj->thickness, obj->size, obj->colour, jitter_strength, frame + obj->id * 6947, obj->draw_progress);
 	else if (obj->type == WB_OBJECT_POINT)
 		draw_disc(buf, obj->x + layer_offset.x, obj->y + layer_offset.y, obj->radius, obj->colour);
 	else if (obj->type == WB_OBJECT_OPEN_POINT)
