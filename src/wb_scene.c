@@ -510,36 +510,56 @@ static wb_nurbs_pcurve *new_jittered_line_curve(wb_vec2 a, wb_vec2 b, float thic
 	return curve;
 }
 
-static void draw_curve_stroke(uint8_t *buf, wb_nurbs_pcurve *curve, float thickness, uint32_t colour)
+static void draw_curve_stroke_progress(uint8_t *buf, wb_nurbs_pcurve *curve, float thickness, uint32_t colour, float progress)
 {
 	wb_plane_polyline *pl;
+	int visible_points;
 	
 	if (!buf || !curve)
+		return;
+	
+	progress = clamp01(progress);
+	if (progress <= 0.0f)
 		return;
 	
 	pl = nurbs_pcurve_to_ppolyline(curve, N_SAMPLE_POINTS, thickness);
 	if (!pl)
 		return;
 	
+	visible_points = 1 + (int)((pl->n_points - 1) * progress);
+	if (visible_points < 2)
+		visible_points = 2;
+	if (visible_points < pl->n_points)
+		pl->n_points = visible_points;
+	
 	draw_ppolyline_in_colour(buf, pl, colour);
 	free_plane_polyline(pl);
 }
 
-static void draw_hand_line(uint8_t *buf, wb_vec2 a, wb_vec2 b, float thickness, uint32_t colour, float jitter_strength, int seed)
+static void draw_curve_stroke(uint8_t *buf, wb_nurbs_pcurve *curve, float thickness, uint32_t colour)
+{
+	draw_curve_stroke_progress(buf, curve, thickness, colour, 1.0f);
+}
+
+static void draw_hand_line(uint8_t *buf, wb_vec2 a, wb_vec2 b, float thickness, uint32_t colour, float jitter_strength, int seed, float progress)
 {
 	wb_nurbs_pcurve *curve = new_jittered_line_curve(a, b, thickness, jitter_strength, seed);
+	wb_vec2 partial_b;
+	
+	progress = clamp01(progress);
+	partial_b = vec2(a.x + (b.x - a.x) * progress, a.y + (b.y - a.y) * progress);
 	
 	if (!curve)
 	{
-		draw_sausage(buf, a, b, thickness, colour);
+		draw_sausage(buf, a, partial_b, thickness, colour);
 		return;
 	}
 	
-	draw_curve_stroke(buf, curve, thickness, colour);
+	draw_curve_stroke_progress(buf, curve, thickness, colour, progress);
 	free_nurbs_pcurve(curve);
 }
 
-static void draw_hand_open_point(uint8_t *buf, float x, float y, float radius, float thickness, uint32_t colour, float jitter_strength, int seed)
+static void draw_hand_open_point(uint8_t *buf, float x, float y, float radius, float thickness, uint32_t colour, float jitter_strength, int seed, float progress)
 {
 	wb_nurbs_pcurve *curve = circle_nurbs_pcurve(x, y, radius, 9, scene_seeded_unit(seed + 401) * TAU);
 	
@@ -548,7 +568,7 @@ static void draw_hand_open_point(uint8_t *buf, float x, float y, float radius, f
 	
 	if (jitter_strength > 0.0f)
 		jitter_nurbs_pcurve(curve, binary_max(0.6f, thickness * 0.45f) * jitter_strength);
-	draw_curve_stroke(buf, curve, thickness, colour);
+	draw_curve_stroke_progress(buf, curve, thickness, colour, progress);
 	free_nurbs_pcurve(curve);
 }
 
@@ -618,20 +638,20 @@ static void draw_scene_object(wb_scene_object *obj, wb_scene_layer *layer, int f
 		wb_set_math_jitter_strength(1.0f);
 	}
 	else if (obj->type == WB_OBJECT_LINE)
-		draw_hand_line(buf, vec2(obj->x + obj->p0.x + layer_offset.x, obj->y + obj->p0.y + layer_offset.y), vec2(obj->x + obj->p1.x + layer_offset.x, obj->y + obj->p1.y + layer_offset.y), obj->thickness, obj->colour, jitter_strength, frame + obj->id * 4099);
+		draw_hand_line(buf, vec2(obj->x + obj->p0.x + layer_offset.x, obj->y + obj->p0.y + layer_offset.y), vec2(obj->x + obj->p1.x + layer_offset.x, obj->y + obj->p1.y + layer_offset.y), obj->thickness, obj->colour, jitter_strength, frame + obj->id * 4099, obj->draw_progress);
 	else if (obj->type == WB_OBJECT_POINT)
 		draw_disc(buf, obj->x + layer_offset.x, obj->y + layer_offset.y, obj->radius, obj->colour);
 	else if (obj->type == WB_OBJECT_OPEN_POINT)
-		draw_hand_open_point(buf, obj->x + layer_offset.x, obj->y + layer_offset.y, obj->radius, obj->thickness, obj->colour, jitter_strength, frame + obj->id * 6151);
+		draw_hand_open_point(buf, obj->x + layer_offset.x, obj->y + layer_offset.y, obj->radius, obj->thickness, obj->colour, jitter_strength, frame + obj->id * 6151, obj->draw_progress);
 	else if (obj->type == WB_OBJECT_CIRCLE)
-		draw_hand_open_point(buf, obj->x + layer_offset.x, obj->y + layer_offset.y, obj->radius, obj->thickness, obj->colour, jitter_strength, frame + obj->id * 6151);
+		draw_hand_open_point(buf, obj->x + layer_offset.x, obj->y + layer_offset.y, obj->radius, obj->thickness, obj->colour, jitter_strength, frame + obj->id * 6151, obj->draw_progress);
 	else if (obj->type == WB_OBJECT_LINE3D)
 	{
 		wb_vec2 a;
 		wb_vec2 b;
 		
 		if (project_3d_point(obj->q0, layer, &a) && project_3d_point(obj->q1, layer, &b))
-			draw_hand_line(buf, vec2(a.x + layer_offset.x, a.y + layer_offset.y), vec2(b.x + layer_offset.x, b.y + layer_offset.y), obj->thickness, obj->colour, jitter_strength, frame + obj->id * 7901);
+			draw_hand_line(buf, vec2(a.x + layer_offset.x, a.y + layer_offset.y), vec2(b.x + layer_offset.x, b.y + layer_offset.y), obj->thickness, obj->colour, jitter_strength, frame + obj->id * 7901, obj->draw_progress);
 	}
 	else if (obj->type == WB_OBJECT_CURVE3D)
 	{
@@ -643,7 +663,7 @@ static void draw_scene_object(wb_scene_object *obj, wb_scene_layer *layer, int f
 		translate_nurbs_pcurve(curve, layer_offset.x, layer_offset.y);
 		if (jitter_strength > 0.0f)
 			jitter_nurbs_pcurve(curve, binary_max(0.6f, obj->thickness * 0.45f) * jitter_strength);
-		draw_curve_stroke(buf, curve, obj->thickness, obj->colour);
+		draw_curve_stroke_progress(buf, curve, obj->thickness, obj->colour, obj->draw_progress);
 		free_nurbs_pcurve(curve);
 	}
 }

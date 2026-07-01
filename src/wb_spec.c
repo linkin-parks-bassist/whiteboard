@@ -389,6 +389,23 @@ static int parse_move_layer(wb_spec_parser *p, char *line, int line_no)
 	return set_error(p, line_no, "expected move_layer name from (x,y) to (x,y) during Ts..Ts");
 }
 
+static int parse_draw(wb_spec_parser *p, char *line, int line_no)
+{
+	char name[64];
+	float t0 = 0.0f, t1 = 0.0f;
+	
+	if (sscanf(line, "draw %63s during %fs..%fs", name, &t0, &t1) == 3)
+	{
+		int id = find_name(p, name);
+		if (!id)
+			return set_error(p, line_no, "draw references unknown object");
+		wb_scene_draw_in(p->scene, id, t0, t1);
+		return 1;
+	}
+	
+	return set_error(p, line_no, "expected draw name during Ts..Ts");
+}
+
 static int parse_line_object(wb_spec_parser *p, char *line, int line_no)
 {
 	char name[64];
@@ -570,6 +587,8 @@ static int parse_spec_line(wb_spec_parser *p, char *line, int line_no)
 		return parse_move_layer(p, s, line_no);
 	if (starts_with(s, "move "))
 		return parse_move(p, s, line_no);
+	if (starts_with(s, "draw "))
+		return parse_draw(p, s, line_no);
 	
 	return set_error(p, line_no, "unknown Whiteboard spec command");
 }

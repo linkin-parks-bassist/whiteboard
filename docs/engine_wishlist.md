@@ -253,6 +253,7 @@ High urgency:
 16. Done: Add basic per-3D-layer camera controls. The spec supports `camera distance D scale S center (x,y)` on the current layer; orientation, look-at, orbit helpers, orthographic projection, and camera animation remain future work.
 17. Done: Add a stroked 2D circle constructor and demos. The spec supports `circle name center (x,y) radius R thickness T colour C`, rendered as a jitterable NURBS-style stroke; filled disks and open points remain separate constructors.
 18. Done: Honor `video ... output "name.mp4"` when writing renders. Single-scene specs write exactly that path; multi-scene specs suffix the basename as `name_00.mp4`, `name_01.mp4`, etc. Output paths are intentionally restricted to simple shell-safe characters while rendering still uses `ffmpeg` via `popen`.
+19. Done: Expose first draw-on timing in the spec. `draw name during Ts..Ts` now animates line-like strokes, stroked circles/open points, and projected 3D curves by revealing the sampled stroke over time; math and filled points still appear discretely.
 
 ## Open Questions
 
