@@ -7,6 +7,7 @@ scene "smoke" duration 0.25s
   background radial center #ffffff edge #f1f2f4
   layer board 2d opacity 0.95 blur 1 jitter 1.25
     math eq "$\mu+x$" at (220,420) size 70 colour black jitter off
+    circle loop center (340,500) radius 88 thickness 3 colour green jitter 1.2
     line axis from (220,500) to (420,500) thickness 3 colour blue jitter 1.5
     open_point q at (460,500) radius 10 thickness 3 colour blue jitter 1.5
   layer model 3d opacity 1 jitter 1.1

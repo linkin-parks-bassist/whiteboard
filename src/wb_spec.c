@@ -461,6 +461,29 @@ static int parse_point_object(wb_spec_parser *p, char *line, int line_no, int op
 	return 1;
 }
 
+static int parse_circle_object(wb_spec_parser *p, char *line, int line_no)
+{
+	char name[64];
+	char colour_name[64] = "blue";
+	float x = 0.0f, y = 0.0f, radius = 40.0f, thickness = 3.0f;
+	float jitter_strength = 1.0f;
+	int matched = 0;
+	
+	matched = sscanf(line, "circle %63s center (%f,%f) radius %f thickness %f colour %63s", name, &x, &y, &radius, &thickness, colour_name);
+	if (matched < 4)
+		matched = sscanf(line, "circle %63s center (%f, %f) radius %f thickness %f colour %63s", name, &x, &y, &radius, &thickness, colour_name);
+	if (matched < 4)
+		return set_error(p, line_no, "expected circle name center (x,y) radius N thickness N colour name");
+	
+	int id = wb_scene_add_circle(p->scene, x, y, radius, matched >= 5 ? thickness : 3.0f, parse_colour(matched >= 6 ? colour_name : "blue"));
+	if (!id)
+		return set_error(p, line_no, "failed to create circle object");
+	if (parse_jitter_token(line, &jitter_strength))
+		wb_scene_set_object_jitter(p->scene, id, jitter_strength);
+	remember_name(p, name, id);
+	return 1;
+}
+
 static int parse_spec_line(wb_spec_parser *p, char *line, int line_no)
 {
 	char *s = trim_left(line);
@@ -504,6 +527,8 @@ static int parse_spec_line(wb_spec_parser *p, char *line, int line_no)
 		return parse_curve3d_object(p, s, line_no);
 	if (starts_with(s, "line "))
 		return parse_line_object(p, s, line_no);
+	if (starts_with(s, "circle "))
+		return parse_circle_object(p, s, line_no);
 	if (starts_with(s, "point "))
 		return parse_point_object(p, s, line_no, 0);
 	if (starts_with(s, "open_point "))

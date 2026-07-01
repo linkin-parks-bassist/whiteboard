@@ -251,6 +251,7 @@ High urgency:
 14. Done: Add first 3D primitives and camera projection. The spec supports `line3d name from (x,y,z) to (x,y,z) ...`, rendered through a fixed simple perspective camera into the existing hand-drawn 2D stroke path; richer camera controls remain future work.
 15. Done: Add projected 3D curve rendering through the existing planar drawing path. The spec supports `curve3d name through (x,y,z) (x,y,z) (x,y,z) ...`, projected through the fixed camera into a temporary 2D NURBS curve and rendered with the planar stroke renderer.
 16. Done: Add basic per-3D-layer camera controls. The spec supports `camera distance D scale S center (x,y)` on the current layer; orientation, look-at, orbit helpers, orthographic projection, and camera animation remain future work.
+17. Done: Add a stroked 2D circle constructor and demos. The spec supports `circle name center (x,y) radius R thickness T colour C`, rendered as a jitterable NURBS-style stroke; filled disks and open points remain separate constructors.
 
 ## Open Questions
 
