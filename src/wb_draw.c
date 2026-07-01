@@ -258,6 +258,52 @@ void draw_disc(uint8_t *buf, float x, float y, float radius, uint32_t colour)
 	}
 }
 
+void draw_disc_with_alpha(uint8_t *buf, float x, float y, float radius, uint32_t colour, float opacity)
+{
+	if (!buf || !colour || opacity <= 0.0f)
+		return;
+	if (opacity > 1.0f)
+		opacity = 1.0f;
+	
+	float aa_radius = radius + 1.0f;
+	float radius_sq = radius * radius;
+	float aa_radius_sq = aa_radius * aa_radius;
+	int x_min = binary_max(0, floor_to_int(x - aa_radius));
+	int x_max = binary_min(render_width - 1, ceil_to_int(x + aa_radius));
+	int y_min = binary_max(0, floor_to_int(y - aa_radius));
+	int y_max = binary_min(render_height - 1, ceil_to_int(y + aa_radius));
+	
+	for (int py = y_min; py <= y_max; py++)
+	{
+		float dy = py - y;
+		float dy_sq = dy * dy;
+		for (int px = x_min; px <= x_max; px++)
+		{
+			float dx = px - x;
+			float dist_sq = dx * dx + dy_sq;
+			if (dist_sq > aa_radius_sq)
+				continue;
+			
+			float coverage = dist_sq <= radius_sq ? 1.0f : aa_radius - sqrtf(dist_sq);
+			float alpha = coverage * opacity;
+			int ind = (py * render_width + px) * 3;
+			
+			if (draw_alpha_buffer)
+			{
+				int ai = py * render_width + px;
+				int a = (int)(alpha * 255.0f);
+				buf[ind + 0] = COLOUR_B(colour);
+				buf[ind + 1] = COLOUR_G(colour);
+				buf[ind + 2] = COLOUR_R(colour);
+				if (a > draw_alpha_buffer[ai])
+					draw_alpha_buffer[ai] = (uint8_t)a;
+			}
+			else
+				blend_pixel(buf, px, py, colour, alpha);
+		}
+	}
+}
+
 void draw_sausage(uint8_t *buf, wb_vec2 s, wb_vec2 d, float thickness, uint32_t colour)
 {
 	if (!buf)

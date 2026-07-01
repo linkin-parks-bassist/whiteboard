@@ -76,6 +76,7 @@ typedef struct
 #define WB_OBJECT_CIRCLE 7
 #define WB_OBJECT_DOTTED_LINE 8
 #define WB_OBJECT_ARROW 9
+#define WB_OBJECT_SHADE_DISC 10
 #define WB_ACTION_MOVE 1
 #define WB_ACTION_DRAW 2
 #define WB_ACTION_LAYER_MOVE 3
@@ -129,6 +130,7 @@ int wb_scene_add_curve3d(wb_scene *scene, float x0, float y0, float z0, float x1
 int wb_scene_add_point(wb_scene *scene, float x, float y, float radius, uint32_t colour);
 int wb_scene_add_open_point(wb_scene *scene, float x, float y, float radius, float thickness, uint32_t colour);
 int wb_scene_add_circle(wb_scene *scene, float x, float y, float radius, float thickness, uint32_t colour);
+int wb_scene_add_shade_disc(wb_scene *scene, float x, float y, float radius, uint32_t colour, float opacity);
 void wb_scene_move(wb_scene *scene, int object_id, float start_time, float end_time, float x1, float y1, float x2, float y2);
 void wb_scene_draw_in(wb_scene *scene, int object_id, float start_time, float end_time);
 float wb_ease_grassroots(float t);

@@ -7,6 +7,7 @@ scene "quotient circle" duration 0.35s
   background radial center #ffffff edge #eef1f6
   layer board 2d opacity 1 jitter 1.1
     math title "$S^1/\\sim$" at (250,210) size 82 colour black jitter 0.7
+    shade_disc disk center (440,520) radius 138 colour green opacity 0.16
     circle source center (440,520) radius 140 thickness 4 colour blue jitter 1.4
     point p at (580,520) radius 8 colour red jitter 1.0
     open_point q at (300,520) radius 11 thickness 3 colour red jitter 1.3
@@ -14,6 +15,7 @@ scene "quotient circle" duration 0.35s
     dotted_line quotient from (300,520) to (580,520) thickness 3 gap 24 colour red jitter 1.2
     arrow collapse from (660,520) to (820,520) thickness 4 head 30 colour blue jitter 1.2
     draw source during 0s..0.25s
+    draw disk during 0s..0.25s
     draw chord during 0.1s..0.35s
     draw quotient during 0.05s..0.35s
     draw collapse during 0.12s..0.35s

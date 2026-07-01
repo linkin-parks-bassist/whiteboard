@@ -256,6 +256,7 @@ High urgency:
 19. Done: Expose first draw-on timing in the spec. `draw name during Ts..Ts` now animates line-like strokes, stroked circles/open points, and projected 3D curves by revealing the sampled stroke over time; math and filled points still appear discretely.
 20. Done: Add a dotted line constructor for mathematical diagrams. The spec supports `dotted_line name from (x,y) to (x,y) thickness T gap G colour C`, rendered as jitterable drawn dots and compatible with `draw name during Ts..Ts`.
 21. Done: Add a hand-drawn arrow constructor. The spec supports `arrow name from (x,y) to (x,y) thickness T head H colour C`, rendered as a jitterable line shaft plus two drawn head strokes and compatible with draw-on timing.
+22. Done: Add a first shaded planar region primitive. The spec supports `shade_disc name center (x,y) radius R colour C opacity A`, composited through the true layer alpha path so translucent fills sit correctly under linework.
 
 ## Open Questions
 

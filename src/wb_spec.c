@@ -580,6 +580,34 @@ static int parse_circle_object(wb_spec_parser *p, char *line, int line_no)
 	return 1;
 }
 
+static int parse_shade_disc_object(wb_spec_parser *p, char *line, int line_no)
+{
+	char name[64];
+	char colour_name[64] = "blue";
+	float x = 0.0f, y = 0.0f, radius = 40.0f, opacity = 0.25f;
+	float jitter_strength = 1.0f;
+	int matched = 0;
+	
+	matched = sscanf(line, "shade_disc %63s center (%f,%f) radius %f colour %63s opacity %f", name, &x, &y, &radius, colour_name, &opacity);
+	if (matched < 4)
+		matched = sscanf(line, "shade_disc %63s center (%f, %f) radius %f colour %63s opacity %f", name, &x, &y, &radius, colour_name, &opacity);
+	if (matched < 4)
+		return set_error(p, line_no, "expected shade_disc name center (x,y) radius N colour name opacity A");
+	
+	if (opacity < 0.0f)
+		opacity = 0.0f;
+	if (opacity > 1.0f)
+		opacity = 1.0f;
+	
+	int id = wb_scene_add_shade_disc(p->scene, x, y, radius, parse_colour(matched >= 5 ? colour_name : "blue"), matched >= 6 ? opacity : 0.25f);
+	if (!id)
+		return set_error(p, line_no, "failed to create shade_disc object");
+	if (parse_jitter_token(line, &jitter_strength))
+		wb_scene_set_object_jitter(p->scene, id, jitter_strength);
+	remember_name(p, name, id);
+	return 1;
+}
+
 static int parse_spec_line(wb_spec_parser *p, char *line, int line_no)
 {
 	char *s = trim_left(line);
@@ -629,6 +657,8 @@ static int parse_spec_line(wb_spec_parser *p, char *line, int line_no)
 		return parse_line_object(p, s, line_no);
 	if (starts_with(s, "circle "))
 		return parse_circle_object(p, s, line_no);
+	if (starts_with(s, "shade_disc "))
+		return parse_shade_disc_object(p, s, line_no);
 	if (starts_with(s, "point "))
 		return parse_point_object(p, s, line_no, 0);
 	if (starts_with(s, "open_point "))
