@@ -6,6 +6,46 @@
 
 wb_loaded_video loaded_video;
 
+static void scene_output_path(char *dst, size_t dst_size, const char *base_path, int scene, int n_scenes)
+{
+	char stem[256];
+	char ext[64];
+	const char *dot;
+	
+	if (!dst || dst_size == 0)
+		return;
+	
+	if (!base_path || !*base_path)
+	{
+		snprintf(dst, dst_size, "scene_%02d.mp4", scene);
+		return;
+	}
+	
+	if (n_scenes <= 1)
+	{
+		snprintf(dst, dst_size, "%s", base_path);
+		return;
+	}
+	
+	dot = strrchr(base_path, '.');
+	if (dot && dot > base_path)
+	{
+		size_t stem_len = (size_t)(dot - base_path);
+		if (stem_len >= sizeof(stem))
+			stem_len = sizeof(stem) - 1;
+		memcpy(stem, base_path, stem_len);
+		stem[stem_len] = 0;
+		snprintf(ext, sizeof(ext), "%s", dot);
+	}
+	else
+	{
+		snprintf(stem, sizeof(stem), "%s", base_path);
+		snprintf(ext, sizeof(ext), ".mp4");
+	}
+	
+	snprintf(dst, dst_size, "%s_%02d%s", stem, scene, ext);
+}
+
 void render_scene(int scene, int t, uint8_t *buf)
 {
 	float time = (float)t / FPS;
@@ -61,18 +101,20 @@ int main(int argc, char **argv)
     for (int scene = 0; scene < loaded_video.n_scenes; scene++)
     {
 		int n_frames = (int)ceilf(loaded_video.durations[scene] * FPS);
+		char output_path[512];
+		scene_output_path(output_path, sizeof(output_path), loaded_video.output_path, scene, loaded_video.n_scenes);
 		#ifndef DEBUG
-		printf("Rendering scene %d (%d frames)\n", scene, n_frames);
+		printf("Rendering scene %d (%d frames) to %s\n", scene, n_frames, output_path);
 		if (system("command -v ffmpeg >/dev/null 2>&1") != 0)
 		{
-			fprintf(stderr, "ffmpeg not found; cannot write scene_%02d.mp4\n", scene);
+			fprintf(stderr, "ffmpeg not found; cannot write %s\n", output_path);
 			exit(1);
 		}
         char cmd[512];
         snprintf(cmd, sizeof(cmd),
                  "ffmpeg -y -f rawvideo -pix_fmt rgb24 -s %dx%d -r %d -i - "
-                 "-c:v libx264 -preset fast -crf 18 scene_%02d.mp4",
-                 WIDTH, HEIGHT, FPS, scene);
+                 "-c:v libx264 -preset fast -crf 18 %s",
+                 WIDTH, HEIGHT, FPS, output_path);
 
         FILE *pipe = popen(cmd, "w");
         if (!pipe) { perror("popen"); exit(1); }
@@ -89,7 +131,7 @@ int main(int argc, char **argv)
         int status = pclose(pipe);
 		if (status != 0)
 		{
-			fprintf(stderr, "ffmpeg failed while writing scene_%02d.mp4, status=%d\n", scene, status);
+			fprintf(stderr, "ffmpeg failed while writing %s, status=%d\n", output_path, status);
 			exit(1);
 		}
         #endif

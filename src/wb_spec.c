@@ -21,6 +21,7 @@ typedef struct
 	float duration;
 	int in_block;
 	int saw_block;
+	char output_path[256];
 	char error[256];
 } wb_spec_parser;
 
@@ -41,6 +42,23 @@ static void trim_right(char *s)
 static int starts_with(const char *s, const char *prefix)
 {
 	return strncmp(s, prefix, strlen(prefix)) == 0;
+}
+
+static int is_safe_output_path(const char *s)
+{
+	if (!s || !*s)
+		return 0;
+	
+	for (int i = 0; s[i]; i++)
+	{
+		char c = s[i];
+		if ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') ||
+			c == '_' || c == '-' || c == '.' || c == '/')
+			continue;
+		return 0;
+	}
+	
+	return 1;
 }
 
 static int set_error(wb_spec_parser *p, int line_no, const char *msg)
@@ -212,6 +230,21 @@ static int parse_scene(wb_spec_parser *p, char *line, int line_no)
 		return 1;
 	}
 	return set_error(p, line_no, "expected scene \"title\" duration Ns");
+}
+
+static int parse_video(wb_spec_parser *p, char *line, int line_no)
+{
+	char output_path[256];
+	
+	if (sscanf(line, "video%*[^\"]\"%255[^\"]\"", output_path) == 1)
+	{
+		if (!is_safe_output_path(output_path))
+			return set_error(p, line_no, "video output path may only contain letters, digits, '/', '.', '_' and '-'");
+		snprintf(p->output_path, sizeof(p->output_path), "%s", output_path);
+		return 1;
+	}
+	
+	return 1;
 }
 
 static int parse_math(wb_spec_parser *p, char *line, int line_no)
@@ -508,7 +541,7 @@ static int parse_spec_line(wb_spec_parser *p, char *line, int line_no)
 		return 1;
 	
 	if (starts_with(s, "video "))
-		return 1;
+		return parse_video(p, s, line_no);
 	if (starts_with(s, "scene "))
 		return parse_scene(p, s, line_no);
 	if (!p->scene && !start_new_scene(p, (float)FRAMES_PER_SCENE / FPS))
@@ -589,6 +622,7 @@ wb_loaded_video wb_load_video_spec(const char *path)
 	result.scenes = parser.scenes;
 	result.durations = parser.durations;
 	result.n_scenes = parser.n_scenes;
+	snprintf(result.output_path, sizeof(result.output_path), "%s", parser.output_path);
 	for (int i = 0; i < result.n_scenes; i++)
 		result.durations[i] = binary_max(result.durations[i], result.scenes[i]->total_duration);
 	result.duration = result.durations[0];

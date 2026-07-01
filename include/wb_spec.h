@@ -8,6 +8,7 @@ typedef struct
 	float *durations;
 	int n_scenes;
 	float duration;
+	char output_path[256];
 	char error[256];
 } wb_loaded_video;
 
