@@ -413,6 +413,31 @@ static int parse_move_camera(wb_spec_parser *p, char *line, int line_no)
 	return set_error(p, line_no, "expected move_camera layer from distance D scale S center (x,y) to distance D scale S center (x,y) during Ts..Ts");
 }
 
+static int parse_fade_layer(wb_spec_parser *p, char *line, int line_no)
+{
+	char name[64];
+	float a0 = 1.0f, a1 = 1.0f, t0 = 0.0f, t1 = 0.0f;
+	
+	if (sscanf(line, "fade_layer %63s from %f to %f during %fs..%fs", name, &a0, &a1, &t0, &t1) == 5)
+	{
+		int id = find_layer_name(p, name);
+		if (!id)
+			return set_error(p, line_no, "fade_layer references unknown layer");
+		if (a0 < 0.0f)
+			a0 = 0.0f;
+		if (a0 > 1.0f)
+			a0 = 1.0f;
+		if (a1 < 0.0f)
+			a1 = 0.0f;
+		if (a1 > 1.0f)
+			a1 = 1.0f;
+		wb_scene_fade_layer(p->scene, id, t0, t1, a0, a1);
+		return 1;
+	}
+	
+	return set_error(p, line_no, "expected fade_layer layer from A to A during Ts..Ts");
+}
+
 static int parse_draw(wb_spec_parser *p, char *line, int line_no)
 {
 	char name[64];
@@ -1034,6 +1059,8 @@ static int parse_spec_line(wb_spec_parser *p, char *line, int line_no)
 		return parse_move_layer(p, s, line_no);
 	if (starts_with(s, "move_camera "))
 		return parse_move_camera(p, s, line_no);
+	if (starts_with(s, "fade_layer "))
+		return parse_fade_layer(p, s, line_no);
 	if (starts_with(s, "move "))
 		return parse_move(p, s, line_no);
 	if (starts_with(s, "draw "))

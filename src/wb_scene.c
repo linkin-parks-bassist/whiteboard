@@ -80,6 +80,7 @@ int wb_scene_add_layer(wb_scene *scene, const char *name, int type, float opacit
 	snprintf(layer->name, sizeof(layer->name), "%s", (name && *name) ? name : "layer");
 	layer->type = type ? type : WB_LAYER_2D;
 	layer->opacity = opacity;
+	layer->render_opacity = layer->opacity;
 	layer->blur_radius = 0.0f;
 	layer->jitter_strength = 1.0f;
 	layer->camera_distance = 5.0f;
@@ -730,6 +731,23 @@ void wb_scene_move_camera(wb_scene *scene, int layer_id, float start_time, float
 	action->to_z = distance2;
 	action->aux0 = scale1;
 	action->aux1 = scale2;
+	scene->total_duration = binary_max(scene->total_duration, end_time);
+}
+
+void wb_scene_fade_layer(wb_scene *scene, int layer_id, float start_time, float end_time, float opacity1, float opacity2)
+{
+	wb_scene_action *action = append_action(scene);
+	
+	if (!action)
+		return;
+	
+	action->object_id = 0;
+	action->layer_id = layer_id;
+	action->type = WB_ACTION_LAYER_FADE;
+	action->start_time = start_time;
+	action->end_time = end_time;
+	action->from_z = opacity1;
+	action->to_z = opacity2;
 	scene->total_duration = binary_max(scene->total_duration, end_time);
 }
 
@@ -1456,6 +1474,7 @@ void wb_scene_render(wb_scene *scene, float time, int frame, uint8_t *buf)
 		scene->objects[i].draw_progress = 1.0f;
 	for (int i = 0; i < scene->n_layers; i++)
 	{
+		scene->layers[i].render_opacity = scene->layers[i].opacity;
 		scene->layers[i].render_offset = scene->layers[i].offset;
 		scene->layers[i].render_camera_distance = scene->layers[i].camera_distance;
 		scene->layers[i].render_camera_scale = scene->layers[i].camera_scale;
@@ -1508,6 +1527,16 @@ void wb_scene_render(wb_scene *scene, float time, int frame, uint8_t *buf)
 			layer->render_camera_center.x = action->from.x + (action->to.x - action->from.x) * a;
 			layer->render_camera_center.y = action->from.y + (action->to.y - action->from.y) * a;
 		}
+		else if (action->type == WB_ACTION_LAYER_FADE)
+		{
+			wb_scene_layer *layer = find_layer(scene, action->layer_id);
+			
+			if (!layer)
+				continue;
+			
+			float a = action_alpha(action, time);
+			layer->render_opacity = action->from_z + (action->to_z - action->from_z) * a;
+		}
 	}
 	
 	layer_buf = malloc(WIDTH * HEIGHT * 3);
@@ -1554,7 +1583,7 @@ void wb_scene_render(wb_scene *scene, float time, int frame, uint8_t *buf)
 			blur_layer_buffer(layer_buf, scratch_buf, layer->blur_radius);
 			blur_alpha_buffer(layer_alpha, scratch_alpha, layer->blur_radius);
 		}
-		composite_layer_buffer(buf, layer_buf, layer_alpha, layer->opacity);
+		composite_layer_buffer(buf, layer_buf, layer_alpha, layer->render_opacity);
 	}
 	
 	free(scratch_alpha);

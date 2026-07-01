@@ -26,6 +26,7 @@ typedef struct
 	char name[64];
 	int type;
 	float opacity;
+	float render_opacity;
 	float blur_radius;
 	float jitter_strength;
 	float camera_distance;
@@ -96,6 +97,7 @@ typedef struct
 #define WB_ACTION_DRAW 2
 #define WB_ACTION_LAYER_MOVE 3
 #define WB_ACTION_CAMERA_MOVE 4
+#define WB_ACTION_LAYER_FADE 5
 
 typedef struct
 {
@@ -138,6 +140,7 @@ void wb_scene_set_object_jitter(wb_scene *scene, int object_id, float jitter_str
 void wb_scene_set_current_layer(wb_scene *scene, int layer_id);
 void wb_scene_move_layer(wb_scene *scene, int layer_id, float start_time, float end_time, float x1, float y1, float x2, float y2);
 void wb_scene_move_camera(wb_scene *scene, int layer_id, float start_time, float end_time, float distance1, float scale1, float cx1, float cy1, float distance2, float scale2, float cx2, float cy2);
+void wb_scene_fade_layer(wb_scene *scene, int layer_id, float start_time, float end_time, float opacity1, float opacity2);
 int wb_scene_add_math(wb_scene *scene, const char *src, float x, float y, float size, uint32_t colour);
 int wb_scene_add_line(wb_scene *scene, float x0, float y0, float x1, float y1, float thickness, uint32_t colour);
 int wb_scene_add_ray(wb_scene *scene, float x0, float y0, float x1, float y1, float thickness, uint32_t colour);

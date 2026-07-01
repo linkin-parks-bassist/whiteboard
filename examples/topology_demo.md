@@ -46,4 +46,5 @@ scene "projected path" duration 0.35s
     draw arc during 0s..0.35s
   layer labels 2d opacity 1 jitter 0.8
     math label "$\\gamma:[0,1]\\to X$" at (300,230) size 64 colour black jitter 0.8
+  fade_layer labels from 0 to 1 during 0.08s..0.28s
 ```
