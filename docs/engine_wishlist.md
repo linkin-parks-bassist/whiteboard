@@ -265,6 +265,7 @@ High urgency:
 28. Done: Add a first pass of prettier shorthand syntax for common 2D commands. The parser now accepts concise aliases such as `seg`, `pt`, `opt`, `circ`, `ell`, and `tri`; a deeper cleanup toward a genuinely mathematical DSL is still desirable later.
 29. Done: Add a polygon outline constructor. The spec supports `polygon/poly name ...` with 3 to 7 planar vertices, rendered as jitterable hand-drawn edges and compatible with draw-on timing.
 30. Done: Add a shaded polygon region constructor. The spec supports `shade_polygon/shade_poly name ...` with 3 to 7 planar vertices, composited through the true alpha path and compatible with draw-on opacity timing.
+31. Done: Add a dashed line constructor. The spec supports `dashed_line/dash name ...`, rendered as jitterable hand-drawn dash segments and compatible with draw-on timing.
 
 ## Open Questions
 

@@ -15,6 +15,7 @@ scene "minimal parsed scene" duration 4s
     tri tri (760,620) (860,720) (700,740) t 3 c grey
     shade_poly pent_fill (980,600) (1060,560) (1140,620) (1110,710) (1010,720) c green a 0.12
     poly pent (980,600) (1060,560) (1140,620) (1110,710) (1010,720) t 3 c green
+    dash guide (220,740) -> (620,740) t 3 g 18 c grey
     move eq from (220,540) to (420,420) during 1s..3s
     move_layer board from (0,0) to (0,-24) during 2s..4s
 ```

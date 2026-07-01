@@ -75,6 +75,7 @@ typedef struct
 #define WB_OBJECT_CURVE3D 6
 #define WB_OBJECT_CIRCLE 7
 #define WB_OBJECT_DOTTED_LINE 8
+#define WB_OBJECT_DASHED_LINE 18
 #define WB_OBJECT_ARROW 9
 #define WB_OBJECT_SHADE_DISC 10
 #define WB_OBJECT_TRIANGLE 11
@@ -132,6 +133,7 @@ int wb_scene_add_math(wb_scene *scene, const char *src, float x, float y, float 
 int wb_scene_add_line(wb_scene *scene, float x0, float y0, float x1, float y1, float thickness, uint32_t colour);
 int wb_scene_add_ray(wb_scene *scene, float x0, float y0, float x1, float y1, float thickness, uint32_t colour);
 int wb_scene_add_dotted_line(wb_scene *scene, float x0, float y0, float x1, float y1, float thickness, float gap, uint32_t colour);
+int wb_scene_add_dashed_line(wb_scene *scene, float x0, float y0, float x1, float y1, float thickness, float gap, uint32_t colour);
 int wb_scene_add_arrow(wb_scene *scene, float x0, float y0, float x1, float y1, float thickness, float head_size, uint32_t colour);
 int wb_scene_add_triangle(wb_scene *scene, float x0, float y0, float x1, float y1, float x2, float y2, float thickness, uint32_t colour);
 int wb_scene_add_shade_triangle(wb_scene *scene, float x0, float y0, float x1, float y1, float x2, float y2, uint32_t colour, float opacity);

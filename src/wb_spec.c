@@ -483,6 +483,33 @@ static int parse_dotted_line_object(wb_spec_parser *p, char *line, int line_no)
 	return 1;
 }
 
+static int parse_dashed_line_object(wb_spec_parser *p, char *line, int line_no)
+{
+	char name[64];
+	char colour_name[64] = "blue";
+	float x0 = 0.0f, y0 = 0.0f, x1 = 0.0f, y1 = 0.0f, thickness = 3.0f, gap = 18.0f;
+	float jitter_strength = 1.0f;
+	int matched = 0;
+	
+	matched = sscanf(line, "dashed_line %63s from (%f,%f) to (%f,%f) thickness %f gap %f colour %63s", name, &x0, &y0, &x1, &y1, &thickness, &gap, colour_name);
+	if (matched < 5)
+		matched = sscanf(line, "dashed_line %63s from (%f, %f) to (%f, %f) thickness %f gap %f colour %63s", name, &x0, &y0, &x1, &y1, &thickness, &gap, colour_name);
+	if (matched < 5)
+		matched = sscanf(line, "dash %63s (%f,%f) -> (%f,%f) t %f g %f c %63s", name, &x0, &y0, &x1, &y1, &thickness, &gap, colour_name);
+	if (matched < 5)
+		matched = sscanf(line, "dash %63s (%f, %f) -> (%f, %f) t %f g %f c %63s", name, &x0, &y0, &x1, &y1, &thickness, &gap, colour_name);
+	if (matched < 5)
+		return set_error(p, line_no, "expected dashed_line/dash name from (x,y) to (x,y) thickness N gap N colour name");
+	
+	int id = wb_scene_add_dashed_line(p->scene, x0, y0, x1, y1, matched >= 6 ? thickness : 3.0f, matched >= 7 ? gap : 18.0f, parse_colour(matched >= 8 ? colour_name : "blue"));
+	if (!id)
+		return set_error(p, line_no, "failed to create dashed_line object");
+	if (parse_jitter_token(line, &jitter_strength))
+		wb_scene_set_object_jitter(p->scene, id, jitter_strength);
+	remember_name(p, name, id);
+	return 1;
+}
+
 static int parse_arrow_object(wb_spec_parser *p, char *line, int line_no)
 {
 	char name[64];
@@ -951,6 +978,8 @@ static int parse_spec_line(wb_spec_parser *p, char *line, int line_no)
 		return parse_curve3d_object(p, s, line_no);
 	if (starts_with(s, "dotted_line "))
 		return parse_dotted_line_object(p, s, line_no);
+	if (starts_with(s, "dashed_line ") || starts_with(s, "dash "))
+		return parse_dashed_line_object(p, s, line_no);
 	if (starts_with(s, "arrow "))
 		return parse_arrow_object(p, s, line_no);
 	if (starts_with(s, "triangle ") || starts_with(s, "tri "))

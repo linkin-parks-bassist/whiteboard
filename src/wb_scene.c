@@ -321,6 +321,28 @@ int wb_scene_add_dotted_line(wb_scene *scene, float x0, float y0, float x1, floa
 	return obj->id;
 }
 
+int wb_scene_add_dashed_line(wb_scene *scene, float x0, float y0, float x1, float y1, float thickness, float gap, uint32_t colour)
+{
+	wb_scene_object *obj = append_object(scene);
+	
+	if (!obj)
+		return 0;
+	
+	memset(obj, 0, sizeof(*obj));
+	obj->id = scene->next_object_id++;
+	obj->type = WB_OBJECT_DASHED_LINE;
+	obj->layer_id = scene->current_layer_id;
+	obj->p0 = vec2(x0, y0);
+	obj->p1 = vec2(x1, y1);
+	obj->thickness = thickness;
+	obj->size = gap;
+	obj->colour = colour;
+	obj->draw_progress = 1.0f;
+	obj->jitter_strength = 1.0f;
+	
+	return obj->id;
+}
+
 int wb_scene_add_arrow(wb_scene *scene, float x0, float y0, float x1, float y1, float thickness, float head_size, uint32_t colour)
 {
 	wb_scene_object *obj = append_object(scene);
@@ -883,6 +905,48 @@ static void draw_hand_dotted_line(uint8_t *buf, wb_vec2 a, wb_vec2 b, float thic
 	}
 }
 
+static void draw_hand_dashed_line(uint8_t *buf, wb_vec2 a, wb_vec2 b, float thickness, float gap, uint32_t colour, float jitter_strength, int seed, float progress)
+{
+	wb_vec2 d = vec2_diff(b, a);
+	float len = vec2_norm(d);
+	wb_vec2 dir;
+	float dash_len;
+	float cycle;
+	int n_dashes;
+	
+	if (!buf || len <= 0.0f || progress <= 0.0f)
+		return;
+	
+	if (gap < thickness * 2.5f)
+		gap = thickness * 2.5f;
+	dash_len = gap * 1.4f;
+	cycle = dash_len + gap;
+	n_dashes = 1 + (int)(len / cycle);
+	dir = vec2_normalised(d);
+	
+	for (int i = 0; i < n_dashes; i++)
+	{
+		float start_dist = (float)i * cycle;
+		float end_dist = binary_min(len, start_dist + dash_len);
+		float start_t;
+		float end_t;
+		float segment_progress;
+		wb_vec2 s;
+		wb_vec2 e;
+		
+		if (start_dist / len > progress)
+			break;
+		
+		start_t = start_dist / len;
+		end_t = end_dist / len;
+		segment_progress = (progress - start_t) / binary_max(0.0001f, end_t - start_t);
+		segment_progress = clamp01(segment_progress);
+		s = vec2(a.x + dir.x * start_dist, a.y + dir.y * start_dist);
+		e = vec2(a.x + dir.x * end_dist, a.y + dir.y * end_dist);
+		draw_hand_line(buf, s, e, thickness, colour, jitter_strength, seed + i * 149, segment_progress);
+	}
+}
+
 static void draw_hand_arrow(uint8_t *buf, wb_vec2 a, wb_vec2 b, float thickness, float head_size, uint32_t colour, float jitter_strength, int seed, float progress)
 {
 	wb_vec2 d = vec2_diff(b, a);
@@ -1077,6 +1141,8 @@ static void draw_scene_object(wb_scene_object *obj, wb_scene_layer *layer, int f
 	}
 	else if (obj->type == WB_OBJECT_DOTTED_LINE)
 		draw_hand_dotted_line(buf, vec2(obj->x + obj->p0.x + layer_offset.x, obj->y + obj->p0.y + layer_offset.y), vec2(obj->x + obj->p1.x + layer_offset.x, obj->y + obj->p1.y + layer_offset.y), obj->thickness, obj->size, obj->colour, jitter_strength, frame + obj->id * 5003, obj->draw_progress);
+	else if (obj->type == WB_OBJECT_DASHED_LINE)
+		draw_hand_dashed_line(buf, vec2(obj->x + obj->p0.x + layer_offset.x, obj->y + obj->p0.y + layer_offset.y), vec2(obj->x + obj->p1.x + layer_offset.x, obj->y + obj->p1.y + layer_offset.y), obj->thickness, obj->size, obj->colour, jitter_strength, frame + obj->id * 5333, obj->draw_progress);
 	else if (obj->type == WB_OBJECT_ARROW)
 		draw_hand_arrow(buf, vec2(obj->x + obj->p0.x + layer_offset.x, obj->y + obj->p0.y + layer_offset.y), vec2(obj->x + obj->p1.x + layer_offset.x, obj->y + obj->p1.y + layer_offset.y), obj->thickness, obj->size, obj->colour, jitter_strength, frame + obj->id * 6947, obj->draw_progress);
 	else if (obj->type == WB_OBJECT_TRIANGLE)
