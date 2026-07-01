@@ -82,6 +82,9 @@ int wb_scene_add_layer(wb_scene *scene, const char *name, int type, float opacit
 	layer->opacity = opacity;
 	layer->blur_radius = 0.0f;
 	layer->jitter_strength = 1.0f;
+	layer->camera_distance = 5.0f;
+	layer->camera_scale = 260.0f;
+	layer->camera_center = vec2(WIDTH * 0.5f, HEIGHT * 0.5f);
 	layer->offset = vec2(0, 0);
 	layer->render_offset = layer->offset;
 	scene->n_layers++;
@@ -115,6 +118,23 @@ void wb_scene_set_layer_jitter(wb_scene *scene, int layer_id, float jitter_stren
 	if (jitter_strength < 0.0f)
 		jitter_strength = 0.0f;
 	layer->jitter_strength = jitter_strength;
+}
+
+void wb_scene_set_layer_camera(wb_scene *scene, int layer_id, float distance, float scale, float center_x, float center_y)
+{
+	wb_scene_layer *layer = find_layer(scene, layer_id);
+	
+	if (!layer)
+		return;
+	
+	if (distance < 0.1f)
+		distance = 0.1f;
+	if (scale < 1.0f)
+		scale = 1.0f;
+	
+	layer->camera_distance = distance;
+	layer->camera_scale = scale;
+	layer->camera_center = vec2(center_x, center_y);
 }
 
 void wb_scene_set_current_layer(wb_scene *scene, int layer_id)
@@ -510,28 +530,29 @@ static void draw_hand_open_point(uint8_t *buf, float x, float y, float radius, f
 	free_nurbs_pcurve(curve);
 }
 
-static int project_3d_point(wb_vec3 p, wb_vec2 *out)
+static int project_3d_point(wb_vec3 p, wb_scene_layer *layer, wb_vec2 *out)
 {
-	float camera_distance = 5.0f;
-	float scale = 260.0f;
+	float camera_distance = layer ? layer->camera_distance : 5.0f;
+	float scale = layer ? layer->camera_scale : 260.0f;
+	wb_vec2 center = layer ? layer->camera_center : vec2(WIDTH * 0.5f, HEIGHT * 0.5f);
 	float z = p.z + camera_distance;
 	
 	if (!out || z <= 0.1f)
 		return 0;
 	
-	out->x = WIDTH * 0.5f + (p.x / z) * scale;
-	out->y = HEIGHT * 0.5f - (p.y / z) * scale;
+	out->x = center.x + (p.x / z) * scale;
+	out->y = center.y - (p.y / z) * scale;
 	return 1;
 }
 
-static wb_nurbs_pcurve *new_projected_curve3d(wb_vec3 q0, wb_vec3 q1, wb_vec3 q2)
+static wb_nurbs_pcurve *new_projected_curve3d(wb_vec3 q0, wb_vec3 q1, wb_vec3 q2, wb_scene_layer *layer)
 {
 	wb_vec2 p0;
 	wb_vec2 p1;
 	wb_vec2 p2;
 	wb_nurbs_pcurve *curve;
 	
-	if (!project_3d_point(q0, &p0) || !project_3d_point(q1, &p1) || !project_3d_point(q2, &p2))
+	if (!project_3d_point(q0, layer, &p0) || !project_3d_point(q1, layer, &p1) || !project_3d_point(q2, layer, &p2))
 		return NULL;
 	
 	curve = malloc(sizeof(*curve));
@@ -585,12 +606,12 @@ static void draw_scene_object(wb_scene_object *obj, wb_scene_layer *layer, int f
 		wb_vec2 a;
 		wb_vec2 b;
 		
-		if (project_3d_point(obj->q0, &a) && project_3d_point(obj->q1, &b))
+		if (project_3d_point(obj->q0, layer, &a) && project_3d_point(obj->q1, layer, &b))
 			draw_hand_line(buf, vec2(a.x + layer_offset.x, a.y + layer_offset.y), vec2(b.x + layer_offset.x, b.y + layer_offset.y), obj->thickness, obj->colour, jitter_strength, frame + obj->id * 7901);
 	}
 	else if (obj->type == WB_OBJECT_CURVE3D)
 	{
-		wb_nurbs_pcurve *curve = new_projected_curve3d(obj->q0, obj->q1, obj->q2);
+		wb_nurbs_pcurve *curve = new_projected_curve3d(obj->q0, obj->q1, obj->q2, layer);
 		
 		if (!curve)
 			return;

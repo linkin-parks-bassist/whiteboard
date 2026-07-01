@@ -10,6 +10,7 @@ scene "smoke" duration 0.25s
     line axis from (220,500) to (420,500) thickness 3 colour blue jitter 1.5
     open_point q at (460,500) radius 10 thickness 3 colour blue jitter 1.5
   layer model 3d opacity 1 jitter 1.1
+    camera distance 5 scale 300 center (960,540)
     line3d edge from (-1,-0.5,0) to (1,0.8,1.5) thickness 3 colour green jitter 1.2
     curve3d arc through (-1,0.7,0) (0,1.3,1.4) (1,0.4,0.4) thickness 3 colour red jitter 1.1
 

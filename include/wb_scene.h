@@ -28,6 +28,9 @@ typedef struct
 	float opacity;
 	float blur_radius;
 	float jitter_strength;
+	float camera_distance;
+	float camera_scale;
+	wb_vec2 camera_center;
 	wb_vec2 offset;
 	wb_vec2 render_offset;
 } wb_scene_layer;
@@ -110,6 +113,7 @@ void wb_scene_set_radial_background(wb_scene *scene, uint32_t center_colour, uin
 int wb_scene_add_layer(wb_scene *scene, const char *name, int type, float opacity);
 void wb_scene_set_layer_blur(wb_scene *scene, int layer_id, float blur_radius);
 void wb_scene_set_layer_jitter(wb_scene *scene, int layer_id, float jitter_strength);
+void wb_scene_set_layer_camera(wb_scene *scene, int layer_id, float distance, float scale, float center_x, float center_y);
 void wb_scene_set_object_jitter(wb_scene *scene, int object_id, float jitter_strength);
 void wb_scene_set_current_layer(wb_scene *scene, int layer_id);
 void wb_scene_move_layer(wb_scene *scene, int layer_id, float start_time, float end_time, float x1, float y1, float x2, float y2);

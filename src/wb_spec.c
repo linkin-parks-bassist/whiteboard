@@ -300,6 +300,26 @@ static int parse_layer(wb_spec_parser *p, char *line, int line_no)
 	return 1;
 }
 
+static int parse_camera(wb_spec_parser *p, char *line, int line_no)
+{
+	float distance = 5.0f;
+	float scale = 260.0f;
+	float cx = WIDTH * 0.5f;
+	float cy = HEIGHT * 0.5f;
+	int matched = 0;
+	
+	matched = sscanf(line, "camera distance %f scale %f center (%f,%f)", &distance, &scale, &cx, &cy);
+	if (matched < 4)
+		matched = sscanf(line, "camera distance %f scale %f center (%f, %f)", &distance, &scale, &cx, &cy);
+	if (matched == 4)
+	{
+		wb_scene_set_layer_camera(p->scene, p->scene->current_layer_id, distance, scale, cx, cy);
+		return 1;
+	}
+	
+	return set_error(p, line_no, "expected camera distance D scale S center (x,y)");
+}
+
 static int parse_move(wb_spec_parser *p, char *line, int line_no)
 {
 	char name[64];
@@ -472,6 +492,8 @@ static int parse_spec_line(wb_spec_parser *p, char *line, int line_no)
 		return set_error(p, line_no, "failed to create default scene");
 	if (starts_with(s, "layer "))
 		return parse_layer(p, s, line_no);
+	if (starts_with(s, "camera "))
+		return parse_camera(p, s, line_no);
 	if (starts_with(s, "background "))
 		return parse_background(p, s, line_no);
 	if (starts_with(s, "math "))

@@ -132,6 +132,10 @@ Needed:
 - Camera animation.
 - Orbit-style camera helpers.
 
+Implemented first:
+
+- Per-3D-layer perspective distance, projection scale, and screen center.
+
 ## Text And LaTeX
 
 Needed:
@@ -246,6 +250,7 @@ High urgency:
 13. Done: Verify and fix scaling, height, baseline, and placement for awkward captured/math symbols such as `\mu`, descenders, tall operators, and other non-boxy glyphs. Runtime metric adjustments now handle `\mu`, descenders, digits, and tall operators; `wb_debug_print_symbol_metrics` is available for future audits.
 14. Done: Add first 3D primitives and camera projection. The spec supports `line3d name from (x,y,z) to (x,y,z) ...`, rendered through a fixed simple perspective camera into the existing hand-drawn 2D stroke path; richer camera controls remain future work.
 15. Done: Add projected 3D curve rendering through the existing planar drawing path. The spec supports `curve3d name through (x,y,z) (x,y,z) (x,y,z) ...`, projected through the fixed camera into a temporary 2D NURBS curve and rendered with the planar stroke renderer.
+16. Done: Add basic per-3D-layer camera controls. The spec supports `camera distance D scale S center (x,y)` on the current layer; orientation, look-at, orbit helpers, orthographic projection, and camera animation remain future work.
 
 ## Open Questions
 
