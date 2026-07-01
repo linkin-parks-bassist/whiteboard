@@ -262,7 +262,7 @@ High urgency:
 25. Done: Add a quadrilateral outline constructor. The spec supports `quad name points (x,y) (x,y) (x,y) (x,y) thickness T colour C`, rendered as four jitterable hand-drawn edges and compatible with draw-on timing.
 26. Done: Add a ray constructor for mathematical diagrams. The spec supports `ray name from (x,y) through (x,y) thickness T colour C`, rendered through the existing hand-drawn stroke path and compatible with draw-on timing.
 27. Done: Add an ellipse constructor for planar diagrams. The spec supports `ellipse name center (x,y) radii (rx,ry) thickness T colour C`, rendered as a jitterable NURBS-style stroke and compatible with draw-on timing.
-28. Pending: Make the spec syntax prettier. The current command forms are serviceable but clunky; the language should become terser, more mathematical, and less repetitive without losing parseability.
+28. Done: Add a first pass of prettier shorthand syntax for common 2D commands. The parser now accepts concise aliases such as `seg`, `pt`, `opt`, `circ`, `ell`, and `tri`; a deeper cleanup toward a genuinely mathematical DSL is still desirable later.
 
 ## Open Questions
 

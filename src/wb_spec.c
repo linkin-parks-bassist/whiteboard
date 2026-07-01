@@ -418,7 +418,11 @@ static int parse_line_object(wb_spec_parser *p, char *line, int line_no)
 	if (matched < 5)
 		matched = sscanf(line, "line %63s from (%f, %f) to (%f, %f) thickness %f colour %63s", name, &x0, &y0, &x1, &y1, &thickness, colour_name);
 	if (matched < 5)
-		return set_error(p, line_no, "expected line name from (x,y) to (x,y) thickness N colour name");
+		matched = sscanf(line, "seg %63s (%f,%f) -> (%f,%f) t %f c %63s", name, &x0, &y0, &x1, &y1, &thickness, colour_name);
+	if (matched < 5)
+		matched = sscanf(line, "seg %63s (%f, %f) -> (%f, %f) t %f c %63s", name, &x0, &y0, &x1, &y1, &thickness, colour_name);
+	if (matched < 5)
+		return set_error(p, line_no, "expected line/seg name from (x,y) to (x,y) thickness N colour name");
 	
 	int id = wb_scene_add_line(p->scene, x0, y0, x1, y1, thickness, parse_colour(matched >= 7 ? colour_name : "blue"));
 	if (!id)
@@ -440,6 +444,10 @@ static int parse_ray_object(wb_spec_parser *p, char *line, int line_no)
 	matched = sscanf(line, "ray %63s from (%f,%f) through (%f,%f) thickness %f colour %63s", name, &x0, &y0, &x1, &y1, &thickness, colour_name);
 	if (matched < 5)
 		matched = sscanf(line, "ray %63s from (%f, %f) through (%f, %f) thickness %f colour %63s", name, &x0, &y0, &x1, &y1, &thickness, colour_name);
+	if (matched < 5)
+		matched = sscanf(line, "ray %63s (%f,%f) -> (%f,%f) t %f c %63s", name, &x0, &y0, &x1, &y1, &thickness, colour_name);
+	if (matched < 5)
+		matched = sscanf(line, "ray %63s (%f, %f) -> (%f, %f) t %f c %63s", name, &x0, &y0, &x1, &y1, &thickness, colour_name);
 	if (matched < 5)
 		return set_error(p, line_no, "expected ray name from (x,y) through (x,y) thickness N colour name");
 	
@@ -510,7 +518,11 @@ static int parse_triangle_object(wb_spec_parser *p, char *line, int line_no)
 	if (matched < 7)
 		matched = sscanf(line, "triangle %63s points (%f, %f) (%f, %f) (%f, %f) thickness %f colour %63s", name, &x0, &y0, &x1, &y1, &x2, &y2, &thickness, colour_name);
 	if (matched < 7)
-		return set_error(p, line_no, "expected triangle name points (x,y) (x,y) (x,y) thickness N colour name");
+		matched = sscanf(line, "tri %63s (%f,%f) (%f,%f) (%f,%f) t %f c %63s", name, &x0, &y0, &x1, &y1, &x2, &y2, &thickness, colour_name);
+	if (matched < 7)
+		matched = sscanf(line, "tri %63s (%f, %f) (%f, %f) (%f, %f) t %f c %63s", name, &x0, &y0, &x1, &y1, &x2, &y2, &thickness, colour_name);
+	if (matched < 7)
+		return set_error(p, line_no, "expected triangle/tri name points (x,y) (x,y) (x,y) thickness N colour name");
 	
 	int id = wb_scene_add_triangle(p->scene, x0, y0, x1, y1, x2, y2, matched >= 8 ? thickness : 3.0f, parse_colour(matched >= 9 ? colour_name : "blue"));
 	if (!id)
@@ -633,9 +645,13 @@ static int parse_point_object(wb_spec_parser *p, char *line, int line_no, int op
 	{
 		matched = sscanf(line, "open_point %63s at (%f,%f) radius %f thickness %f colour %63s", name, &x, &y, &radius, &thickness, colour_name);
 		if (matched < 3)
-			matched = sscanf(line, "open_point %63s at (%f, %f) radius %f thickness %f colour %63s", name, &x, &y, &radius, &thickness, colour_name);
+		matched = sscanf(line, "open_point %63s at (%f, %f) radius %f thickness %f colour %63s", name, &x, &y, &radius, &thickness, colour_name);
 		if (matched < 3)
-			return set_error(p, line_no, "expected open_point name at (x,y) radius N thickness N colour name");
+			matched = sscanf(line, "opt %63s (%f,%f) r %f t %f c %63s", name, &x, &y, &radius, &thickness, colour_name);
+		if (matched < 3)
+			matched = sscanf(line, "opt %63s (%f, %f) r %f t %f c %63s", name, &x, &y, &radius, &thickness, colour_name);
+		if (matched < 3)
+			return set_error(p, line_no, "expected open_point/opt name at (x,y) radius N thickness N colour name");
 		id = wb_scene_add_open_point(p->scene, x, y, radius, matched >= 5 ? thickness : 2.5f, parse_colour(matched >= 6 ? colour_name : "blue"));
 	}
 	else
@@ -644,7 +660,11 @@ static int parse_point_object(wb_spec_parser *p, char *line, int line_no, int op
 		if (matched < 3)
 			matched = sscanf(line, "point %63s at (%f, %f) radius %f colour %63s", name, &x, &y, &radius, colour_name);
 		if (matched < 3)
-			return set_error(p, line_no, "expected point name at (x,y) radius N colour name");
+			matched = sscanf(line, "pt %63s (%f,%f) r %f c %63s", name, &x, &y, &radius, colour_name);
+		if (matched < 3)
+			matched = sscanf(line, "pt %63s (%f, %f) r %f c %63s", name, &x, &y, &radius, colour_name);
+		if (matched < 3)
+			return set_error(p, line_no, "expected point/pt name at (x,y) radius N colour name");
 		id = wb_scene_add_point(p->scene, x, y, matched >= 4 ? radius : 6.0f, parse_colour(matched >= 5 ? colour_name : "blue"));
 	}
 	
@@ -668,7 +688,11 @@ static int parse_circle_object(wb_spec_parser *p, char *line, int line_no)
 	if (matched < 4)
 		matched = sscanf(line, "circle %63s center (%f, %f) radius %f thickness %f colour %63s", name, &x, &y, &radius, &thickness, colour_name);
 	if (matched < 4)
-		return set_error(p, line_no, "expected circle name center (x,y) radius N thickness N colour name");
+		matched = sscanf(line, "circ %63s (%f,%f) r %f t %f c %63s", name, &x, &y, &radius, &thickness, colour_name);
+	if (matched < 4)
+		matched = sscanf(line, "circ %63s (%f, %f) r %f t %f c %63s", name, &x, &y, &radius, &thickness, colour_name);
+	if (matched < 4)
+		return set_error(p, line_no, "expected circle/circ name center (x,y) radius N thickness N colour name");
 	
 	int id = wb_scene_add_circle(p->scene, x, y, radius, matched >= 5 ? thickness : 3.0f, parse_colour(matched >= 6 ? colour_name : "blue"));
 	if (!id)
@@ -691,7 +715,11 @@ static int parse_ellipse_object(wb_spec_parser *p, char *line, int line_no)
 	if (matched < 5)
 		matched = sscanf(line, "ellipse %63s center (%f, %f) radii (%f, %f) thickness %f colour %63s", name, &x, &y, &radius_x, &radius_y, &thickness, colour_name);
 	if (matched < 5)
-		return set_error(p, line_no, "expected ellipse name center (x,y) radii (rx,ry) thickness N colour name");
+		matched = sscanf(line, "ell %63s (%f,%f) rx %f ry %f t %f c %63s", name, &x, &y, &radius_x, &radius_y, &thickness, colour_name);
+	if (matched < 5)
+		matched = sscanf(line, "ell %63s (%f, %f) rx %f ry %f t %f c %63s", name, &x, &y, &radius_x, &radius_y, &thickness, colour_name);
+	if (matched < 5)
+		return set_error(p, line_no, "expected ellipse/ell name center (x,y) radii (rx,ry) thickness N colour name");
 	
 	int id = wb_scene_add_ellipse(p->scene, x, y, radius_x, radius_y, matched >= 6 ? thickness : 3.0f, parse_colour(matched >= 7 ? colour_name : "blue"));
 	if (!id)
@@ -775,7 +803,7 @@ static int parse_spec_line(wb_spec_parser *p, char *line, int line_no)
 		return parse_dotted_line_object(p, s, line_no);
 	if (starts_with(s, "arrow "))
 		return parse_arrow_object(p, s, line_no);
-	if (starts_with(s, "triangle "))
+	if (starts_with(s, "triangle ") || starts_with(s, "tri "))
 		return parse_triangle_object(p, s, line_no);
 	if (starts_with(s, "shade_triangle "))
 		return parse_shade_triangle_object(p, s, line_no);
@@ -783,17 +811,17 @@ static int parse_spec_line(wb_spec_parser *p, char *line, int line_no)
 		return parse_quad_object(p, s, line_no);
 	if (starts_with(s, "ray "))
 		return parse_ray_object(p, s, line_no);
-	if (starts_with(s, "line "))
+	if (starts_with(s, "line ") || starts_with(s, "seg "))
 		return parse_line_object(p, s, line_no);
-	if (starts_with(s, "circle "))
+	if (starts_with(s, "circle ") || starts_with(s, "circ "))
 		return parse_circle_object(p, s, line_no);
-	if (starts_with(s, "ellipse "))
+	if (starts_with(s, "ellipse ") || starts_with(s, "ell "))
 		return parse_ellipse_object(p, s, line_no);
 	if (starts_with(s, "shade_disc "))
 		return parse_shade_disc_object(p, s, line_no);
-	if (starts_with(s, "point "))
+	if (starts_with(s, "point ") || starts_with(s, "pt "))
 		return parse_point_object(p, s, line_no, 0);
-	if (starts_with(s, "open_point "))
+	if (starts_with(s, "open_point ") || starts_with(s, "opt "))
 		return parse_point_object(p, s, line_no, 1);
 	if (starts_with(s, "move_layer "))
 		return parse_move_layer(p, s, line_no);
