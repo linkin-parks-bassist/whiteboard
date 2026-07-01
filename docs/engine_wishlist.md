@@ -257,6 +257,7 @@ High urgency:
 20. Done: Add a dotted line constructor for mathematical diagrams. The spec supports `dotted_line name from (x,y) to (x,y) thickness T gap G colour C`, rendered as jitterable drawn dots and compatible with `draw name during Ts..Ts`.
 21. Done: Add a hand-drawn arrow constructor. The spec supports `arrow name from (x,y) to (x,y) thickness T head H colour C`, rendered as a jitterable line shaft plus two drawn head strokes and compatible with draw-on timing.
 22. Done: Add a first shaded planar region primitive. The spec supports `shade_disc name center (x,y) radius R colour C opacity A`, composited through the true layer alpha path so translucent fills sit correctly under linework.
+23. Done: Add a triangle outline constructor. The spec supports `triangle name points (x,y) (x,y) (x,y) thickness T colour C`, rendered as three jitterable hand-drawn edges and compatible with draw-on timing.
 
 ## Open Questions
 

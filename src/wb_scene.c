@@ -322,6 +322,29 @@ int wb_scene_add_arrow(wb_scene *scene, float x0, float y0, float x1, float y1, 
 	return obj->id;
 }
 
+int wb_scene_add_triangle(wb_scene *scene, float x0, float y0, float x1, float y1, float x2, float y2, float thickness, uint32_t colour)
+{
+	wb_scene_object *obj = append_object(scene);
+	
+	if (!obj)
+		return 0;
+	
+	memset(obj, 0, sizeof(*obj));
+	obj->id = scene->next_object_id++;
+	obj->type = WB_OBJECT_TRIANGLE;
+	obj->layer_id = scene->current_layer_id;
+	obj->p0 = vec2(x0, y0);
+	obj->p1 = vec2(x1, y1);
+	obj->x = x2;
+	obj->y = y2;
+	obj->thickness = thickness;
+	obj->colour = colour;
+	obj->draw_progress = 1.0f;
+	obj->jitter_strength = 1.0f;
+	
+	return obj->id;
+}
+
 int wb_scene_add_line3d(wb_scene *scene, float x0, float y0, float z0, float x1, float y1, float z1, float thickness, uint32_t colour)
 {
 	wb_scene_object *obj = append_object(scene);
@@ -687,6 +710,23 @@ static void draw_hand_arrow(uint8_t *buf, wb_vec2 a, wb_vec2 b, float thickness,
 	}
 }
 
+static void draw_hand_triangle(uint8_t *buf, wb_vec2 a, wb_vec2 b, wb_vec2 c, float thickness, uint32_t colour, float jitter_strength, int seed, float progress)
+{
+	float p;
+	
+	if (!buf || progress <= 0.0f)
+		return;
+	
+	progress = clamp01(progress);
+	p = progress * 3.0f;
+	if (p > 0.0f)
+		draw_hand_line(buf, a, b, thickness, colour, jitter_strength, seed + 101, p < 1.0f ? p : 1.0f);
+	if (p > 1.0f)
+		draw_hand_line(buf, b, c, thickness, colour, jitter_strength, seed + 211, p < 2.0f ? p - 1.0f : 1.0f);
+	if (p > 2.0f)
+		draw_hand_line(buf, c, a, thickness, colour, jitter_strength, seed + 307, p - 2.0f);
+}
+
 static void draw_hand_open_point(uint8_t *buf, float x, float y, float radius, float thickness, uint32_t colour, float jitter_strength, int seed, float progress)
 {
 	wb_nurbs_pcurve *curve = circle_nurbs_pcurve(x, y, radius, 9, scene_seeded_unit(seed + 401) * TAU);
@@ -771,6 +811,8 @@ static void draw_scene_object(wb_scene_object *obj, wb_scene_layer *layer, int f
 		draw_hand_dotted_line(buf, vec2(obj->x + obj->p0.x + layer_offset.x, obj->y + obj->p0.y + layer_offset.y), vec2(obj->x + obj->p1.x + layer_offset.x, obj->y + obj->p1.y + layer_offset.y), obj->thickness, obj->size, obj->colour, jitter_strength, frame + obj->id * 5003, obj->draw_progress);
 	else if (obj->type == WB_OBJECT_ARROW)
 		draw_hand_arrow(buf, vec2(obj->x + obj->p0.x + layer_offset.x, obj->y + obj->p0.y + layer_offset.y), vec2(obj->x + obj->p1.x + layer_offset.x, obj->y + obj->p1.y + layer_offset.y), obj->thickness, obj->size, obj->colour, jitter_strength, frame + obj->id * 6947, obj->draw_progress);
+	else if (obj->type == WB_OBJECT_TRIANGLE)
+		draw_hand_triangle(buf, vec2(obj->p0.x + layer_offset.x, obj->p0.y + layer_offset.y), vec2(obj->p1.x + layer_offset.x, obj->p1.y + layer_offset.y), vec2(obj->x + layer_offset.x, obj->y + layer_offset.y), obj->thickness, obj->colour, jitter_strength, frame + obj->id * 7103, obj->draw_progress);
 	else if (obj->type == WB_OBJECT_SHADE_DISC)
 		draw_disc_with_alpha(buf, obj->x + layer_offset.x, obj->y + layer_offset.y, obj->radius, obj->colour, obj->size * obj->draw_progress);
 	else if (obj->type == WB_OBJECT_POINT)

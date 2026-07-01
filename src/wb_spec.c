@@ -475,6 +475,29 @@ static int parse_arrow_object(wb_spec_parser *p, char *line, int line_no)
 	return 1;
 }
 
+static int parse_triangle_object(wb_spec_parser *p, char *line, int line_no)
+{
+	char name[64];
+	char colour_name[64] = "blue";
+	float x0 = 0.0f, y0 = 0.0f, x1 = 0.0f, y1 = 0.0f, x2 = 0.0f, y2 = 0.0f, thickness = 3.0f;
+	float jitter_strength = 1.0f;
+	int matched = 0;
+	
+	matched = sscanf(line, "triangle %63s points (%f,%f) (%f,%f) (%f,%f) thickness %f colour %63s", name, &x0, &y0, &x1, &y1, &x2, &y2, &thickness, colour_name);
+	if (matched < 7)
+		matched = sscanf(line, "triangle %63s points (%f, %f) (%f, %f) (%f, %f) thickness %f colour %63s", name, &x0, &y0, &x1, &y1, &x2, &y2, &thickness, colour_name);
+	if (matched < 7)
+		return set_error(p, line_no, "expected triangle name points (x,y) (x,y) (x,y) thickness N colour name");
+	
+	int id = wb_scene_add_triangle(p->scene, x0, y0, x1, y1, x2, y2, matched >= 8 ? thickness : 3.0f, parse_colour(matched >= 9 ? colour_name : "blue"));
+	if (!id)
+		return set_error(p, line_no, "failed to create triangle object");
+	if (parse_jitter_token(line, &jitter_strength))
+		wb_scene_set_object_jitter(p->scene, id, jitter_strength);
+	remember_name(p, name, id);
+	return 1;
+}
+
 static int parse_line3d_object(wb_spec_parser *p, char *line, int line_no)
 {
 	char name[64];
@@ -653,6 +676,8 @@ static int parse_spec_line(wb_spec_parser *p, char *line, int line_no)
 		return parse_dotted_line_object(p, s, line_no);
 	if (starts_with(s, "arrow "))
 		return parse_arrow_object(p, s, line_no);
+	if (starts_with(s, "triangle "))
+		return parse_triangle_object(p, s, line_no);
 	if (starts_with(s, "line "))
 		return parse_line_object(p, s, line_no);
 	if (starts_with(s, "circle "))
