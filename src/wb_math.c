@@ -9,6 +9,8 @@
 #define WB_MATH_SCRIPT_SCALE 0.65f
 #define WB_MATH_FRAC_SCALE 0.78f
 
+static float wb_math_jitter_strength = 1.0f;
+
 typedef struct wb_math_node
 {
 	int type;
@@ -536,10 +538,10 @@ static void draw_frac(uint8_t *buf, wb_math_node *n, float x, float baseline_y, 
 	float top_x = x + (b.w - top.w) * 0.5f;
 	float bot_x = x + (b.w - bot.w) * 0.5f;
 	float line_y = baseline_y - size * 0.22f;
-	float j0 = ((float)((seed * 1103515245U + 12345U) & 0xff) / 255.0f - 0.5f) * wb_marker_thickness() * 0.80f;
-	float j1 = ((float)(((seed + 31) * 1103515245U + 12345U) & 0xff) / 255.0f - 0.5f) * wb_marker_thickness() * 0.80f;
-	float jt_x = ((float)(((seed + 97) * 1103515245U + 12345U) & 0xff) / 255.0f - 0.5f) * size * 0.012f;
-	float jt_y = ((float)(((seed + 193) * 1103515245U + 12345U) & 0xff) / 255.0f - 0.5f) * size * 0.012f;
+	float j0 = ((float)((seed * 1103515245U + 12345U) & 0xff) / 255.0f - 0.5f) * wb_marker_thickness() * 0.80f * wb_math_jitter_strength;
+	float j1 = ((float)(((seed + 31) * 1103515245U + 12345U) & 0xff) / 255.0f - 0.5f) * wb_marker_thickness() * 0.80f * wb_math_jitter_strength;
+	float jt_x = ((float)(((seed + 97) * 1103515245U + 12345U) & 0xff) / 255.0f - 0.5f) * size * 0.012f * wb_math_jitter_strength;
+	float jt_y = ((float)(((seed + 193) * 1103515245U + 12345U) & 0xff) / 255.0f - 0.5f) * size * 0.012f * wb_math_jitter_strength;
 	float hook = wb_marker_thickness() * 1.3f;
 	
 	draw_node(buf, n->a, top_x, line_y - top.descent - size * 0.18f, size * WB_MATH_FRAC_SCALE, colour, seed + 11);
@@ -661,6 +663,14 @@ void wb_math_measure(wb_math_formula *formula, float size, float *w, float *h, f
 void wb_math_draw(uint8_t *buf, wb_math_formula *formula, float x, float baseline_y, float size, uint32_t colour)
 {
 	wb_math_draw_seeded(buf, formula, x, baseline_y, size, colour, 0x4d80e4);
+}
+
+void wb_set_math_jitter_strength(float strength)
+{
+	if (strength < 0.0f)
+		strength = 0.0f;
+	wb_math_jitter_strength = strength;
+	wb_set_symbol_jitter_strength(strength);
 }
 
 void wb_math_draw_seeded(uint8_t *buf, wb_math_formula *formula, float x, float baseline_y, float size, uint32_t colour, int seed)

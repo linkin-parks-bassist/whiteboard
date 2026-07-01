@@ -2,6 +2,7 @@
 
 static int render_width;
 static int render_height;
+static uint8_t *draw_alpha_buffer;
 
 static inline double sqrf(double x) { return x * x; }
 static inline int floor_to_int(float x) { return (int)floorf(x); }
@@ -11,6 +12,11 @@ void set_render_dimensions(int width, int height)
 {
 	render_width  = width;
 	render_height = height;
+}
+
+void set_draw_alpha_buffer(uint8_t *alpha)
+{
+	draw_alpha_buffer = alpha;
 }
 
 wb_plane_polyline *new_plane_polyline(int n_points, float thickness)
@@ -135,6 +141,8 @@ void draw_pixel(uint8_t *buf, int x, int y, uint32_t colour)
 	buf[ind++] = COLOUR_B(colour);
 	buf[ind++] = COLOUR_G(colour);
 	buf[ind++] = COLOUR_R(colour);
+	if (draw_alpha_buffer)
+		draw_alpha_buffer[y * render_width + x] = 255;
 }
 
 uint32_t read_pixel(uint8_t *buf, int x, int y)
@@ -166,6 +174,13 @@ static inline void blend_pixel(uint8_t *buf, int x, int y, uint32_t colour, floa
 	buf[ind + 0] = (uint8_t)(buf[ind + 0] * inv + COLOUR_B(colour) * alpha);
 	buf[ind + 1] = (uint8_t)(buf[ind + 1] * inv + COLOUR_G(colour) * alpha);
 	buf[ind + 2] = (uint8_t)(buf[ind + 2] * inv + COLOUR_R(colour) * alpha);
+	if (draw_alpha_buffer)
+	{
+		int a = (int)(alpha * 255.0f);
+		int ai = y * render_width + x;
+		if (a > draw_alpha_buffer[ai])
+			draw_alpha_buffer[ai] = (uint8_t)a;
+	}
 }
 
 void fill_with_colour(uint8_t *buf, uint32_t colour)

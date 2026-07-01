@@ -22,6 +22,7 @@ typedef struct
 } wb_plane_polyline;
 
 void set_render_dimensions(int width, int height);
+void set_draw_alpha_buffer(uint8_t *alpha);
 
 wb_plane_polyline *new_plane_polyline(int n_points, float thickness);
 void free_plane_polyline(wb_plane_polyline *pl);

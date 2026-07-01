@@ -4,8 +4,7 @@
 #include <time.h>
 #include "whiteboard.h"
 
-wb_scene *demo_scene;
-float video_duration = (float)FRAMES_PER_SCENE / FPS;
+wb_loaded_video loaded_video;
 
 void render_scene(int scene, int t, uint8_t *buf)
 {
@@ -14,7 +13,7 @@ void render_scene(int scene, int t, uint8_t *buf)
 	
 	fill_with_colour(buf, 0xFFFFFF);
 	
-	wb_scene_render(demo_scene, time, scene * 100000 + jitter_frame, buf);
+	wb_scene_render(loaded_video.scenes[scene], time, scene * 100000 + jitter_frame, buf);
 }
 
 int main(int argc, char **argv)
@@ -26,27 +25,42 @@ int main(int argc, char **argv)
 	
 	if (argc > 1)
 	{
-		wb_loaded_video loaded = wb_load_video_spec(argv[1]);
-		if (!loaded.scene)
+		loaded_video = wb_load_video_spec(argv[1]);
+		if (!loaded_video.scene)
 		{
-			fprintf(stderr, "Whiteboard spec error: %s\n", loaded.error);
+			fprintf(stderr, "Whiteboard spec error: %s\n", loaded_video.error);
 			free(frame);
 			return 1;
 		}
-		demo_scene = loaded.scene;
-		video_duration = loaded.duration;
 	}
 	else
 	{
-		demo_scene = new_scene();
-		int eq = wb_scene_add_math(demo_scene, "$\\frac{1}{2}\\int \\mu(A)^{-1}\\chi_A+\\mu(B)^{-1}\\chi_B d\\mu$", 220, 540, 70, NICE_BLUE);
-		wb_scene_move(demo_scene, eq, 1.0f, 3.0f, 220, 540, 420, 420);
+		loaded_video.scene = new_scene();
+		loaded_video.scenes = malloc(sizeof(wb_scene*));
+		loaded_video.durations = malloc(sizeof(float));
+		if (!loaded_video.scene || !loaded_video.scenes || !loaded_video.durations)
+		{
+			fprintf(stderr, "could not allocate demo scene\n");
+			if (loaded_video.scene)
+				free_scene(loaded_video.scene);
+			free(loaded_video.scenes);
+			free(loaded_video.durations);
+			memset(&loaded_video, 0, sizeof(loaded_video));
+			free(frame);
+			return 1;
+		}
+		loaded_video.scenes[0] = loaded_video.scene;
+		loaded_video.durations[0] = (float)FRAMES_PER_SCENE / FPS;
+		loaded_video.n_scenes = 1;
+		loaded_video.duration = loaded_video.durations[0];
+		int eq = wb_scene_add_math(loaded_video.scene, "$\\frac{1}{2}\\int \\mu(A)^{-1}\\chi_A+\\mu(B)^{-1}\\chi_B d\\mu$", 220, 540, 70, NICE_BLUE);
+		wb_scene_move(loaded_video.scene, eq, 1.0f, 3.0f, 220, 540, 420, 420);
 	}
 
 
-    for (int scene = 0; scene < N_SCENES; scene++)
+    for (int scene = 0; scene < loaded_video.n_scenes; scene++)
     {
-		int n_frames = (int)ceilf(video_duration * FPS);
+		int n_frames = (int)ceilf(loaded_video.durations[scene] * FPS);
 		#ifndef DEBUG
 		printf("Rendering scene %d (%d frames)\n", scene, n_frames);
 		if (system("command -v ffmpeg >/dev/null 2>&1") != 0)
@@ -82,6 +96,6 @@ int main(int argc, char **argv)
     }
 
     free(frame);
-	free_scene(demo_scene);
+	wb_free_loaded_video(&loaded_video);
     return 0;
 }

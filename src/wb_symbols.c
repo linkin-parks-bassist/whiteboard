@@ -3,6 +3,7 @@
 
 static wb_symbol_variant scratch_variant;
 static wb_symbol scratch_symbol;
+static float wb_symbol_jitter_strength = 1.0f;
 
 #define WB_MARKER_THICKNESS 2.0f
 
@@ -30,6 +31,73 @@ static float wb_smoothstep(float t)
 static float wb_lerp(float a, float b, float t)
 {
 	return a + (b - a) * t;
+}
+
+static int wb_symbol_is_descender(int symbol_id)
+{
+	if (symbol_id >= WB_SYMBOL_ROMAN_BASE)
+		symbol_id -= WB_SYMBOL_ROMAN_BASE;
+	return symbol_id == 'g' || symbol_id == 'j' || symbol_id == 'p' || symbol_id == 'q' || symbol_id == 'y';
+}
+
+static int wb_symbol_is_tall_operator(int symbol_id)
+{
+	return symbol_id == WB_SYMBOL_SUM || symbol_id == WB_SYMBOL_PROD ||
+		symbol_id == WB_SYMBOL_BIG_SUM || symbol_id == WB_SYMBOL_BIG_PROD ||
+		symbol_id == WB_SYMBOL_INT || symbol_id == WB_SYMBOL_BIG_INT;
+}
+
+static float wb_symbol_baseline_offset(int symbol_id)
+{
+	if (symbol_id == WB_SYMBOL_MU)
+		return 0.28f;
+	return 0.0f;
+}
+
+static void wb_apply_symbol_metric_adjustments(wb_symbol_variant *v)
+{
+	float dy;
+	
+	if (!v)
+		return;
+	
+	dy = wb_symbol_baseline_offset(v->symbol_id);
+	if (dy != 0.0f)
+	{
+		v->bounds_min_y += dy;
+		v->bounds_max_y += dy;
+	}
+	
+	if (wb_symbol_is_tall_operator(v->symbol_id))
+	{
+		v->ascent = binary_max(v->ascent, 1.05f);
+		v->descent = binary_max(v->descent, 0.25f);
+		return;
+	}
+	
+	if (wb_symbol_is_descender(v->symbol_id))
+	{
+		v->ascent = 0.72f;
+		v->descent = 0.34f;
+		return;
+	}
+	
+	if (v->symbol_id == WB_SYMBOL_MU)
+	{
+		v->ascent = 0.62f;
+		v->descent = 0.18f;
+		return;
+	}
+	
+	if ('0' <= v->symbol_id && v->symbol_id <= '9')
+	{
+		v->ascent = 0.86f;
+		v->descent = 0.08f;
+		return;
+	}
+	
+	if (v->descent > 0.45f && v->ascent < 0.75f)
+		v->descent = 0.34f;
 }
 
 static float wb_noise_lattice(int ix, int iy, int seed)
@@ -145,6 +213,7 @@ const wb_symbol_variant *wb_get_symbol_variant(int symbol_id, int variant_seed)
 		scratch_variant.bounds_max_y = captured->max_y;
 		scratch_variant.ascent = binary_max(0.0f, -captured->min_y);
 		scratch_variant.descent = binary_max(0.0f, captured->max_y);
+		wb_apply_symbol_metric_adjustments(&scratch_variant);
 		return &scratch_variant;
 	}
 	
@@ -164,6 +233,7 @@ const wb_symbol_variant *wb_get_symbol_variant(int symbol_id, int variant_seed)
 		scratch_variant.advance = 0.7f;
 	
 	scratch_variant.bounds_max_x = scratch_variant.advance;
+	wb_apply_symbol_metric_adjustments(&scratch_variant);
 	return &scratch_variant;
 }
 
@@ -265,6 +335,28 @@ float wb_marker_thickness(void)
 	return WB_MARKER_THICKNESS;
 }
 
+void wb_set_symbol_jitter_strength(float strength)
+{
+	if (strength < 0.0f)
+		strength = 0.0f;
+	wb_symbol_jitter_strength = strength;
+}
+
+void wb_debug_print_symbol_metrics(int symbol_id)
+{
+	const wb_symbol_variant *v = wb_get_symbol_variant(symbol_id, 0);
+	
+	if (!v)
+	{
+		printf("symbol %d: missing\n", symbol_id);
+		return;
+	}
+	
+	printf("symbol %d: advance=%.3f ascent=%.3f descent=%.3f bounds=(%.3f, %.3f)..(%.3f, %.3f)\n",
+		symbol_id, v->advance, v->ascent, v->descent,
+		v->bounds_min_x, v->bounds_min_y, v->bounds_max_x, v->bounds_max_y);
+}
+
 void wb_draw_symbol(uint8_t *buf, int symbol_id, float x, float baseline_y, float size, uint32_t colour, int seed)
 {
 	const wb_captured_symbol_variant *captured = wb_get_captured_symbol_variant(symbol_id, seed);
@@ -280,10 +372,14 @@ void wb_draw_symbol(uint8_t *buf, int symbol_id, float x, float baseline_y, floa
 		
 		scale_plane_figure(fig, size);
 		translate_plane_figure(fig, x, baseline_y);
-		jitter_figure_seeded(fig, size * 0.024f, seed);
-		translate_plane_figure(fig,
-			(wb_seeded_unit(seed + 7001) * 2.0f - 1.0f) * size * 0.006f,
-			(wb_seeded_unit(seed + 7009) * 2.0f - 1.0f) * size * 0.006f);
+		translate_plane_figure(fig, 0.0f, wb_symbol_baseline_offset(symbol_id) * size);
+		if (wb_symbol_jitter_strength > 0.0f)
+		{
+			jitter_figure_seeded(fig, size * 0.024f * wb_symbol_jitter_strength, seed);
+			translate_plane_figure(fig,
+				(wb_seeded_unit(seed + 7001) * 2.0f - 1.0f) * size * 0.006f * wb_symbol_jitter_strength,
+				(wb_seeded_unit(seed + 7009) * 2.0f - 1.0f) * size * 0.006f * wb_symbol_jitter_strength);
+		}
 		draw_plane_figure_in_colour(buf, fig, colour);
 		free_plane_figure(fig);
 		return;

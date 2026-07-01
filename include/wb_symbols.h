@@ -87,6 +87,8 @@ int wb_symbol_id_from_command(const char *cmd);
 int wb_symbol_id_from_custom_name(const char *name);
 float wb_symbol_spacing(int left_symbol_id, int right_symbol_id, float size);
 float wb_marker_thickness(void);
+void wb_set_symbol_jitter_strength(float strength);
+void wb_debug_print_symbol_metrics(int symbol_id);
 void wb_draw_symbol(uint8_t *buf, int symbol_id, float x, float baseline_y, float size, uint32_t colour, int seed);
 
 #endif

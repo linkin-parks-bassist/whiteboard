@@ -27,6 +27,7 @@ typedef struct
 	int type;
 	float opacity;
 	float blur_radius;
+	float jitter_strength;
 	wb_vec2 offset;
 	wb_vec2 render_offset;
 } wb_scene_layer;
@@ -41,11 +42,15 @@ typedef struct
 	float y;
 	wb_vec2 p0;
 	wb_vec2 p1;
+	wb_vec3 q0;
+	wb_vec3 q1;
+	wb_vec3 q2;
 	float radius;
 	float thickness;
 	float size;
 	uint32_t colour;
 	float draw_progress;
+	float jitter_strength;
 } wb_scene_object;
 
 typedef struct
@@ -63,6 +68,8 @@ typedef struct
 #define WB_OBJECT_LINE 2
 #define WB_OBJECT_POINT 3
 #define WB_OBJECT_OPEN_POINT 4
+#define WB_OBJECT_LINE3D 5
+#define WB_OBJECT_CURVE3D 6
 #define WB_ACTION_MOVE 1
 #define WB_ACTION_DRAW 2
 #define WB_ACTION_LAYER_MOVE 3
@@ -102,10 +109,14 @@ void free_scene(wb_scene *scene);
 void wb_scene_set_radial_background(wb_scene *scene, uint32_t center_colour, uint32_t edge_colour);
 int wb_scene_add_layer(wb_scene *scene, const char *name, int type, float opacity);
 void wb_scene_set_layer_blur(wb_scene *scene, int layer_id, float blur_radius);
+void wb_scene_set_layer_jitter(wb_scene *scene, int layer_id, float jitter_strength);
+void wb_scene_set_object_jitter(wb_scene *scene, int object_id, float jitter_strength);
 void wb_scene_set_current_layer(wb_scene *scene, int layer_id);
 void wb_scene_move_layer(wb_scene *scene, int layer_id, float start_time, float end_time, float x1, float y1, float x2, float y2);
 int wb_scene_add_math(wb_scene *scene, const char *src, float x, float y, float size, uint32_t colour);
 int wb_scene_add_line(wb_scene *scene, float x0, float y0, float x1, float y1, float thickness, uint32_t colour);
+int wb_scene_add_line3d(wb_scene *scene, float x0, float y0, float z0, float x1, float y1, float z1, float thickness, uint32_t colour);
+int wb_scene_add_curve3d(wb_scene *scene, float x0, float y0, float z0, float x1, float y1, float z1, float x2, float y2, float z2, float thickness, uint32_t colour);
 int wb_scene_add_point(wb_scene *scene, float x, float y, float radius, uint32_t colour);
 int wb_scene_add_open_point(wb_scene *scene, float x, float y, float radius, float thickness, uint32_t colour);
 void wb_scene_move(wb_scene *scene, int object_id, float start_time, float end_time, float x1, float y1, float x2, float y2);

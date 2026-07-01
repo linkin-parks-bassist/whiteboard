@@ -81,6 +81,7 @@ int wb_scene_add_layer(wb_scene *scene, const char *name, int type, float opacit
 	layer->type = type ? type : WB_LAYER_2D;
 	layer->opacity = opacity;
 	layer->blur_radius = 0.0f;
+	layer->jitter_strength = 1.0f;
 	layer->offset = vec2(0, 0);
 	layer->render_offset = layer->offset;
 	scene->n_layers++;
@@ -102,6 +103,18 @@ void wb_scene_set_layer_blur(wb_scene *scene, int layer_id, float blur_radius)
 		blur_radius = 32.0f;
 	
 	layer->blur_radius = blur_radius;
+}
+
+void wb_scene_set_layer_jitter(wb_scene *scene, int layer_id, float jitter_strength)
+{
+	wb_scene_layer *layer = find_layer(scene, layer_id);
+	
+	if (!layer)
+		return;
+	
+	if (jitter_strength < 0.0f)
+		jitter_strength = 0.0f;
+	layer->jitter_strength = jitter_strength;
 }
 
 void wb_scene_set_current_layer(wb_scene *scene, int layer_id)
@@ -145,6 +158,18 @@ static wb_scene_layer *find_layer(wb_scene *scene, int layer_id)
 	}
 	
 	return NULL;
+}
+
+void wb_scene_set_object_jitter(wb_scene *scene, int object_id, float jitter_strength)
+{
+	wb_scene_object *obj = find_object(scene, object_id);
+	
+	if (!obj)
+		return;
+	
+	if (jitter_strength < 0.0f)
+		jitter_strength = 0.0f;
+	obj->jitter_strength = jitter_strength;
 }
 
 static wb_scene_object *append_object(wb_scene *scene)
@@ -204,6 +229,7 @@ int wb_scene_add_math(wb_scene *scene, const char *src, float x, float y, float 
 	obj->size = size;
 	obj->colour = colour;
 	obj->draw_progress = 1.0f;
+	obj->jitter_strength = 1.0f;
 	
 	if (!obj->math)
 		return 0;
@@ -227,6 +253,50 @@ int wb_scene_add_line(wb_scene *scene, float x0, float y0, float x1, float y1, f
 	obj->thickness = thickness;
 	obj->colour = colour;
 	obj->draw_progress = 1.0f;
+	obj->jitter_strength = 1.0f;
+	
+	return obj->id;
+}
+
+int wb_scene_add_line3d(wb_scene *scene, float x0, float y0, float z0, float x1, float y1, float z1, float thickness, uint32_t colour)
+{
+	wb_scene_object *obj = append_object(scene);
+	
+	if (!obj)
+		return 0;
+	
+	memset(obj, 0, sizeof(*obj));
+	obj->id = scene->next_object_id++;
+	obj->type = WB_OBJECT_LINE3D;
+	obj->layer_id = scene->current_layer_id;
+	obj->q0 = vec3(x0, y0, z0);
+	obj->q1 = vec3(x1, y1, z1);
+	obj->thickness = thickness;
+	obj->colour = colour;
+	obj->draw_progress = 1.0f;
+	obj->jitter_strength = 1.0f;
+	
+	return obj->id;
+}
+
+int wb_scene_add_curve3d(wb_scene *scene, float x0, float y0, float z0, float x1, float y1, float z1, float x2, float y2, float z2, float thickness, uint32_t colour)
+{
+	wb_scene_object *obj = append_object(scene);
+	
+	if (!obj)
+		return 0;
+	
+	memset(obj, 0, sizeof(*obj));
+	obj->id = scene->next_object_id++;
+	obj->type = WB_OBJECT_CURVE3D;
+	obj->layer_id = scene->current_layer_id;
+	obj->q0 = vec3(x0, y0, z0);
+	obj->q1 = vec3(x1, y1, z1);
+	obj->q2 = vec3(x2, y2, z2);
+	obj->thickness = thickness;
+	obj->colour = colour;
+	obj->draw_progress = 1.0f;
+	obj->jitter_strength = 1.0f;
 	
 	return obj->id;
 }
@@ -247,6 +317,7 @@ int wb_scene_add_point(wb_scene *scene, float x, float y, float radius, uint32_t
 	obj->radius = radius;
 	obj->colour = colour;
 	obj->draw_progress = 1.0f;
+	obj->jitter_strength = 1.0f;
 	
 	return obj->id;
 }
@@ -268,6 +339,7 @@ int wb_scene_add_open_point(wb_scene *scene, float x, float y, float radius, flo
 	obj->thickness = thickness;
 	obj->colour = colour;
 	obj->draw_progress = 1.0f;
+	obj->jitter_strength = 1.0f;
 	
 	return obj->id;
 }
@@ -346,21 +418,188 @@ static float action_alpha(wb_scene_action *action, float time)
 	return wb_ease_grassroots((time - action->start_time) / (action->end_time - action->start_time));
 }
 
-static void draw_scene_object(wb_scene_object *obj, wb_vec2 layer_offset, int frame, uint8_t *buf)
+static float scene_seeded_unit(int seed)
 {
+	uint32_t x = (uint32_t)seed;
+	x ^= x >> 16;
+	x *= 0x7feb352dU;
+	x ^= x >> 15;
+	x *= 0x846ca68bU;
+	x ^= x >> 16;
+	return (float)(x & 0xffff) / 65535.0f;
+}
+
+static wb_nurbs_pcurve *new_jittered_line_curve(wb_vec2 a, wb_vec2 b, float thickness, float jitter_strength, int seed)
+{
+	wb_nurbs_pcurve *curve = malloc(sizeof(*curve));
+	wb_vec2 d = vec2_diff(b, a);
+	wb_vec2 n = vec2_perp(vec2_normalised(d));
+	float amp = binary_max(1.0f, thickness * 0.65f) * jitter_strength;
+	
+	if (!curve)
+		return NULL;
+	
+	curve->nx = new_nurbs(3, 5);
+	curve->ny = new_nurbs(3, 5);
+	curve->colour = 0;
+	
+	if (!curve->nx || !curve->ny)
+	{
+		free_nurbs_pcurve(curve);
+		return NULL;
+	}
+	
+	for (int i = 0; i < 5; i++)
+	{
+		float t = (float)i / 4.0f;
+		float along = (scene_seeded_unit(seed + i * 97) * 2.0f - 1.0f) * amp * 0.35f;
+		float across = (scene_seeded_unit(seed + i * 193 + 17) * 2.0f - 1.0f) * amp;
+		
+		if (i == 0 || i == 4)
+		{
+			along *= 0.25f;
+			across *= 0.35f;
+		}
+		
+		curve->nx->control_points[i] = a.x + d.x * t + d.x * along / binary_max(1.0f, vec2_norm(d)) + n.x * across;
+		curve->ny->control_points[i] = a.y + d.y * t + d.y * along / binary_max(1.0f, vec2_norm(d)) + n.y * across;
+	}
+	
+	return curve;
+}
+
+static void draw_curve_stroke(uint8_t *buf, wb_nurbs_pcurve *curve, float thickness, uint32_t colour)
+{
+	wb_plane_polyline *pl;
+	
+	if (!buf || !curve)
+		return;
+	
+	pl = nurbs_pcurve_to_ppolyline(curve, N_SAMPLE_POINTS, thickness);
+	if (!pl)
+		return;
+	
+	draw_ppolyline_in_colour(buf, pl, colour);
+	free_plane_polyline(pl);
+}
+
+static void draw_hand_line(uint8_t *buf, wb_vec2 a, wb_vec2 b, float thickness, uint32_t colour, float jitter_strength, int seed)
+{
+	wb_nurbs_pcurve *curve = new_jittered_line_curve(a, b, thickness, jitter_strength, seed);
+	
+	if (!curve)
+	{
+		draw_sausage(buf, a, b, thickness, colour);
+		return;
+	}
+	
+	draw_curve_stroke(buf, curve, thickness, colour);
+	free_nurbs_pcurve(curve);
+}
+
+static void draw_hand_open_point(uint8_t *buf, float x, float y, float radius, float thickness, uint32_t colour, float jitter_strength, int seed)
+{
+	wb_nurbs_pcurve *curve = circle_nurbs_pcurve(x, y, radius, 9, scene_seeded_unit(seed + 401) * TAU);
+	
+	if (!curve)
+		return;
+	
+	if (jitter_strength > 0.0f)
+		jitter_nurbs_pcurve(curve, binary_max(0.6f, thickness * 0.45f) * jitter_strength);
+	draw_curve_stroke(buf, curve, thickness, colour);
+	free_nurbs_pcurve(curve);
+}
+
+static int project_3d_point(wb_vec3 p, wb_vec2 *out)
+{
+	float camera_distance = 5.0f;
+	float scale = 260.0f;
+	float z = p.z + camera_distance;
+	
+	if (!out || z <= 0.1f)
+		return 0;
+	
+	out->x = WIDTH * 0.5f + (p.x / z) * scale;
+	out->y = HEIGHT * 0.5f - (p.y / z) * scale;
+	return 1;
+}
+
+static wb_nurbs_pcurve *new_projected_curve3d(wb_vec3 q0, wb_vec3 q1, wb_vec3 q2)
+{
+	wb_vec2 p0;
+	wb_vec2 p1;
+	wb_vec2 p2;
+	wb_nurbs_pcurve *curve;
+	
+	if (!project_3d_point(q0, &p0) || !project_3d_point(q1, &p1) || !project_3d_point(q2, &p2))
+		return NULL;
+	
+	curve = malloc(sizeof(*curve));
+	if (!curve)
+		return NULL;
+	
+	curve->nx = new_nurbs(2, 3);
+	curve->ny = new_nurbs(2, 3);
+	curve->colour = 0;
+	
+	if (!curve->nx || !curve->ny)
+	{
+		free_nurbs_pcurve(curve);
+		return NULL;
+	}
+	
+	curve->nx->control_points[0] = p0.x;
+	curve->nx->control_points[1] = p1.x;
+	curve->nx->control_points[2] = p2.x;
+	curve->ny->control_points[0] = p0.y;
+	curve->ny->control_points[1] = p1.y;
+	curve->ny->control_points[2] = p2.y;
+	return curve;
+}
+
+static void draw_scene_object(wb_scene_object *obj, wb_scene_layer *layer, int frame, uint8_t *buf)
+{
+	wb_vec2 layer_offset;
+	float jitter_strength;
+	
 	if (!obj || obj->draw_progress <= 0.0f)
 		return;
 	
+	layer_offset = layer ? layer->render_offset : vec2(0, 0);
+	jitter_strength = obj->jitter_strength * (layer ? layer->jitter_strength : 1.0f);
+	
 	if (obj->type == WB_OBJECT_MATH)
+	{
+		wb_set_math_jitter_strength(jitter_strength);
 		wb_math_draw_seeded(obj->math ? buf : NULL, obj->math, obj->x + layer_offset.x, obj->y + layer_offset.y, obj->size, obj->colour, frame + obj->id * 1009);
+		wb_set_math_jitter_strength(1.0f);
+	}
 	else if (obj->type == WB_OBJECT_LINE)
-		draw_sausage(buf, vec2(obj->x + obj->p0.x + layer_offset.x, obj->y + obj->p0.y + layer_offset.y), vec2(obj->x + obj->p1.x + layer_offset.x, obj->y + obj->p1.y + layer_offset.y), obj->thickness, obj->colour);
+		draw_hand_line(buf, vec2(obj->x + obj->p0.x + layer_offset.x, obj->y + obj->p0.y + layer_offset.y), vec2(obj->x + obj->p1.x + layer_offset.x, obj->y + obj->p1.y + layer_offset.y), obj->thickness, obj->colour, jitter_strength, frame + obj->id * 4099);
 	else if (obj->type == WB_OBJECT_POINT)
 		draw_disc(buf, obj->x + layer_offset.x, obj->y + layer_offset.y, obj->radius, obj->colour);
 	else if (obj->type == WB_OBJECT_OPEN_POINT)
+		draw_hand_open_point(buf, obj->x + layer_offset.x, obj->y + layer_offset.y, obj->radius, obj->thickness, obj->colour, jitter_strength, frame + obj->id * 6151);
+	else if (obj->type == WB_OBJECT_LINE3D)
 	{
-		draw_disc(buf, obj->x + layer_offset.x, obj->y + layer_offset.y, obj->radius, obj->colour);
-		draw_disc(buf, obj->x + layer_offset.x, obj->y + layer_offset.y, binary_max(0.0f, obj->radius - obj->thickness), 0xFFFFFF);
+		wb_vec2 a;
+		wb_vec2 b;
+		
+		if (project_3d_point(obj->q0, &a) && project_3d_point(obj->q1, &b))
+			draw_hand_line(buf, vec2(a.x + layer_offset.x, a.y + layer_offset.y), vec2(b.x + layer_offset.x, b.y + layer_offset.y), obj->thickness, obj->colour, jitter_strength, frame + obj->id * 7901);
+	}
+	else if (obj->type == WB_OBJECT_CURVE3D)
+	{
+		wb_nurbs_pcurve *curve = new_projected_curve3d(obj->q0, obj->q1, obj->q2);
+		
+		if (!curve)
+			return;
+		
+		translate_nurbs_pcurve(curve, layer_offset.x, layer_offset.y);
+		if (jitter_strength > 0.0f)
+			jitter_nurbs_pcurve(curve, binary_max(0.6f, obj->thickness * 0.45f) * jitter_strength);
+		draw_curve_stroke(buf, curve, obj->thickness, obj->colour);
+		free_nurbs_pcurve(curve);
 	}
 }
 
@@ -371,9 +610,16 @@ static void clear_layer_buffer(uint8_t *buf)
 	memset(buf, 0, WIDTH * HEIGHT * 3);
 }
 
-static void composite_layer_buffer(uint8_t *dst, uint8_t *src, float opacity)
+static void clear_alpha_buffer(uint8_t *alpha)
 {
-	if (!dst || !src || opacity <= 0.0f)
+	if (!alpha)
+		return;
+	memset(alpha, 0, WIDTH * HEIGHT);
+}
+
+static void composite_layer_buffer(uint8_t *dst, uint8_t *src, uint8_t *alpha, float opacity)
+{
+	if (!dst || !src || !alpha || opacity <= 0.0f)
 		return;
 	
 	if (opacity > 1.0f)
@@ -385,14 +631,86 @@ static void composite_layer_buffer(uint8_t *dst, uint8_t *src, float opacity)
 		int b = src[ind + 0];
 		int g = src[ind + 1];
 		int r = src[ind + 2];
+		float a = ((float)alpha[i] / 255.0f) * opacity;
 		
-		if (r == 0 && g == 0 && b == 0)
+		if (a <= 0.0f)
 			continue;
 		
-		float inv = 1.0f - opacity;
-		dst[ind + 0] = (uint8_t)(dst[ind + 0] * inv + b * opacity);
-		dst[ind + 1] = (uint8_t)(dst[ind + 1] * inv + g * opacity);
-		dst[ind + 2] = (uint8_t)(dst[ind + 2] * inv + r * opacity);
+		float inv = 1.0f - a;
+		dst[ind + 0] = (uint8_t)(dst[ind + 0] * inv + b * a);
+		dst[ind + 1] = (uint8_t)(dst[ind + 1] * inv + g * a);
+		dst[ind + 2] = (uint8_t)(dst[ind + 2] * inv + r * a);
+	}
+}
+
+static void blur_alpha_buffer(uint8_t *buf, uint8_t *scratch, float radius)
+{
+	int r = (int)ceilf(radius);
+	float weights[65];
+	float sigma;
+	float total_weight = 0.0f;
+	
+	if (!buf || !scratch || r <= 0)
+		return;
+	if (r > 32)
+		r = 32;
+	
+	sigma = binary_max(0.5f, radius * 0.5f);
+	for (int i = -r; i <= r; i++)
+	{
+		float w = expf(-((float)(i * i)) / (2.0f * sigma * sigma));
+		weights[i + r] = w;
+		total_weight += w;
+	}
+	
+	for (int y = 0; y < HEIGHT; y++)
+	{
+		for (int x = 0; x < WIDTH; x++)
+		{
+			float sum = 0.0f;
+			float sum_w = 0.0f;
+			
+			for (int ox = -r; ox <= r; ox++)
+			{
+				int sx = x + ox;
+				float w = weights[ox + r];
+				
+				if (sx < 0 || sx >= WIDTH)
+					continue;
+				
+				sum += (float)buf[y * WIDTH + sx] * w;
+				sum_w += w;
+			}
+			
+			if (sum_w <= 0.0f)
+				sum_w = total_weight;
+			scratch[y * WIDTH + x] = (uint8_t)(sum / sum_w);
+		}
+	}
+	
+	for (int y = 0; y < HEIGHT; y++)
+	{
+		for (int x = 0; x < WIDTH; x++)
+		{
+			float sum = 0.0f;
+			float sum_w = 0.0f;
+			
+			for (int oy = -r; oy <= r; oy++)
+			{
+				int sy = y + oy;
+				float w = weights[oy + r];
+				
+				if (sy < 0 || sy >= HEIGHT)
+					continue;
+				
+				sum += (float)scratch[sy * WIDTH + x] * w;
+				sum_w += w;
+			}
+			
+			if (sum_w <= 0.0f)
+				sum_w = total_weight;
+			buf[y * WIDTH + x] = (uint8_t)(sum / sum_w);
+		}
 	}
 }
 
@@ -487,6 +805,8 @@ void wb_scene_render(wb_scene *scene, float time, int frame, uint8_t *buf)
 {
 	uint8_t *layer_buf;
 	uint8_t *scratch_buf;
+	uint8_t *layer_alpha;
+	uint8_t *scratch_alpha;
 	
 	if (!scene || !buf)
 		return;
@@ -545,23 +865,46 @@ void wb_scene_render(wb_scene *scene, float time, int frame, uint8_t *buf)
 		free(layer_buf);
 		return;
 	}
+	layer_alpha = malloc(WIDTH * HEIGHT);
+	if (!layer_alpha)
+	{
+		free(scratch_buf);
+		free(layer_buf);
+		return;
+	}
+	scratch_alpha = malloc(WIDTH * HEIGHT);
+	if (!scratch_alpha)
+	{
+		free(layer_alpha);
+		free(scratch_buf);
+		free(layer_buf);
+		return;
+	}
 	
 	for (int layer_i = 0; layer_i < scene->n_layers; layer_i++)
 	{
 		wb_scene_layer *layer = &scene->layers[layer_i];
 		clear_layer_buffer(layer_buf);
+		clear_alpha_buffer(layer_alpha);
+		set_draw_alpha_buffer(layer_alpha);
 		
 		for (int i = 0; i < scene->n_objects; i++)
 		{
 			if (scene->objects[i].layer_id == layer->id)
-				draw_scene_object(&scene->objects[i], layer->render_offset, frame, layer_buf);
+				draw_scene_object(&scene->objects[i], layer, frame, layer_buf);
 		}
 		
+		set_draw_alpha_buffer(NULL);
 		if (layer->blur_radius > 0.0f)
+		{
 			blur_layer_buffer(layer_buf, scratch_buf, layer->blur_radius);
-		composite_layer_buffer(buf, layer_buf, layer->opacity);
+			blur_alpha_buffer(layer_alpha, scratch_alpha, layer->blur_radius);
+		}
+		composite_layer_buffer(buf, layer_buf, layer_alpha, layer->opacity);
 	}
 	
+	free(scratch_alpha);
+	free(layer_alpha);
 	free(scratch_buf);
 	free(layer_buf);
 }

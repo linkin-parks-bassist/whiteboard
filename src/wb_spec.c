@@ -10,6 +10,10 @@ typedef struct
 typedef struct
 {
 	wb_scene *scene;
+	wb_scene **scenes;
+	float *durations;
+	int n_scenes;
+	int cap_scenes;
 	wb_spec_name names[256];
 	wb_spec_name layers[64];
 	int n_names;
@@ -46,6 +50,70 @@ static int set_error(wb_spec_parser *p, int line_no, const char *msg)
 	return 0;
 }
 
+static int append_parser_scene(wb_spec_parser *p, wb_scene *scene, float duration)
+{
+	if (!p || !scene)
+		return 0;
+	
+	if (p->n_scenes >= p->cap_scenes)
+	{
+		int new_cap = p->cap_scenes ? p->cap_scenes * 2 : 4;
+		wb_scene **scenes = malloc(sizeof(wb_scene*) * new_cap);
+		float *durations = malloc(sizeof(float) * new_cap);
+		
+		if (!scenes || !durations)
+		{
+			free(scenes);
+			free(durations);
+			return 0;
+		}
+		
+		for (int i = 0; i < p->n_scenes; i++)
+		{
+			scenes[i] = p->scenes[i];
+			durations[i] = p->durations[i];
+		}
+		
+		free(p->scenes);
+		free(p->durations);
+		p->scenes = scenes;
+		p->durations = durations;
+		p->cap_scenes = new_cap;
+	}
+	
+	p->scenes[p->n_scenes] = scene;
+	p->durations[p->n_scenes] = duration;
+	p->n_scenes++;
+	return 1;
+}
+
+static int start_new_scene(wb_spec_parser *p, float duration)
+{
+	wb_scene *scene;
+	
+	if (!p)
+		return 0;
+	
+	scene = new_scene();
+	if (!scene)
+		return 0;
+	
+	if (duration > 0.0f)
+		scene->total_duration = binary_max(scene->total_duration, duration);
+	
+	if (!append_parser_scene(p, scene, duration > 0.0f ? duration : (float)FRAMES_PER_SCENE / FPS))
+	{
+		free_scene(scene);
+		return 0;
+	}
+	
+	p->scene = scene;
+	p->duration = duration > 0.0f ? duration : (float)FRAMES_PER_SCENE / FPS;
+	p->n_names = 0;
+	p->n_layers = 0;
+	return 1;
+}
+
 static uint32_t parse_colour(const char *s)
 {
 	if (!s || strcmp(s, "blue") == 0)
@@ -65,6 +133,31 @@ static uint32_t parse_colour(const char *s)
 			return COLOUR(r, g, b);
 	}
 	return NICE_BLUE;
+}
+
+static int parse_jitter_token(char *line, float *strength)
+{
+	char value[32];
+	char *jitter = strstr(line, " jitter ");
+	
+	if (!jitter || !strength)
+		return 0;
+	
+	if (sscanf(jitter, " jitter %31s", value) != 1)
+		return 0;
+	
+	if (strcmp(value, "off") == 0 || strcmp(value, "false") == 0 || strcmp(value, "none") == 0)
+	{
+		*strength = 0.0f;
+		return 1;
+	}
+	if (strcmp(value, "on") == 0 || strcmp(value, "true") == 0)
+	{
+		*strength = 1.0f;
+		return 1;
+	}
+	
+	return sscanf(value, "%f", strength) == 1;
 }
 
 static void remember_name(wb_spec_parser *p, const char *name, int id)
@@ -114,11 +207,8 @@ static int parse_scene(wb_spec_parser *p, char *line, int line_no)
 	if (sscanf(line, "scene \"%127[^\"]\" duration %fs", title, &duration) == 2 ||
 		sscanf(line, "scene duration %fs", &duration) == 1)
 	{
-		if (duration > 0.0f)
-		{
-			p->duration = duration;
-			p->scene->total_duration = binary_max(p->scene->total_duration, duration);
-		}
+		if (!start_new_scene(p, duration))
+			return set_error(p, line_no, "failed to create scene");
 		return 1;
 	}
 	return set_error(p, line_no, "expected scene \"title\" duration Ns");
@@ -130,6 +220,7 @@ static int parse_math(wb_spec_parser *p, char *line, int line_no)
 	char latex[512];
 	char colour_name[64] = "blue";
 	float x = 0.0f, y = 0.0f, size = 70.0f;
+	float jitter_strength = 1.0f;
 	int n = 0;
 	
 	if (sscanf(line, "math %63s \"%511[^\"]\" at (%f,%f) size %f colour %63s%n", name, latex, &x, &y, &size, colour_name, &n) >= 5 ||
@@ -138,6 +229,8 @@ static int parse_math(wb_spec_parser *p, char *line, int line_no)
 		int id = wb_scene_add_math(p->scene, latex, x, y, size, parse_colour(colour_name));
 		if (!id)
 			return set_error(p, line_no, "failed to create math object");
+		if (parse_jitter_token(line, &jitter_strength))
+			wb_scene_set_object_jitter(p->scene, id, jitter_strength);
 		remember_name(p, name, id);
 		return 1;
 	}
@@ -166,6 +259,7 @@ static int parse_layer(wb_spec_parser *p, char *line, int line_no)
 	char opacity_word[32];
 	float opacity = 1.0f;
 	float blur_radius = 0.0f;
+	float jitter_strength = 1.0f;
 	int matched = 0;
 	int type = WB_LAYER_2D;
 	int id = 0;
@@ -199,6 +293,8 @@ static int parse_layer(wb_spec_parser *p, char *line, int line_no)
 	char *blur = strstr(line, " blur ");
 	if (blur && sscanf(blur, " blur %f", &blur_radius) == 1)
 		wb_scene_set_layer_blur(p->scene, id, blur_radius);
+	if (parse_jitter_token(line, &jitter_strength))
+		wb_scene_set_layer_jitter(p->scene, id, jitter_strength);
 	
 	remember_layer(p, name, id);
 	return 1;
@@ -245,6 +341,7 @@ static int parse_line_object(wb_spec_parser *p, char *line, int line_no)
 	char name[64];
 	char colour_name[64] = "blue";
 	float x0 = 0.0f, y0 = 0.0f, x1 = 0.0f, y1 = 0.0f, thickness = 3.0f;
+	float jitter_strength = 1.0f;
 	int matched = 0;
 	
 	matched = sscanf(line, "line %63s from (%f,%f) to (%f,%f) thickness %f colour %63s", name, &x0, &y0, &x1, &y1, &thickness, colour_name);
@@ -256,6 +353,54 @@ static int parse_line_object(wb_spec_parser *p, char *line, int line_no)
 	int id = wb_scene_add_line(p->scene, x0, y0, x1, y1, thickness, parse_colour(matched >= 7 ? colour_name : "blue"));
 	if (!id)
 		return set_error(p, line_no, "failed to create line object");
+	if (parse_jitter_token(line, &jitter_strength))
+		wb_scene_set_object_jitter(p->scene, id, jitter_strength);
+	remember_name(p, name, id);
+	return 1;
+}
+
+static int parse_line3d_object(wb_spec_parser *p, char *line, int line_no)
+{
+	char name[64];
+	char colour_name[64] = "blue";
+	float x0 = 0.0f, y0 = 0.0f, z0 = 0.0f, x1 = 0.0f, y1 = 0.0f, z1 = 0.0f, thickness = 3.0f;
+	float jitter_strength = 1.0f;
+	int matched = 0;
+	
+	matched = sscanf(line, "line3d %63s from (%f,%f,%f) to (%f,%f,%f) thickness %f colour %63s", name, &x0, &y0, &z0, &x1, &y1, &z1, &thickness, colour_name);
+	if (matched < 7)
+		matched = sscanf(line, "line3d %63s from (%f, %f, %f) to (%f, %f, %f) thickness %f colour %63s", name, &x0, &y0, &z0, &x1, &y1, &z1, &thickness, colour_name);
+	if (matched < 7)
+		return set_error(p, line_no, "expected line3d name from (x,y,z) to (x,y,z) thickness N colour name");
+	
+	int id = wb_scene_add_line3d(p->scene, x0, y0, z0, x1, y1, z1, matched >= 8 ? thickness : 3.0f, parse_colour(matched >= 9 ? colour_name : "blue"));
+	if (!id)
+		return set_error(p, line_no, "failed to create line3d object");
+	if (parse_jitter_token(line, &jitter_strength))
+		wb_scene_set_object_jitter(p->scene, id, jitter_strength);
+	remember_name(p, name, id);
+	return 1;
+}
+
+static int parse_curve3d_object(wb_spec_parser *p, char *line, int line_no)
+{
+	char name[64];
+	char colour_name[64] = "blue";
+	float x0 = 0.0f, y0 = 0.0f, z0 = 0.0f, x1 = 0.0f, y1 = 0.0f, z1 = 0.0f, x2 = 0.0f, y2 = 0.0f, z2 = 0.0f, thickness = 3.0f;
+	float jitter_strength = 1.0f;
+	int matched = 0;
+	
+	matched = sscanf(line, "curve3d %63s through (%f,%f,%f) (%f,%f,%f) (%f,%f,%f) thickness %f colour %63s", name, &x0, &y0, &z0, &x1, &y1, &z1, &x2, &y2, &z2, &thickness, colour_name);
+	if (matched < 10)
+		matched = sscanf(line, "curve3d %63s through (%f, %f, %f) (%f, %f, %f) (%f, %f, %f) thickness %f colour %63s", name, &x0, &y0, &z0, &x1, &y1, &z1, &x2, &y2, &z2, &thickness, colour_name);
+	if (matched < 10)
+		return set_error(p, line_no, "expected curve3d name through (x,y,z) (x,y,z) (x,y,z) thickness N colour name");
+	
+	int id = wb_scene_add_curve3d(p->scene, x0, y0, z0, x1, y1, z1, x2, y2, z2, matched >= 11 ? thickness : 3.0f, parse_colour(matched >= 12 ? colour_name : "blue"));
+	if (!id)
+		return set_error(p, line_no, "failed to create curve3d object");
+	if (parse_jitter_token(line, &jitter_strength))
+		wb_scene_set_object_jitter(p->scene, id, jitter_strength);
 	remember_name(p, name, id);
 	return 1;
 }
@@ -265,6 +410,7 @@ static int parse_point_object(wb_spec_parser *p, char *line, int line_no, int op
 	char name[64];
 	char colour_name[64] = "blue";
 	float x = 0.0f, y = 0.0f, radius = 6.0f, thickness = 2.5f;
+	float jitter_strength = 1.0f;
 	int matched = 0;
 	int id = 0;
 	
@@ -289,6 +435,8 @@ static int parse_point_object(wb_spec_parser *p, char *line, int line_no, int op
 	
 	if (!id)
 		return set_error(p, line_no, open ? "failed to create open_point object" : "failed to create point object");
+	if (parse_jitter_token(line, &jitter_strength))
+		wb_scene_set_object_jitter(p->scene, id, jitter_strength);
 	remember_name(p, name, id);
 	return 1;
 }
@@ -320,12 +468,18 @@ static int parse_spec_line(wb_spec_parser *p, char *line, int line_no)
 		return 1;
 	if (starts_with(s, "scene "))
 		return parse_scene(p, s, line_no);
+	if (!p->scene && !start_new_scene(p, (float)FRAMES_PER_SCENE / FPS))
+		return set_error(p, line_no, "failed to create default scene");
 	if (starts_with(s, "layer "))
 		return parse_layer(p, s, line_no);
 	if (starts_with(s, "background "))
 		return parse_background(p, s, line_no);
 	if (starts_with(s, "math "))
 		return parse_math(p, s, line_no);
+	if (starts_with(s, "line3d "))
+		return parse_line3d_object(p, s, line_no);
+	if (starts_with(s, "curve3d "))
+		return parse_curve3d_object(p, s, line_no);
 	if (starts_with(s, "line "))
 		return parse_line_object(p, s, line_no);
 	if (starts_with(s, "point "))
@@ -357,15 +511,7 @@ wb_loaded_video wb_load_video_spec(const char *path)
 		return result;
 	}
 	
-	parser.scene = new_scene();
 	parser.duration = (float)FRAMES_PER_SCENE / FPS;
-	
-	if (!parser.scene)
-	{
-		fclose(f);
-		snprintf(result.error, sizeof(result.error), "could not allocate scene");
-		return result;
-	}
 	
 	while (fgets(line, sizeof(line), f))
 	{
@@ -379,11 +525,43 @@ wb_loaded_video wb_load_video_spec(const char *path)
 	if (parser.error[0])
 	{
 		snprintf(result.error, sizeof(result.error), "%s", parser.error);
-		free_scene(parser.scene);
+		for (int i = 0; i < parser.n_scenes; i++)
+			free_scene(parser.scenes[i]);
+		free(parser.scenes);
+		free(parser.durations);
 		return result;
 	}
 	
-	result.scene = parser.scene;
-	result.duration = binary_max(parser.duration, parser.scene->total_duration);
+	if (parser.n_scenes == 0 && !start_new_scene(&parser, (float)FRAMES_PER_SCENE / FPS))
+	{
+		snprintf(result.error, sizeof(result.error), "could not allocate scene");
+		return result;
+	}
+	
+	result.scene = parser.scenes[0];
+	result.scenes = parser.scenes;
+	result.durations = parser.durations;
+	result.n_scenes = parser.n_scenes;
+	for (int i = 0; i < result.n_scenes; i++)
+		result.durations[i] = binary_max(result.durations[i], result.scenes[i]->total_duration);
+	result.duration = result.durations[0];
 	return result;
+}
+
+void wb_free_loaded_video(wb_loaded_video *video)
+{
+	if (!video)
+		return;
+	
+	if (video->scenes)
+	{
+		for (int i = 0; i < video->n_scenes; i++)
+			free_scene(video->scenes[i]);
+		free(video->scenes);
+		free(video->durations);
+	}
+	else if (video->scene)
+		free_scene(video->scene);
+	
+	memset(video, 0, sizeof(*video));
 }
