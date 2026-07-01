@@ -278,6 +278,27 @@ int wb_scene_add_line(wb_scene *scene, float x0, float y0, float x1, float y1, f
 	return obj->id;
 }
 
+int wb_scene_add_ray(wb_scene *scene, float x0, float y0, float x1, float y1, float thickness, uint32_t colour)
+{
+	wb_scene_object *obj = append_object(scene);
+	
+	if (!obj)
+		return 0;
+	
+	memset(obj, 0, sizeof(*obj));
+	obj->id = scene->next_object_id++;
+	obj->type = WB_OBJECT_RAY;
+	obj->layer_id = scene->current_layer_id;
+	obj->p0 = vec2(x0, y0);
+	obj->p1 = vec2(x1, y1);
+	obj->thickness = thickness;
+	obj->colour = colour;
+	obj->draw_progress = 1.0f;
+	obj->jitter_strength = 1.0f;
+	
+	return obj->id;
+}
+
 int wb_scene_add_dotted_line(wb_scene *scene, float x0, float y0, float x1, float y1, float thickness, float gap, uint32_t colour)
 {
 	wb_scene_object *obj = append_object(scene);
@@ -697,6 +718,35 @@ static void draw_hand_line(uint8_t *buf, wb_vec2 a, wb_vec2 b, float thickness, 
 	free_nurbs_pcurve(curve);
 }
 
+static wb_vec2 extend_ray_endpoint(wb_vec2 a, wb_vec2 through)
+{
+	wb_vec2 dir = vec2_diff(through, a);
+	float len = vec2_norm(dir);
+	float t = 0.0f;
+	
+	if (len <= 0.001f)
+		return through;
+	
+	dir = vec2(dir.x / len, dir.y / len);
+	
+	if (fabsf(dir.x) > 0.0001f)
+	{
+		float tx = dir.x > 0.0f ? ((float)WIDTH + 120.0f - a.x) / dir.x : (-120.0f - a.x) / dir.x;
+		if (tx > t)
+			t = tx;
+	}
+	if (fabsf(dir.y) > 0.0001f)
+	{
+		float ty = dir.y > 0.0f ? ((float)HEIGHT + 120.0f - a.y) / dir.y : (-120.0f - a.y) / dir.y;
+		if (ty > t)
+			t = ty;
+	}
+	if (t < len)
+		t = len + 120.0f;
+	
+	return vec2(a.x + dir.x * t, a.y + dir.y * t);
+}
+
 static void draw_hand_dotted_line(uint8_t *buf, wb_vec2 a, wb_vec2 b, float thickness, float gap, uint32_t colour, float jitter_strength, int seed, float progress)
 {
 	wb_vec2 d = vec2_diff(b, a);
@@ -872,6 +922,12 @@ static void draw_scene_object(wb_scene_object *obj, wb_scene_layer *layer, int f
 	}
 	else if (obj->type == WB_OBJECT_LINE)
 		draw_hand_line(buf, vec2(obj->x + obj->p0.x + layer_offset.x, obj->y + obj->p0.y + layer_offset.y), vec2(obj->x + obj->p1.x + layer_offset.x, obj->y + obj->p1.y + layer_offset.y), obj->thickness, obj->colour, jitter_strength, frame + obj->id * 4099, obj->draw_progress);
+	else if (obj->type == WB_OBJECT_RAY)
+	{
+		wb_vec2 a = vec2(obj->x + obj->p0.x + layer_offset.x, obj->y + obj->p0.y + layer_offset.y);
+		wb_vec2 through = vec2(obj->x + obj->p1.x + layer_offset.x, obj->y + obj->p1.y + layer_offset.y);
+		draw_hand_line(buf, a, extend_ray_endpoint(a, through), obj->thickness, obj->colour, jitter_strength, frame + obj->id * 4421, obj->draw_progress);
+	}
 	else if (obj->type == WB_OBJECT_DOTTED_LINE)
 		draw_hand_dotted_line(buf, vec2(obj->x + obj->p0.x + layer_offset.x, obj->y + obj->p0.y + layer_offset.y), vec2(obj->x + obj->p1.x + layer_offset.x, obj->y + obj->p1.y + layer_offset.y), obj->thickness, obj->size, obj->colour, jitter_strength, frame + obj->id * 5003, obj->draw_progress);
 	else if (obj->type == WB_OBJECT_ARROW)

@@ -429,6 +429,29 @@ static int parse_line_object(wb_spec_parser *p, char *line, int line_no)
 	return 1;
 }
 
+static int parse_ray_object(wb_spec_parser *p, char *line, int line_no)
+{
+	char name[64];
+	char colour_name[64] = "blue";
+	float x0 = 0.0f, y0 = 0.0f, x1 = 0.0f, y1 = 0.0f, thickness = 3.0f;
+	float jitter_strength = 1.0f;
+	int matched = 0;
+	
+	matched = sscanf(line, "ray %63s from (%f,%f) through (%f,%f) thickness %f colour %63s", name, &x0, &y0, &x1, &y1, &thickness, colour_name);
+	if (matched < 5)
+		matched = sscanf(line, "ray %63s from (%f, %f) through (%f, %f) thickness %f colour %63s", name, &x0, &y0, &x1, &y1, &thickness, colour_name);
+	if (matched < 5)
+		return set_error(p, line_no, "expected ray name from (x,y) through (x,y) thickness N colour name");
+	
+	int id = wb_scene_add_ray(p->scene, x0, y0, x1, y1, matched >= 6 ? thickness : 3.0f, parse_colour(matched >= 7 ? colour_name : "blue"));
+	if (!id)
+		return set_error(p, line_no, "failed to create ray object");
+	if (parse_jitter_token(line, &jitter_strength))
+		wb_scene_set_object_jitter(p->scene, id, jitter_strength);
+	remember_name(p, name, id);
+	return 1;
+}
+
 static int parse_dotted_line_object(wb_spec_parser *p, char *line, int line_no)
 {
 	char name[64];
@@ -735,6 +758,8 @@ static int parse_spec_line(wb_spec_parser *p, char *line, int line_no)
 		return parse_shade_triangle_object(p, s, line_no);
 	if (starts_with(s, "quad "))
 		return parse_quad_object(p, s, line_no);
+	if (starts_with(s, "ray "))
+		return parse_ray_object(p, s, line_no);
 	if (starts_with(s, "line "))
 		return parse_line_object(p, s, line_no);
 	if (starts_with(s, "circle "))

@@ -80,6 +80,7 @@ typedef struct
 #define WB_OBJECT_TRIANGLE 11
 #define WB_OBJECT_SHADE_TRIANGLE 12
 #define WB_OBJECT_QUAD 13
+#define WB_OBJECT_RAY 14
 #define WB_ACTION_MOVE 1
 #define WB_ACTION_DRAW 2
 #define WB_ACTION_LAYER_MOVE 3
@@ -126,6 +127,7 @@ void wb_scene_set_current_layer(wb_scene *scene, int layer_id);
 void wb_scene_move_layer(wb_scene *scene, int layer_id, float start_time, float end_time, float x1, float y1, float x2, float y2);
 int wb_scene_add_math(wb_scene *scene, const char *src, float x, float y, float size, uint32_t colour);
 int wb_scene_add_line(wb_scene *scene, float x0, float y0, float x1, float y1, float thickness, uint32_t colour);
+int wb_scene_add_ray(wb_scene *scene, float x0, float y0, float x1, float y1, float thickness, uint32_t colour);
 int wb_scene_add_dotted_line(wb_scene *scene, float x0, float y0, float x1, float y1, float thickness, float gap, uint32_t colour);
 int wb_scene_add_arrow(wb_scene *scene, float x0, float y0, float x1, float y1, float thickness, float head_size, uint32_t colour);
 int wb_scene_add_triangle(wb_scene *scene, float x0, float y0, float x1, float y1, float x2, float y2, float thickness, uint32_t colour);

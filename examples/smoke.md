@@ -12,6 +12,7 @@ scene "smoke" duration 0.25s
     shade_triangle tri_fill points (720,450) (840,530) (680,560) colour blue opacity 0.14
     triangle tri points (720,450) (840,530) (680,560) thickness 3 colour blue jitter 1.2
     quad panel points (1000,430) (1120,445) (1100,585) (980,570) thickness 3 colour grey jitter 1.1
+    ray direction from (860,610) through (980,660) thickness 3 colour red jitter 1.2
     line axis from (220,500) to (420,500) thickness 3 colour blue jitter 1.5
     dotted_line guide from (220,450) to (460,450) thickness 3 gap 22 colour grey jitter 1.2
     arrow map from (500,500) to (650,450) thickness 3 head 24 colour red jitter 1.3
@@ -21,6 +22,7 @@ scene "smoke" duration 0.25s
     draw tri_fill during 0.05s..0.25s
     draw tri during 0.05s..0.25s
     draw panel during 0.05s..0.25s
+    draw direction during 0.08s..0.25s
     draw axis during 0.05s..0.25s
     draw guide during 0.05s..0.25s
     draw map during 0.05s..0.25s
