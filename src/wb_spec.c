@@ -526,6 +526,31 @@ static int parse_shade_triangle_object(wb_spec_parser *p, char *line, int line_n
 	return 1;
 }
 
+static int parse_quad_object(wb_spec_parser *p, char *line, int line_no)
+{
+	char name[64];
+	char colour_name[64] = "blue";
+	float x0 = 0.0f, y0 = 0.0f, x1 = 0.0f, y1 = 0.0f, x2 = 0.0f, y2 = 0.0f, x3 = 0.0f, y3 = 0.0f, thickness = 3.0f;
+	float jitter_strength = 1.0f;
+	int matched = 0;
+
+	matched = sscanf(line, "quad %63s points (%f,%f) (%f,%f) (%f,%f) (%f,%f) thickness %f colour %63s",
+		name, &x0, &y0, &x1, &y1, &x2, &y2, &x3, &y3, &thickness, colour_name);
+	if (matched < 9)
+		matched = sscanf(line, "quad %63s points (%f, %f) (%f, %f) (%f, %f) (%f, %f) thickness %f colour %63s",
+			name, &x0, &y0, &x1, &y1, &x2, &y2, &x3, &y3, &thickness, colour_name);
+	if (matched < 9)
+		return set_error(p, line_no, "expected quad name points (x,y) (x,y) (x,y) (x,y) thickness N colour name");
+
+	int id = wb_scene_add_quad(p->scene, x0, y0, x1, y1, x2, y2, x3, y3, matched >= 10 ? thickness : 3.0f, parse_colour(matched >= 11 ? colour_name : "blue"));
+	if (!id)
+		return set_error(p, line_no, "failed to create quad object");
+	if (parse_jitter_token(line, &jitter_strength))
+		wb_scene_set_object_jitter(p->scene, id, jitter_strength);
+	remember_name(p, name, id);
+	return 1;
+}
+
 static int parse_line3d_object(wb_spec_parser *p, char *line, int line_no)
 {
 	char name[64];
@@ -708,6 +733,8 @@ static int parse_spec_line(wb_spec_parser *p, char *line, int line_no)
 		return parse_triangle_object(p, s, line_no);
 	if (starts_with(s, "shade_triangle "))
 		return parse_shade_triangle_object(p, s, line_no);
+	if (starts_with(s, "quad "))
+		return parse_quad_object(p, s, line_no);
 	if (starts_with(s, "line "))
 		return parse_line_object(p, s, line_no);
 	if (starts_with(s, "circle "))

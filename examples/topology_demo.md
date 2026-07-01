@@ -11,6 +11,7 @@ scene "quotient circle" duration 0.35s
     circle source center (440,520) radius 140 thickness 4 colour blue jitter 1.4
     shade_triangle simplex_fill points (980,430) (1110,590) (850,590) colour green opacity 0.14
     triangle simplex points (980,430) (1110,590) (850,590) thickness 4 colour green jitter 1.2
+    quad cell points (1160,420) (1265,448) (1240,592) (1135,566) thickness 4 colour blue jitter 1.0
     point p at (580,520) radius 8 colour red jitter 1.0
     open_point q at (300,520) radius 11 thickness 3 colour red jitter 1.3
     line chord from (330,430) to (550,610) thickness 3 colour grey jitter 1.4
@@ -20,6 +21,7 @@ scene "quotient circle" duration 0.35s
     draw disk during 0s..0.25s
     draw simplex_fill during 0.08s..0.35s
     draw simplex during 0.08s..0.35s
+    draw cell during 0.12s..0.35s
     draw chord during 0.1s..0.35s
     draw quotient during 0.05s..0.35s
     draw collapse during 0.12s..0.35s

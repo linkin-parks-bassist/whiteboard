@@ -368,6 +368,29 @@ int wb_scene_add_shade_triangle(wb_scene *scene, float x0, float y0, float x1, f
 	return obj->id;
 }
 
+int wb_scene_add_quad(wb_scene *scene, float x0, float y0, float x1, float y1, float x2, float y2, float x3, float y3, float thickness, uint32_t colour)
+{
+	wb_scene_object *obj = append_object(scene);
+	
+	if (!obj)
+		return 0;
+	
+	memset(obj, 0, sizeof(*obj));
+	obj->id = scene->next_object_id++;
+	obj->type = WB_OBJECT_QUAD;
+	obj->layer_id = scene->current_layer_id;
+	obj->p0 = vec2(x0, y0);
+	obj->p1 = vec2(x1, y1);
+	obj->q0 = vec3(x2, y2, 0);
+	obj->q1 = vec3(x3, y3, 0);
+	obj->thickness = thickness;
+	obj->colour = colour;
+	obj->draw_progress = 1.0f;
+	obj->jitter_strength = 1.0f;
+	
+	return obj->id;
+}
+
 int wb_scene_add_line3d(wb_scene *scene, float x0, float y0, float z0, float x1, float y1, float z1, float thickness, uint32_t colour)
 {
 	wb_scene_object *obj = append_object(scene);
@@ -750,6 +773,25 @@ static void draw_hand_triangle(uint8_t *buf, wb_vec2 a, wb_vec2 b, wb_vec2 c, fl
 		draw_hand_line(buf, c, a, thickness, colour, jitter_strength, seed + 307, p - 2.0f);
 }
 
+static void draw_hand_quad(uint8_t *buf, wb_vec2 a, wb_vec2 b, wb_vec2 c, wb_vec2 d, float thickness, uint32_t colour, float jitter_strength, int seed, float progress)
+{
+	float p;
+	
+	if (!buf || progress <= 0.0f)
+		return;
+	
+	progress = clamp01(progress);
+	p = progress * 4.0f;
+	if (p > 0.0f)
+		draw_hand_line(buf, a, b, thickness, colour, jitter_strength, seed + 101, p < 1.0f ? p : 1.0f);
+	if (p > 1.0f)
+		draw_hand_line(buf, b, c, thickness, colour, jitter_strength, seed + 211, p < 2.0f ? p - 1.0f : 1.0f);
+	if (p > 2.0f)
+		draw_hand_line(buf, c, d, thickness, colour, jitter_strength, seed + 307, p < 3.0f ? p - 2.0f : 1.0f);
+	if (p > 3.0f)
+		draw_hand_line(buf, d, a, thickness, colour, jitter_strength, seed + 409, p - 3.0f);
+}
+
 static void draw_hand_open_point(uint8_t *buf, float x, float y, float radius, float thickness, uint32_t colour, float jitter_strength, int seed, float progress)
 {
 	wb_nurbs_pcurve *curve = circle_nurbs_pcurve(x, y, radius, 9, scene_seeded_unit(seed + 401) * TAU);
@@ -838,6 +880,8 @@ static void draw_scene_object(wb_scene_object *obj, wb_scene_layer *layer, int f
 		draw_hand_triangle(buf, vec2(obj->p0.x + layer_offset.x, obj->p0.y + layer_offset.y), vec2(obj->p1.x + layer_offset.x, obj->p1.y + layer_offset.y), vec2(obj->x + layer_offset.x, obj->y + layer_offset.y), obj->thickness, obj->colour, jitter_strength, frame + obj->id * 7103, obj->draw_progress);
 	else if (obj->type == WB_OBJECT_SHADE_TRIANGLE)
 		draw_triangle_with_alpha(buf, vec2(obj->p0.x + layer_offset.x, obj->p0.y + layer_offset.y), vec2(obj->p1.x + layer_offset.x, obj->p1.y + layer_offset.y), vec2(obj->x + layer_offset.x, obj->y + layer_offset.y), obj->colour, obj->size * obj->draw_progress);
+	else if (obj->type == WB_OBJECT_QUAD)
+		draw_hand_quad(buf, vec2(obj->p0.x + layer_offset.x, obj->p0.y + layer_offset.y), vec2(obj->p1.x + layer_offset.x, obj->p1.y + layer_offset.y), vec2(obj->q0.x + layer_offset.x, obj->q0.y + layer_offset.y), vec2(obj->q1.x + layer_offset.x, obj->q1.y + layer_offset.y), obj->thickness, obj->colour, jitter_strength, frame + obj->id * 7349, obj->draw_progress);
 	else if (obj->type == WB_OBJECT_SHADE_DISC)
 		draw_disc_with_alpha(buf, obj->x + layer_offset.x, obj->y + layer_offset.y, obj->radius, obj->colour, obj->size * obj->draw_progress);
 	else if (obj->type == WB_OBJECT_POINT)
