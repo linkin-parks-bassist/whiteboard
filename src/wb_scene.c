@@ -278,6 +278,28 @@ int wb_scene_add_line(wb_scene *scene, float x0, float y0, float x1, float y1, f
 	return obj->id;
 }
 
+int wb_scene_add_dotted_line(wb_scene *scene, float x0, float y0, float x1, float y1, float thickness, float gap, uint32_t colour)
+{
+	wb_scene_object *obj = append_object(scene);
+	
+	if (!obj)
+		return 0;
+	
+	memset(obj, 0, sizeof(*obj));
+	obj->id = scene->next_object_id++;
+	obj->type = WB_OBJECT_DOTTED_LINE;
+	obj->layer_id = scene->current_layer_id;
+	obj->p0 = vec2(x0, y0);
+	obj->p1 = vec2(x1, y1);
+	obj->thickness = thickness;
+	obj->size = gap;
+	obj->colour = colour;
+	obj->draw_progress = 1.0f;
+	obj->jitter_strength = 1.0f;
+	
+	return obj->id;
+}
+
 int wb_scene_add_line3d(wb_scene *scene, float x0, float y0, float z0, float x1, float y1, float z1, float thickness, uint32_t colour)
 {
 	wb_scene_object *obj = append_object(scene);
@@ -541,6 +563,8 @@ static void draw_curve_stroke(uint8_t *buf, wb_nurbs_pcurve *curve, float thickn
 	draw_curve_stroke_progress(buf, curve, thickness, colour, 1.0f);
 }
 
+static void draw_hand_open_point(uint8_t *buf, float x, float y, float radius, float thickness, uint32_t colour, float jitter_strength, int seed, float progress);
+
 static void draw_hand_line(uint8_t *buf, wb_vec2 a, wb_vec2 b, float thickness, uint32_t colour, float jitter_strength, int seed, float progress)
 {
 	wb_nurbs_pcurve *curve = new_jittered_line_curve(a, b, thickness, jitter_strength, seed);
@@ -557,6 +581,32 @@ static void draw_hand_line(uint8_t *buf, wb_vec2 a, wb_vec2 b, float thickness, 
 	
 	draw_curve_stroke_progress(buf, curve, thickness, colour, progress);
 	free_nurbs_pcurve(curve);
+}
+
+static void draw_hand_dotted_line(uint8_t *buf, wb_vec2 a, wb_vec2 b, float thickness, float gap, uint32_t colour, float jitter_strength, int seed, float progress)
+{
+	wb_vec2 d = vec2_diff(b, a);
+	float len = vec2_norm(d);
+	int n_dots;
+	
+	if (!buf || len <= 0.0f || progress <= 0.0f)
+		return;
+	
+	if (gap < thickness * 2.5f)
+		gap = thickness * 2.5f;
+	n_dots = 1 + (int)(len / gap);
+	
+	for (int i = 0; i < n_dots; i++)
+	{
+		float t = n_dots <= 1 ? 0.0f : (float)i / (float)(n_dots - 1);
+		wb_vec2 c;
+		
+		if (t > progress)
+			break;
+		
+		c = vec2(a.x + d.x * t, a.y + d.y * t);
+		draw_hand_open_point(buf, c.x, c.y, thickness * 0.9f, thickness, colour, jitter_strength, seed + i * 811, 1.0f);
+	}
 }
 
 static void draw_hand_open_point(uint8_t *buf, float x, float y, float radius, float thickness, uint32_t colour, float jitter_strength, int seed, float progress)
@@ -639,6 +689,8 @@ static void draw_scene_object(wb_scene_object *obj, wb_scene_layer *layer, int f
 	}
 	else if (obj->type == WB_OBJECT_LINE)
 		draw_hand_line(buf, vec2(obj->x + obj->p0.x + layer_offset.x, obj->y + obj->p0.y + layer_offset.y), vec2(obj->x + obj->p1.x + layer_offset.x, obj->y + obj->p1.y + layer_offset.y), obj->thickness, obj->colour, jitter_strength, frame + obj->id * 4099, obj->draw_progress);
+	else if (obj->type == WB_OBJECT_DOTTED_LINE)
+		draw_hand_dotted_line(buf, vec2(obj->x + obj->p0.x + layer_offset.x, obj->y + obj->p0.y + layer_offset.y), vec2(obj->x + obj->p1.x + layer_offset.x, obj->y + obj->p1.y + layer_offset.y), obj->thickness, obj->size, obj->colour, jitter_strength, frame + obj->id * 5003, obj->draw_progress);
 	else if (obj->type == WB_OBJECT_POINT)
 		draw_disc(buf, obj->x + layer_offset.x, obj->y + layer_offset.y, obj->radius, obj->colour);
 	else if (obj->type == WB_OBJECT_OPEN_POINT)

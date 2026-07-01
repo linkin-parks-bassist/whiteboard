@@ -254,6 +254,7 @@ High urgency:
 17. Done: Add a stroked 2D circle constructor and demos. The spec supports `circle name center (x,y) radius R thickness T colour C`, rendered as a jitterable NURBS-style stroke; filled disks and open points remain separate constructors.
 18. Done: Honor `video ... output "name.mp4"` when writing renders. Single-scene specs write exactly that path; multi-scene specs suffix the basename as `name_00.mp4`, `name_01.mp4`, etc. Output paths are intentionally restricted to simple shell-safe characters while rendering still uses `ffmpeg` via `popen`.
 19. Done: Expose first draw-on timing in the spec. `draw name during Ts..Ts` now animates line-like strokes, stroked circles/open points, and projected 3D curves by revealing the sampled stroke over time; math and filled points still appear discretely.
+20. Done: Add a dotted line constructor for mathematical diagrams. The spec supports `dotted_line name from (x,y) to (x,y) thickness T gap G colour C`, rendered as jitterable drawn dots and compatible with `draw name during Ts..Ts`.
 
 ## Open Questions
 

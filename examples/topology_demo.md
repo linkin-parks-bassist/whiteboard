@@ -11,8 +11,10 @@ scene "quotient circle" duration 0.35s
     point p at (580,520) radius 8 colour red jitter 1.0
     open_point q at (300,520) radius 11 thickness 3 colour red jitter 1.3
     line chord from (330,430) to (550,610) thickness 3 colour grey jitter 1.4
+    dotted_line quotient from (300,520) to (580,520) thickness 3 gap 24 colour red jitter 1.2
     draw source during 0s..0.25s
     draw chord during 0.1s..0.35s
+    draw quotient during 0.05s..0.35s
   layer glow 2d opacity 0.35 blur 10 jitter 0.6
     circle halo center (440,520) radius 148 thickness 9 colour green jitter 1.2
 
