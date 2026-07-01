@@ -12,7 +12,7 @@ scene "title card" duration 0.28s
     math brand "$Whiteboard$" at (520,530) size 220 colour black jitter off
     math accent_left "$\\alpha+\\beta$" at (300,300) size 78 colour red jitter 0.6
     math accent_right "$\\gamma$" at (1570,730) size 100 colour green jitter 0.6
-    circle orbit_a center (500,360) radius 70 thickness 4 colour blue jitter 1.0
+    ellipse orbit_a center (500,360) radii (84,62) thickness 4 colour blue jitter 1.0
     circle orbit_b center (1400,355) radius 56 thickness 4 colour red jitter 1.0
     triangle tri_a points (470,760) (640,640) (760,810) thickness 4 colour grey jitter 0.9
     quad quad_a points (1160,760) (1310,650) (1460,785) (1285,860) thickness 4 colour blue jitter 0.9

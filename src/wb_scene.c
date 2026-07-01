@@ -520,6 +520,28 @@ int wb_scene_add_circle(wb_scene *scene, float x, float y, float radius, float t
 	return obj->id;
 }
 
+int wb_scene_add_ellipse(wb_scene *scene, float x, float y, float radius_x, float radius_y, float thickness, uint32_t colour)
+{
+	wb_scene_object *obj = append_object(scene);
+	
+	if (!obj)
+		return 0;
+	
+	memset(obj, 0, sizeof(*obj));
+	obj->id = scene->next_object_id++;
+	obj->type = WB_OBJECT_ELLIPSE;
+	obj->layer_id = scene->current_layer_id;
+	obj->x = x;
+	obj->y = y;
+	obj->p0 = vec2(radius_x, radius_y);
+	obj->thickness = thickness;
+	obj->colour = colour;
+	obj->draw_progress = 1.0f;
+	obj->jitter_strength = 1.0f;
+	
+	return obj->id;
+}
+
 int wb_scene_add_shade_disc(wb_scene *scene, float x, float y, float radius, uint32_t colour, float opacity)
 {
 	wb_scene_object *obj = append_object(scene);
@@ -699,6 +721,7 @@ static void draw_curve_stroke(uint8_t *buf, wb_nurbs_pcurve *curve, float thickn
 
 static void draw_hand_open_point(uint8_t *buf, float x, float y, float radius, float thickness, uint32_t colour, float jitter_strength, int seed, float progress);
 static void draw_hand_line(uint8_t *buf, wb_vec2 a, wb_vec2 b, float thickness, uint32_t colour, float jitter_strength, int seed, float progress);
+static void draw_hand_ellipse(uint8_t *buf, float x, float y, float radius_x, float radius_y, float thickness, uint32_t colour, float jitter_strength, int seed, float progress);
 
 static void draw_hand_line(uint8_t *buf, wb_vec2 a, wb_vec2 b, float thickness, uint32_t colour, float jitter_strength, int seed, float progress)
 {
@@ -855,6 +878,25 @@ static void draw_hand_open_point(uint8_t *buf, float x, float y, float radius, f
 	free_nurbs_pcurve(curve);
 }
 
+static void draw_hand_ellipse(uint8_t *buf, float x, float y, float radius_x, float radius_y, float thickness, uint32_t colour, float jitter_strength, int seed, float progress)
+{
+	wb_nurbs_pcurve *curve = circle_nurbs_pcurve(x, y, 1.0f, 9, scene_seeded_unit(seed + 401) * TAU);
+	
+	if (!curve)
+		return;
+	
+	for (int i = 0; i < curve->nx->n_control_points; i++)
+	{
+		curve->nx->control_points[i] = x + (curve->nx->control_points[i] - x) * radius_x;
+		curve->ny->control_points[i] = y + (curve->ny->control_points[i] - y) * radius_y;
+	}
+	
+	if (jitter_strength > 0.0f)
+		jitter_nurbs_pcurve(curve, binary_max(0.6f, thickness * 0.45f) * jitter_strength);
+	draw_curve_stroke_progress(buf, curve, thickness, colour, progress);
+	free_nurbs_pcurve(curve);
+}
+
 static int project_3d_point(wb_vec3 p, wb_scene_layer *layer, wb_vec2 *out)
 {
 	float camera_distance = layer ? layer->camera_distance : 5.0f;
@@ -946,6 +988,8 @@ static void draw_scene_object(wb_scene_object *obj, wb_scene_layer *layer, int f
 		draw_hand_open_point(buf, obj->x + layer_offset.x, obj->y + layer_offset.y, obj->radius, obj->thickness, obj->colour, jitter_strength, frame + obj->id * 6151, obj->draw_progress);
 	else if (obj->type == WB_OBJECT_CIRCLE)
 		draw_hand_open_point(buf, obj->x + layer_offset.x, obj->y + layer_offset.y, obj->radius, obj->thickness, obj->colour, jitter_strength, frame + obj->id * 6151, obj->draw_progress);
+	else if (obj->type == WB_OBJECT_ELLIPSE)
+		draw_hand_ellipse(buf, obj->x + layer_offset.x, obj->y + layer_offset.y, obj->p0.x, obj->p0.y, obj->thickness, obj->colour, jitter_strength, frame + obj->id * 6553, obj->draw_progress);
 	else if (obj->type == WB_OBJECT_LINE3D)
 	{
 		wb_vec2 a;

@@ -81,6 +81,7 @@ typedef struct
 #define WB_OBJECT_SHADE_TRIANGLE 12
 #define WB_OBJECT_QUAD 13
 #define WB_OBJECT_RAY 14
+#define WB_OBJECT_ELLIPSE 15
 #define WB_ACTION_MOVE 1
 #define WB_ACTION_DRAW 2
 #define WB_ACTION_LAYER_MOVE 3
@@ -138,6 +139,7 @@ int wb_scene_add_curve3d(wb_scene *scene, float x0, float y0, float z0, float x1
 int wb_scene_add_point(wb_scene *scene, float x, float y, float radius, uint32_t colour);
 int wb_scene_add_open_point(wb_scene *scene, float x, float y, float radius, float thickness, uint32_t colour);
 int wb_scene_add_circle(wb_scene *scene, float x, float y, float radius, float thickness, uint32_t colour);
+int wb_scene_add_ellipse(wb_scene *scene, float x, float y, float radius_x, float radius_y, float thickness, uint32_t colour);
 int wb_scene_add_shade_disc(wb_scene *scene, float x, float y, float radius, uint32_t colour, float opacity);
 void wb_scene_move(wb_scene *scene, int object_id, float start_time, float end_time, float x1, float y1, float x2, float y2);
 void wb_scene_draw_in(wb_scene *scene, int object_id, float start_time, float end_time);

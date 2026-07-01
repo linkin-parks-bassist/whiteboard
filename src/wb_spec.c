@@ -679,6 +679,29 @@ static int parse_circle_object(wb_spec_parser *p, char *line, int line_no)
 	return 1;
 }
 
+static int parse_ellipse_object(wb_spec_parser *p, char *line, int line_no)
+{
+	char name[64];
+	char colour_name[64] = "blue";
+	float x = 0.0f, y = 0.0f, radius_x = 60.0f, radius_y = 40.0f, thickness = 3.0f;
+	float jitter_strength = 1.0f;
+	int matched = 0;
+	
+	matched = sscanf(line, "ellipse %63s center (%f,%f) radii (%f,%f) thickness %f colour %63s", name, &x, &y, &radius_x, &radius_y, &thickness, colour_name);
+	if (matched < 5)
+		matched = sscanf(line, "ellipse %63s center (%f, %f) radii (%f, %f) thickness %f colour %63s", name, &x, &y, &radius_x, &radius_y, &thickness, colour_name);
+	if (matched < 5)
+		return set_error(p, line_no, "expected ellipse name center (x,y) radii (rx,ry) thickness N colour name");
+	
+	int id = wb_scene_add_ellipse(p->scene, x, y, radius_x, radius_y, matched >= 6 ? thickness : 3.0f, parse_colour(matched >= 7 ? colour_name : "blue"));
+	if (!id)
+		return set_error(p, line_no, "failed to create ellipse object");
+	if (parse_jitter_token(line, &jitter_strength))
+		wb_scene_set_object_jitter(p->scene, id, jitter_strength);
+	remember_name(p, name, id);
+	return 1;
+}
+
 static int parse_shade_disc_object(wb_spec_parser *p, char *line, int line_no)
 {
 	char name[64];
@@ -764,6 +787,8 @@ static int parse_spec_line(wb_spec_parser *p, char *line, int line_no)
 		return parse_line_object(p, s, line_no);
 	if (starts_with(s, "circle "))
 		return parse_circle_object(p, s, line_no);
+	if (starts_with(s, "ellipse "))
+		return parse_ellipse_object(p, s, line_no);
 	if (starts_with(s, "shade_disc "))
 		return parse_shade_disc_object(p, s, line_no);
 	if (starts_with(s, "point "))

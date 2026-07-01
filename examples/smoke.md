@@ -9,6 +9,7 @@ scene "smoke" duration 0.25s
     math eq "$\mu+x$" at (220,420) size 70 colour black jitter off
     shade_disc region center (340,500) radius 92 colour green opacity 0.18
     circle loop center (340,500) radius 88 thickness 3 colour green jitter 1.2
+    ellipse orbit center (1060,500) radii (120,72) thickness 3 colour green jitter 1.0
     shade_triangle tri_fill points (720,450) (840,530) (680,560) colour blue opacity 0.14
     triangle tri points (720,450) (840,530) (680,560) thickness 3 colour blue jitter 1.2
     quad panel points (1000,430) (1120,445) (1100,585) (980,570) thickness 3 colour grey jitter 1.1
@@ -19,6 +20,7 @@ scene "smoke" duration 0.25s
     open_point q at (460,500) radius 10 thickness 3 colour blue jitter 1.5
     draw loop during 0s..0.20s
     draw region during 0s..0.20s
+    draw orbit during 0.02s..0.25s
     draw tri_fill during 0.05s..0.25s
     draw tri during 0.05s..0.25s
     draw panel during 0.05s..0.25s
