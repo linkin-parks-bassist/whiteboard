@@ -43,10 +43,12 @@ scene "projected path" duration 0.35s
     camera distance 4.5 scale 430 center (960,560)
     point3d apex at (0,1.1,1.4) radius 9 colour red jitter 1.0
     open_point3d source3 at (-1.1,-0.2,0) radius 10 thickness 3 colour grey jitter 0.9
+    shade_triangle3d sheet_fill points (-1.1,-0.2,0) (0,1.1,1.4) (1.1,-0.2,0.2) colour green opacity 0.10
     triangle3d sheet points (-1.1,-0.2,0) (0,1.1,1.4) (1.1,-0.2,0.2) thickness 3 colour green jitter 0.9
     line3d base from (-1.2,-0.7,0) to (1.2,-0.7,0) thickness 3 colour grey jitter 1.0
     curve3d arc through (-1.1,-0.2,0) (0,1.1,1.4) (1.1,-0.2,0.2) thickness 4 colour blue jitter 1.3
     move_camera model from distance 4.5 scale 430 center (960,560) to distance 6.2 scale 520 center (1030,520) during 0s..0.35s
+    draw sheet_fill during 0.04s..0.28s
     draw arc during 0s..0.35s
   layer labels 2d opacity 1 jitter 0.8
     math label "$\\gamma:[0,1]\\to X$" at (300,230) size 64 colour black jitter 0.8

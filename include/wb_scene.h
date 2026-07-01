@@ -97,6 +97,7 @@ typedef struct
 #define WB_OBJECT_POINT3D 19
 #define WB_OBJECT_OPEN_POINT3D 20
 #define WB_OBJECT_TRIANGLE3D 21
+#define WB_OBJECT_SHADE_TRIANGLE3D 22
 #define WB_ACTION_MOVE 1
 #define WB_ACTION_DRAW 2
 #define WB_ACTION_LAYER_MOVE 3
@@ -161,6 +162,7 @@ int wb_scene_add_shade_polygon(wb_scene *scene, const wb_vec2 *points, int n_poi
 int wb_scene_add_point3d(wb_scene *scene, float x, float y, float z, float radius, uint32_t colour);
 int wb_scene_add_open_point3d(wb_scene *scene, float x, float y, float z, float radius, float thickness, uint32_t colour);
 int wb_scene_add_triangle3d(wb_scene *scene, float x0, float y0, float z0, float x1, float y1, float z1, float x2, float y2, float z2, float thickness, uint32_t colour);
+int wb_scene_add_shade_triangle3d(wb_scene *scene, float x0, float y0, float z0, float x1, float y1, float z1, float x2, float y2, float z2, uint32_t colour, float opacity);
 int wb_scene_add_line3d(wb_scene *scene, float x0, float y0, float z0, float x1, float y1, float z1, float thickness, uint32_t colour);
 int wb_scene_add_curve3d(wb_scene *scene, float x0, float y0, float z0, float x1, float y1, float z1, float x2, float y2, float z2, float thickness, uint32_t colour);
 int wb_scene_add_point(wb_scene *scene, float x, float y, float radius, uint32_t colour);

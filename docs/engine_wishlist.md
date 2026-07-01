@@ -272,6 +272,8 @@ High urgency:
 35. Done: Add a projected 3D point primitive. The spec supports `point3d name at (x,y,z) radius R colour C`, projected through the current camera into the existing planar point renderer.
 36. Done: Add a projected 3D open-point primitive. The spec supports `open_point3d name at (x,y,z) radius R thickness T colour C`, projected through the current camera into the existing planar open-point renderer.
 37. Done: Add a projected 3D triangle outline primitive. The spec supports `triangle3d name points (x,y,z) (x,y,z) (x,y,z) thickness T colour C`, projected through the current camera into the existing planar hand-drawn triangle path.
+38. Done: Add a projected 3D shaded triangle primitive. The spec supports `shade_triangle3d name points (x,y,z) (x,y,z) (x,y,z) colour C opacity A`, projected through the current camera into the existing planar alpha-fill triangle path and compatible with draw-on opacity timing.
+39. Pending: Make the spec syntax genuinely pretty. The current first-pass shorthands help, but the language still reads too much like a parser test. Push it toward something terser, more mathematical, and more pleasant to author for long-form video specs.
 
 ## Open Questions
 

@@ -34,9 +34,11 @@ scene "smoke" duration 0.25s
     camera distance 5 scale 300 center (960,540)
     point3d marker at (0.25,0.6,0.8) radius 8 colour blue jitter 1.0
     open_point3d target at (-0.45,0.9,1.0) radius 10 thickness 3 colour grey jitter 1.0
+    shade_triangle3d face_fill points (-0.8,-0.2,0.2) (-0.1,0.9,1.0) (0.7,-0.1,0.5) colour green opacity 0.12
     triangle3d face points (-0.8,-0.2,0.2) (-0.1,0.9,1.0) (0.7,-0.1,0.5) thickness 3 colour grey jitter 1.0
     line3d edge from (-1,-0.5,0) to (1,0.8,1.5) thickness 3 colour green jitter 1.2
     curve3d arc through (-1,0.7,0) (0,1.3,1.4) (1,0.4,0.4) thickness 3 colour red jitter 1.1
+    draw face_fill during 0.02s..0.25s
     draw arc during 0s..0.25s
 
 scene "smoke second scene" duration 0.20s
