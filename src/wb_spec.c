@@ -586,6 +586,79 @@ static int parse_quad_object(wb_spec_parser *p, char *line, int line_no)
 	return 1;
 }
 
+static int parse_polygon_object(wb_spec_parser *p, char *line, int line_no)
+{
+	char name[64];
+	char colour_name[64] = "blue";
+	wb_vec2 points[7];
+	float thickness = 3.0f;
+	float jitter_strength = 1.0f;
+	char *cursor;
+	char *tok;
+	int n_points = 0;
+	int id = 0;
+	
+	if (sscanf(line, "polygon %63s", name) != 1 && sscanf(line, "poly %63s", name) != 1)
+		return set_error(p, line_no, "expected polygon/poly name ...");
+	
+	cursor = strstr(line, " points ");
+	if (!cursor)
+		cursor = strchr(line, ' ');
+	if (!cursor)
+		return set_error(p, line_no, "expected polygon/poly name points ...");
+	if (starts_with(line, "polygon "))
+		cursor = strstr(line, " points ");
+	else
+		cursor = strchr(cursor + 1, ' ');
+	if (!cursor)
+		return set_error(p, line_no, "expected polygon/poly name points ...");
+	
+	while (*cursor && n_points < 7)
+	{
+		float x = 0.0f, y = 0.0f;
+		char *open = strchr(cursor, '(');
+		if (!open)
+			break;
+		if (sscanf(open, "(%f,%f)", &x, &y) == 2 || sscanf(open, "(%f, %f)", &x, &y) == 2)
+		{
+			points[n_points++] = vec2(x, y);
+			cursor = open + 1;
+			continue;
+		}
+		break;
+	}
+	
+	if (n_points < 3)
+		return set_error(p, line_no, "expected polygon/poly with 3 to 7 points");
+	
+	tok = strstr(line, " thickness ");
+	if (tok)
+		sscanf(tok, " thickness %f", &thickness);
+	else
+	{
+		tok = strstr(line, " t ");
+		if (tok)
+			sscanf(tok, " t %f", &thickness);
+	}
+	tok = strstr(line, " colour ");
+	if (tok)
+		sscanf(tok, " colour %63s", colour_name);
+	else
+	{
+		tok = strstr(line, " c ");
+		if (tok)
+			sscanf(tok, " c %63s", colour_name);
+	}
+	
+	id = wb_scene_add_polygon(p->scene, points, n_points, thickness, parse_colour(colour_name));
+	if (!id)
+		return set_error(p, line_no, "failed to create polygon object");
+	if (parse_jitter_token(line, &jitter_strength))
+		wb_scene_set_object_jitter(p->scene, id, jitter_strength);
+	remember_name(p, name, id);
+	return 1;
+}
+
 static int parse_line3d_object(wb_spec_parser *p, char *line, int line_no)
 {
 	char name[64];
@@ -809,6 +882,8 @@ static int parse_spec_line(wb_spec_parser *p, char *line, int line_no)
 		return parse_shade_triangle_object(p, s, line_no);
 	if (starts_with(s, "quad "))
 		return parse_quad_object(p, s, line_no);
+	if (starts_with(s, "polygon ") || starts_with(s, "poly "))
+		return parse_polygon_object(p, s, line_no);
 	if (starts_with(s, "ray "))
 		return parse_ray_object(p, s, line_no);
 	if (starts_with(s, "line ") || starts_with(s, "seg "))

@@ -412,6 +412,49 @@ int wb_scene_add_quad(wb_scene *scene, float x0, float y0, float x1, float y1, f
 	return obj->id;
 }
 
+int wb_scene_add_polygon(wb_scene *scene, const wb_vec2 *points, int n_points, float thickness, uint32_t colour)
+{
+	wb_scene_object *obj = append_object(scene);
+	
+	if (!obj || !points || n_points < 3 || n_points > 7)
+		return 0;
+	
+	memset(obj, 0, sizeof(*obj));
+	obj->id = scene->next_object_id++;
+	obj->type = WB_OBJECT_POLYGON;
+	obj->layer_id = scene->current_layer_id;
+	obj->p0 = points[0];
+	obj->p1 = points[1];
+	obj->q0 = vec3(points[2].x, points[2].y, 0);
+	obj->q1 = vec3(points[3].x, points[3].y, 0);
+	obj->q2 = vec3(points[4].x, points[4].y, 0);
+	obj->x = points[5].x;
+	obj->y = points[5].y;
+	obj->size = points[6].y;
+	obj->q2.z = points[6].x;
+	obj->radius = (float)n_points;
+	obj->thickness = thickness;
+	obj->colour = colour;
+	obj->draw_progress = 1.0f;
+	obj->jitter_strength = 1.0f;
+	if (n_points < 4)
+		obj->q1 = obj->q0;
+	if (n_points < 5)
+		obj->q2 = obj->q1;
+	if (n_points < 6)
+	{
+		obj->x = obj->q2.x;
+		obj->y = obj->q2.y;
+	}
+	if (n_points < 7)
+	{
+		obj->q2.z = obj->x;
+		obj->size = obj->y;
+	}
+	
+	return obj->id;
+}
+
 int wb_scene_add_line3d(wb_scene *scene, float x0, float y0, float z0, float x1, float y1, float z1, float thickness, uint32_t colour)
 {
 	wb_scene_object *obj = append_object(scene);
@@ -865,6 +908,24 @@ static void draw_hand_quad(uint8_t *buf, wb_vec2 a, wb_vec2 b, wb_vec2 c, wb_vec
 		draw_hand_line(buf, d, a, thickness, colour, jitter_strength, seed + 409, p - 3.0f);
 }
 
+static void draw_hand_polygon(uint8_t *buf, const wb_vec2 *points, int n_points, float thickness, uint32_t colour, float jitter_strength, int seed, float progress)
+{
+	float p;
+	
+	if (!buf || !points || n_points < 3 || progress <= 0.0f)
+		return;
+	
+	progress = clamp01(progress);
+	p = progress * (float)n_points;
+	for (int i = 0; i < n_points; i++)
+	{
+		float edge_progress = p - (float)i;
+		if (edge_progress <= 0.0f)
+			break;
+		draw_hand_line(buf, points[i], points[(i + 1) % n_points], thickness, colour, jitter_strength, seed + 101 * (i + 1), edge_progress > 1.0f ? 1.0f : edge_progress);
+	}
+}
+
 static void draw_hand_open_point(uint8_t *buf, float x, float y, float radius, float thickness, uint32_t colour, float jitter_strength, int seed, float progress)
 {
 	wb_nurbs_pcurve *curve = circle_nurbs_pcurve(x, y, radius, 9, scene_seeded_unit(seed + 401) * TAU);
@@ -980,6 +1041,20 @@ static void draw_scene_object(wb_scene_object *obj, wb_scene_layer *layer, int f
 		draw_triangle_with_alpha(buf, vec2(obj->p0.x + layer_offset.x, obj->p0.y + layer_offset.y), vec2(obj->p1.x + layer_offset.x, obj->p1.y + layer_offset.y), vec2(obj->x + layer_offset.x, obj->y + layer_offset.y), obj->colour, obj->size * obj->draw_progress);
 	else if (obj->type == WB_OBJECT_QUAD)
 		draw_hand_quad(buf, vec2(obj->p0.x + layer_offset.x, obj->p0.y + layer_offset.y), vec2(obj->p1.x + layer_offset.x, obj->p1.y + layer_offset.y), vec2(obj->q0.x + layer_offset.x, obj->q0.y + layer_offset.y), vec2(obj->q1.x + layer_offset.x, obj->q1.y + layer_offset.y), obj->thickness, obj->colour, jitter_strength, frame + obj->id * 7349, obj->draw_progress);
+	else if (obj->type == WB_OBJECT_POLYGON)
+	{
+		wb_vec2 points[7];
+		int n_points = (int)(obj->radius + 0.5f);
+		
+		points[0] = vec2(obj->p0.x + layer_offset.x, obj->p0.y + layer_offset.y);
+		points[1] = vec2(obj->p1.x + layer_offset.x, obj->p1.y + layer_offset.y);
+		points[2] = vec2(obj->q0.x + layer_offset.x, obj->q0.y + layer_offset.y);
+		points[3] = vec2(obj->q1.x + layer_offset.x, obj->q1.y + layer_offset.y);
+		points[4] = vec2(obj->q2.x + layer_offset.x, obj->q2.y + layer_offset.y);
+		points[5] = vec2(obj->x + layer_offset.x, obj->y + layer_offset.y);
+		points[6] = vec2(obj->q2.z + layer_offset.x, obj->size + layer_offset.y);
+		draw_hand_polygon(buf, points, n_points, obj->thickness, obj->colour, jitter_strength, frame + obj->id * 7523, obj->draw_progress);
+	}
 	else if (obj->type == WB_OBJECT_SHADE_DISC)
 		draw_disc_with_alpha(buf, obj->x + layer_offset.x, obj->y + layer_offset.y, obj->radius, obj->colour, obj->size * obj->draw_progress);
 	else if (obj->type == WB_OBJECT_POINT)
