@@ -906,6 +906,29 @@ static int parse_point3d_object(wb_spec_parser *p, char *line, int line_no)
 	return 1;
 }
 
+static int parse_open_point3d_object(wb_spec_parser *p, char *line, int line_no)
+{
+	char name[64];
+	char colour_name[64] = "blue";
+	float x = 0.0f, y = 0.0f, z = 0.0f, radius = 8.0f, thickness = 2.5f;
+	float jitter_strength = 1.0f;
+	int matched = 0;
+	
+	matched = sscanf(line, "open_point3d %63s at (%f,%f,%f) radius %f thickness %f colour %63s", name, &x, &y, &z, &radius, &thickness, colour_name);
+	if (matched < 4)
+		matched = sscanf(line, "open_point3d %63s at (%f, %f, %f) radius %f thickness %f colour %63s", name, &x, &y, &z, &radius, &thickness, colour_name);
+	if (matched < 4)
+		return set_error(p, line_no, "expected open_point3d name at (x,y,z) radius N thickness N colour name");
+	
+	int id = wb_scene_add_open_point3d(p->scene, x, y, z, matched >= 5 ? radius : 8.0f, matched >= 6 ? thickness : 2.5f, parse_colour(matched >= 7 ? colour_name : "blue"));
+	if (!id)
+		return set_error(p, line_no, "failed to create open_point3d object");
+	if (parse_jitter_token(line, &jitter_strength))
+		wb_scene_set_object_jitter(p->scene, id, jitter_strength);
+	remember_name(p, name, id);
+	return 1;
+}
+
 static int parse_point_object(wb_spec_parser *p, char *line, int line_no, int open)
 {
 	char name[64];
@@ -1075,6 +1098,8 @@ static int parse_spec_line(wb_spec_parser *p, char *line, int line_no)
 		return parse_curve3d_object(p, s, line_no);
 	if (starts_with(s, "point3d "))
 		return parse_point3d_object(p, s, line_no);
+	if (starts_with(s, "open_point3d "))
+		return parse_open_point3d_object(p, s, line_no);
 	if (starts_with(s, "dotted_line "))
 		return parse_dotted_line_object(p, s, line_no);
 	if (starts_with(s, "dashed_line ") || starts_with(s, "dash "))

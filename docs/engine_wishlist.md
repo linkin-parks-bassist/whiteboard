@@ -270,6 +270,7 @@ High urgency:
 33. Done: Add first layer fade support. The spec supports `fade_layer layer from A to A during Ts..Ts`, animated through the compositor by interpolating layer opacity over time.
 34. Done: Add first object fade support for shaded primitives. The spec supports `fade name from A to A during Ts..Ts`; this pass applies to opacity-bearing shaded objects such as `shade_disc`, `shade_triangle`, and `shade_polygon`.
 35. Done: Add a projected 3D point primitive. The spec supports `point3d name at (x,y,z) radius R colour C`, projected through the current camera into the existing planar point renderer.
+36. Done: Add a projected 3D open-point primitive. The spec supports `open_point3d name at (x,y,z) radius R thickness T colour C`, projected through the current camera into the existing planar open-point renderer.
 
 ## Open Questions
 

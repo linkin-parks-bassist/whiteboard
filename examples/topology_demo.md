@@ -42,6 +42,7 @@ scene "projected path" duration 0.35s
   layer model 3d opacity 1 jitter 1.2
     camera distance 4.5 scale 430 center (960,560)
     point3d apex at (0,1.1,1.4) radius 9 colour red jitter 1.0
+    open_point3d source3 at (-1.1,-0.2,0) radius 10 thickness 3 colour grey jitter 0.9
     line3d base from (-1.2,-0.7,0) to (1.2,-0.7,0) thickness 3 colour grey jitter 1.0
     curve3d arc through (-1.1,-0.2,0) (0,1.1,1.4) (1.1,-0.2,0.2) thickness 4 colour blue jitter 1.3
     move_camera model from distance 4.5 scale 430 center (960,560) to distance 6.2 scale 520 center (1030,520) during 0s..0.35s
