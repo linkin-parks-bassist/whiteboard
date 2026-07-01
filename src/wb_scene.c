@@ -345,6 +345,29 @@ int wb_scene_add_triangle(wb_scene *scene, float x0, float y0, float x1, float y
 	return obj->id;
 }
 
+int wb_scene_add_shade_triangle(wb_scene *scene, float x0, float y0, float x1, float y1, float x2, float y2, uint32_t colour, float opacity)
+{
+	wb_scene_object *obj = append_object(scene);
+	
+	if (!obj)
+		return 0;
+	
+	memset(obj, 0, sizeof(*obj));
+	obj->id = scene->next_object_id++;
+	obj->type = WB_OBJECT_SHADE_TRIANGLE;
+	obj->layer_id = scene->current_layer_id;
+	obj->p0 = vec2(x0, y0);
+	obj->p1 = vec2(x1, y1);
+	obj->x = x2;
+	obj->y = y2;
+	obj->size = opacity;
+	obj->colour = colour;
+	obj->draw_progress = 1.0f;
+	obj->jitter_strength = 1.0f;
+	
+	return obj->id;
+}
+
 int wb_scene_add_line3d(wb_scene *scene, float x0, float y0, float z0, float x1, float y1, float z1, float thickness, uint32_t colour)
 {
 	wb_scene_object *obj = append_object(scene);
@@ -813,6 +836,8 @@ static void draw_scene_object(wb_scene_object *obj, wb_scene_layer *layer, int f
 		draw_hand_arrow(buf, vec2(obj->x + obj->p0.x + layer_offset.x, obj->y + obj->p0.y + layer_offset.y), vec2(obj->x + obj->p1.x + layer_offset.x, obj->y + obj->p1.y + layer_offset.y), obj->thickness, obj->size, obj->colour, jitter_strength, frame + obj->id * 6947, obj->draw_progress);
 	else if (obj->type == WB_OBJECT_TRIANGLE)
 		draw_hand_triangle(buf, vec2(obj->p0.x + layer_offset.x, obj->p0.y + layer_offset.y), vec2(obj->p1.x + layer_offset.x, obj->p1.y + layer_offset.y), vec2(obj->x + layer_offset.x, obj->y + layer_offset.y), obj->thickness, obj->colour, jitter_strength, frame + obj->id * 7103, obj->draw_progress);
+	else if (obj->type == WB_OBJECT_SHADE_TRIANGLE)
+		draw_triangle_with_alpha(buf, vec2(obj->p0.x + layer_offset.x, obj->p0.y + layer_offset.y), vec2(obj->p1.x + layer_offset.x, obj->p1.y + layer_offset.y), vec2(obj->x + layer_offset.x, obj->y + layer_offset.y), obj->colour, obj->size * obj->draw_progress);
 	else if (obj->type == WB_OBJECT_SHADE_DISC)
 		draw_disc_with_alpha(buf, obj->x + layer_offset.x, obj->y + layer_offset.y, obj->radius, obj->colour, obj->size * obj->draw_progress);
 	else if (obj->type == WB_OBJECT_POINT)

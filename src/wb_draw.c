@@ -304,6 +304,70 @@ void draw_disc_with_alpha(uint8_t *buf, float x, float y, float radius, uint32_t
 	}
 }
 
+static inline float edge_function(wb_vec2 a, wb_vec2 b, float x, float y)
+{
+	return (x - a.x) * (b.y - a.y) - (y - a.y) * (b.x - a.x);
+}
+
+static void write_alpha_fill_pixel(uint8_t *buf, int x, int y, uint32_t colour, float alpha)
+{
+	if (!buf || alpha <= 0.0f)
+		return;
+	if (alpha > 1.0f)
+		alpha = 1.0f;
+	
+	int ind = (y * render_width + x) * 3;
+	if (draw_alpha_buffer)
+	{
+		int ai = y * render_width + x;
+		int a = (int)(alpha * 255.0f);
+		buf[ind + 0] = COLOUR_B(colour);
+		buf[ind + 1] = COLOUR_G(colour);
+		buf[ind + 2] = COLOUR_R(colour);
+		if (a > draw_alpha_buffer[ai])
+			draw_alpha_buffer[ai] = (uint8_t)a;
+	}
+	else
+		blend_pixel(buf, x, y, colour, alpha);
+}
+
+void draw_triangle_with_alpha(uint8_t *buf, wb_vec2 a, wb_vec2 b, wb_vec2 c, uint32_t colour, float opacity)
+{
+	if (!buf || !colour || opacity <= 0.0f)
+		return;
+	if (opacity > 1.0f)
+		opacity = 1.0f;
+	
+	float area = edge_function(a, b, c.x, c.y);
+	if (BASICALLY_ZERO(area))
+		return;
+	
+	int x_min = binary_max(0, floor_to_int(binary_min(binary_min(a.x, b.x), c.x) - 1.0f));
+	int x_max = binary_min(render_width - 1, ceil_to_int(binary_max(binary_max(a.x, b.x), c.x) + 1.0f));
+	int y_min = binary_max(0, floor_to_int(binary_min(binary_min(a.y, b.y), c.y) - 1.0f));
+	int y_max = binary_min(render_height - 1, ceil_to_int(binary_max(binary_max(a.y, b.y), c.y) + 1.0f));
+	float sign = area < 0.0f ? -1.0f : 1.0f;
+	
+	for (int py = y_min; py <= y_max; py++)
+	{
+		for (int px = x_min; px <= x_max; px++)
+		{
+			float x = (float)px + 0.5f;
+			float y = (float)py + 0.5f;
+			float e0 = edge_function(a, b, x, y) * sign;
+			float e1 = edge_function(b, c, x, y) * sign;
+			float e2 = edge_function(c, a, x, y) * sign;
+			float min_edge = binary_min(binary_min(e0 / binary_max(1.0f, vec2_norm(vec2_diff(b, a))), e1 / binary_max(1.0f, vec2_norm(vec2_diff(c, b)))), e2 / binary_max(1.0f, vec2_norm(vec2_diff(a, c))));
+			float coverage;
+			
+			if (min_edge < -1.0f)
+				continue;
+			coverage = min_edge >= 0.0f ? 1.0f : min_edge + 1.0f;
+			write_alpha_fill_pixel(buf, px, py, colour, coverage * opacity);
+		}
+	}
+}
+
 void draw_sausage(uint8_t *buf, wb_vec2 s, wb_vec2 d, float thickness, uint32_t colour)
 {
 	if (!buf)
