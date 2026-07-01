@@ -414,6 +414,7 @@ int wb_scene_add_shade_triangle(wb_scene *scene, float x0, float y0, float x1, f
 	obj->colour = colour;
 	obj->draw_progress = 1.0f;
 	obj->jitter_strength = 1.0f;
+	obj->render_alpha = 1.0f;
 	
 	return obj->id;
 }
@@ -509,6 +510,7 @@ int wb_scene_add_shade_polygon(wb_scene *scene, const wb_vec2 *points, int n_poi
 	obj->thickness = 0.0f;
 	obj->draw_progress = 1.0f;
 	obj->jitter_strength = 1.0f;
+	obj->render_alpha = 1.0f;
 	if (n_points < 4)
 		obj->q1 = obj->q0;
 	if (n_points < 5)
@@ -676,6 +678,7 @@ int wb_scene_add_shade_disc(wb_scene *scene, float x, float y, float radius, uin
 	obj->colour = colour;
 	obj->draw_progress = 1.0f;
 	obj->jitter_strength = 1.0f;
+	obj->render_alpha = 1.0f;
 	
 	return obj->id;
 }
@@ -744,6 +747,22 @@ void wb_scene_fade_layer(wb_scene *scene, int layer_id, float start_time, float 
 	action->object_id = 0;
 	action->layer_id = layer_id;
 	action->type = WB_ACTION_LAYER_FADE;
+	action->start_time = start_time;
+	action->end_time = end_time;
+	action->from_z = opacity1;
+	action->to_z = opacity2;
+	scene->total_duration = binary_max(scene->total_duration, end_time);
+}
+
+void wb_scene_fade_object(wb_scene *scene, int object_id, float start_time, float end_time, float opacity1, float opacity2)
+{
+	wb_scene_action *action = append_action(scene);
+	
+	if (!action)
+		return;
+	
+	action->object_id = object_id;
+	action->type = WB_ACTION_FADE;
 	action->start_time = start_time;
 	action->end_time = end_time;
 	action->from_z = opacity1;
@@ -1193,7 +1212,7 @@ static void draw_scene_object(wb_scene_object *obj, wb_scene_layer *layer, int f
 	else if (obj->type == WB_OBJECT_TRIANGLE)
 		draw_hand_triangle(buf, vec2(obj->p0.x + layer_offset.x, obj->p0.y + layer_offset.y), vec2(obj->p1.x + layer_offset.x, obj->p1.y + layer_offset.y), vec2(obj->x + layer_offset.x, obj->y + layer_offset.y), obj->thickness, obj->colour, jitter_strength, frame + obj->id * 7103, obj->draw_progress);
 	else if (obj->type == WB_OBJECT_SHADE_TRIANGLE)
-		draw_triangle_with_alpha(buf, vec2(obj->p0.x + layer_offset.x, obj->p0.y + layer_offset.y), vec2(obj->p1.x + layer_offset.x, obj->p1.y + layer_offset.y), vec2(obj->x + layer_offset.x, obj->y + layer_offset.y), obj->colour, obj->size * obj->draw_progress);
+		draw_triangle_with_alpha(buf, vec2(obj->p0.x + layer_offset.x, obj->p0.y + layer_offset.y), vec2(obj->p1.x + layer_offset.x, obj->p1.y + layer_offset.y), vec2(obj->x + layer_offset.x, obj->y + layer_offset.y), obj->colour, obj->size * obj->draw_progress * obj->render_alpha);
 	else if (obj->type == WB_OBJECT_QUAD)
 		draw_hand_quad(buf, vec2(obj->p0.x + layer_offset.x, obj->p0.y + layer_offset.y), vec2(obj->p1.x + layer_offset.x, obj->p1.y + layer_offset.y), vec2(obj->q0.x + layer_offset.x, obj->q0.y + layer_offset.y), vec2(obj->q1.x + layer_offset.x, obj->q1.y + layer_offset.y), obj->thickness, obj->colour, jitter_strength, frame + obj->id * 7349, obj->draw_progress);
 	else if (obj->type == WB_OBJECT_POLYGON)
@@ -1222,10 +1241,10 @@ static void draw_scene_object(wb_scene_object *obj, wb_scene_layer *layer, int f
 		points[4] = vec2(obj->q2.x + layer_offset.x, obj->q2.y + layer_offset.y);
 		points[5] = vec2(obj->x + layer_offset.x, obj->y + layer_offset.y);
 		points[6] = vec2(obj->q2.z + layer_offset.x, obj->size + layer_offset.y);
-		draw_polygon_with_alpha(buf, points, n_points, obj->colour, obj->thickness * obj->draw_progress);
+		draw_polygon_with_alpha(buf, points, n_points, obj->colour, obj->thickness * obj->draw_progress * obj->render_alpha);
 	}
 	else if (obj->type == WB_OBJECT_SHADE_DISC)
-		draw_disc_with_alpha(buf, obj->x + layer_offset.x, obj->y + layer_offset.y, obj->radius, obj->colour, obj->size * obj->draw_progress);
+		draw_disc_with_alpha(buf, obj->x + layer_offset.x, obj->y + layer_offset.y, obj->radius, obj->colour, obj->size * obj->draw_progress * obj->render_alpha);
 	else if (obj->type == WB_OBJECT_POINT)
 		draw_disc(buf, obj->x + layer_offset.x, obj->y + layer_offset.y, obj->radius, obj->colour);
 	else if (obj->type == WB_OBJECT_OPEN_POINT)
@@ -1471,7 +1490,10 @@ void wb_scene_render(wb_scene *scene, float time, int frame, uint8_t *buf)
 		fill_with_colour(buf, 0xFFFFFF);
 	
 	for (int i = 0; i < scene->n_objects; i++)
+	{
 		scene->objects[i].draw_progress = 1.0f;
+		scene->objects[i].render_alpha = 1.0f;
+	}
 	for (int i = 0; i < scene->n_layers; i++)
 	{
 		scene->layers[i].render_opacity = scene->layers[i].opacity;
@@ -1536,6 +1558,18 @@ void wb_scene_render(wb_scene *scene, float time, int frame, uint8_t *buf)
 			
 			float a = action_alpha(action, time);
 			layer->render_opacity = action->from_z + (action->to_z - action->from_z) * a;
+		}
+		else if (action->type == WB_ACTION_FADE)
+		{
+			if (!obj)
+				continue;
+			
+			float a = action_alpha(action, time);
+			obj->render_alpha = action->from_z + (action->to_z - action->from_z) * a;
+			if (obj->render_alpha < 0.0f)
+				obj->render_alpha = 0.0f;
+			if (obj->render_alpha > 1.0f)
+				obj->render_alpha = 1.0f;
 		}
 	}
 	

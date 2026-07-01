@@ -268,6 +268,7 @@ High urgency:
 31. Done: Add a dashed line constructor. The spec supports `dashed_line/dash name ...`, rendered as jitterable hand-drawn dash segments and compatible with draw-on timing.
 32. Done: Add first camera animation support for 3D layers. The spec supports `move_camera layer from distance D scale S center (x,y) to distance D scale S center (x,y) during Ts..Ts`, interpolated through the existing easing path.
 33. Done: Add first layer fade support. The spec supports `fade_layer layer from A to A during Ts..Ts`, animated through the compositor by interpolating layer opacity over time.
+34. Done: Add first object fade support for shaded primitives. The spec supports `fade name from A to A during Ts..Ts`; this pass applies to opacity-bearing shaded objects such as `shade_disc`, `shade_triangle`, and `shade_polygon`.
 
 ## Open Questions
 

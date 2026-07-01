@@ -33,6 +33,7 @@ scene "quotient circle" duration 0.35s
     draw chord during 0.1s..0.35s
     draw quotient during 0.05s..0.35s
     draw collapse during 0.12s..0.35s
+    fade simplex_fill from 0 to 1 during 0.08s..0.22s
   layer glow 2d opacity 0.35 blur 10 jitter 0.6
     circle halo center (440,520) radius 148 thickness 9 colour green jitter 1.2
 
