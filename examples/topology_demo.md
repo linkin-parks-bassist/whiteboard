@@ -10,6 +10,7 @@ scene "quotient circle" duration 0.35s
     shade_disc disk center (440,520) radius 138 colour green opacity 0.16
     circle source center (440,520) radius 140 thickness 4 colour blue jitter 1.4
     ellipse neighbourhood center (1330,330) radii (120,74) thickness 4 colour grey jitter 0.9
+    shade_polygon region_fill points (1260,700) (1360,650) (1460,710) (1430,820) (1300,840) colour red opacity 0.12
     polygon region points (1260,700) (1360,650) (1460,710) (1430,820) (1300,840) thickness 4 colour red jitter 0.9
     shade_triangle simplex_fill points (980,430) (1110,590) (850,590) colour green opacity 0.14
     triangle simplex points (980,430) (1110,590) (850,590) thickness 4 colour green jitter 1.2
@@ -23,6 +24,7 @@ scene "quotient circle" duration 0.35s
     draw source during 0s..0.25s
     draw disk during 0s..0.25s
     draw neighbourhood during 0.04s..0.35s
+    draw region_fill during 0.08s..0.35s
     draw region during 0.08s..0.35s
     draw simplex_fill during 0.08s..0.35s
     draw simplex during 0.08s..0.35s

@@ -659,6 +659,83 @@ static int parse_polygon_object(wb_spec_parser *p, char *line, int line_no)
 	return 1;
 }
 
+static int parse_shade_polygon_object(wb_spec_parser *p, char *line, int line_no)
+{
+	char name[64];
+	char colour_name[64] = "blue";
+	wb_vec2 points[7];
+	float opacity = 0.25f;
+	float jitter_strength = 1.0f;
+	char *cursor;
+	char *tok;
+	int n_points = 0;
+	int id = 0;
+	
+	if (sscanf(line, "shade_polygon %63s", name) != 1 && sscanf(line, "shade_poly %63s", name) != 1)
+		return set_error(p, line_no, "expected shade_polygon/shade_poly name ...");
+	
+	cursor = strstr(line, " points ");
+	if (!cursor)
+		cursor = strchr(line, ' ');
+	if (!cursor)
+		return set_error(p, line_no, "expected shade_polygon/shade_poly name points ...");
+	if (starts_with(line, "shade_polygon "))
+		cursor = strstr(line, " points ");
+	else
+		cursor = strchr(cursor + 1, ' ');
+	if (!cursor)
+		return set_error(p, line_no, "expected shade_polygon/shade_poly name points ...");
+	
+	while (*cursor && n_points < 7)
+	{
+		float x = 0.0f, y = 0.0f;
+		char *open = strchr(cursor, '(');
+		if (!open)
+			break;
+		if (sscanf(open, "(%f,%f)", &x, &y) == 2 || sscanf(open, "(%f, %f)", &x, &y) == 2)
+		{
+			points[n_points++] = vec2(x, y);
+			cursor = open + 1;
+			continue;
+		}
+		break;
+	}
+	
+	if (n_points < 3)
+		return set_error(p, line_no, "expected shade_polygon/shade_poly with 3 to 7 points");
+	
+	tok = strstr(line, " colour ");
+	if (tok)
+		sscanf(tok, " colour %63s", colour_name);
+	else
+	{
+		tok = strstr(line, " c ");
+		if (tok)
+			sscanf(tok, " c %63s", colour_name);
+	}
+	tok = strstr(line, " opacity ");
+	if (tok)
+		sscanf(tok, " opacity %f", &opacity);
+	else
+	{
+		tok = strstr(line, " a ");
+		if (tok)
+			sscanf(tok, " a %f", &opacity);
+	}
+	if (opacity < 0.0f)
+		opacity = 0.0f;
+	if (opacity > 1.0f)
+		opacity = 1.0f;
+	
+	id = wb_scene_add_shade_polygon(p->scene, points, n_points, parse_colour(colour_name), opacity);
+	if (!id)
+		return set_error(p, line_no, "failed to create shade_polygon object");
+	if (parse_jitter_token(line, &jitter_strength))
+		wb_scene_set_object_jitter(p->scene, id, jitter_strength);
+	remember_name(p, name, id);
+	return 1;
+}
+
 static int parse_line3d_object(wb_spec_parser *p, char *line, int line_no)
 {
 	char name[64];
@@ -880,6 +957,8 @@ static int parse_spec_line(wb_spec_parser *p, char *line, int line_no)
 		return parse_triangle_object(p, s, line_no);
 	if (starts_with(s, "shade_triangle "))
 		return parse_shade_triangle_object(p, s, line_no);
+	if (starts_with(s, "shade_polygon ") || starts_with(s, "shade_poly "))
+		return parse_shade_polygon_object(p, s, line_no);
 	if (starts_with(s, "quad "))
 		return parse_quad_object(p, s, line_no);
 	if (starts_with(s, "polygon ") || starts_with(s, "poly "))

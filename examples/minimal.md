@@ -13,6 +13,7 @@ scene "minimal parsed scene" duration 4s
     circ loop (420,680) r 54 t 3 c green
     ell halo (420,680) rx 90 ry 42 t 3 c red
     tri tri (760,620) (860,720) (700,740) t 3 c grey
+    shade_poly pent_fill (980,600) (1060,560) (1140,620) (1110,710) (1010,720) c green a 0.12
     poly pent (980,600) (1060,560) (1140,620) (1110,710) (1010,720) t 3 c green
     move eq from (220,540) to (420,420) during 1s..3s
     move_layer board from (0,0) to (0,-24) during 2s..4s

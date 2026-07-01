@@ -36,6 +36,7 @@ void fill_with_radial_gradient(uint8_t *buf, uint32_t center_colour, uint32_t ed
 void draw_disc(uint8_t *buf, float x, float y, float radius, uint32_t colour);
 void draw_disc_with_alpha(uint8_t *buf, float x, float y, float radius, uint32_t colour, float opacity);
 void draw_triangle_with_alpha(uint8_t *buf, wb_vec2 a, wb_vec2 b, wb_vec2 c, uint32_t colour, float opacity);
+void draw_polygon_with_alpha(uint8_t *buf, const wb_vec2 *points, int n_points, uint32_t colour, float opacity);
 
 void draw_nurbs_pcurve(uint8_t *buf, wb_nurbs_pcurve *curve);
 

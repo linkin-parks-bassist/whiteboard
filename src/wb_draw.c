@@ -368,6 +368,66 @@ void draw_triangle_with_alpha(uint8_t *buf, wb_vec2 a, wb_vec2 b, wb_vec2 c, uin
 	}
 }
 
+void draw_polygon_with_alpha(uint8_t *buf, const wb_vec2 *points, int n_points, uint32_t colour, float opacity)
+{
+	float area = 0.0f;
+	int x_min;
+	int x_max;
+	int y_min;
+	int y_max;
+	
+	if (!buf || !points || n_points < 3 || !colour || opacity <= 0.0f)
+		return;
+	if (opacity > 1.0f)
+		opacity = 1.0f;
+	
+	x_min = render_width - 1;
+	y_min = render_height - 1;
+	x_max = 0;
+	y_max = 0;
+	for (int i = 0; i < n_points; i++)
+	{
+		wb_vec2 a = points[i];
+		wb_vec2 b = points[(i + 1) % n_points];
+		area += a.x * b.y - b.x * a.y;
+		x_min = binary_min(x_min, floor_to_int(a.x - 1.0f));
+		x_max = binary_max(x_max, ceil_to_int(a.x + 1.0f));
+		y_min = binary_min(y_min, floor_to_int(a.y - 1.0f));
+		y_max = binary_max(y_max, ceil_to_int(a.y + 1.0f));
+	}
+	if (BASICALLY_ZERO(area))
+		return;
+	x_min = binary_max(0, x_min);
+	y_min = binary_max(0, y_min);
+	x_max = binary_min(render_width - 1, x_max);
+	y_max = binary_min(render_height - 1, y_max);
+	
+	for (int py = y_min; py <= y_max; py++)
+	{
+		for (int px = x_min; px <= x_max; px++)
+		{
+			float x = (float)px + 0.5f;
+			float y = (float)py + 0.5f;
+			int inside = 0;
+			float min_edge = 1e24f;
+			
+			for (int i = 0, j = n_points - 1; i < n_points; j = i++)
+			{
+				wb_vec2 a = points[j];
+				wb_vec2 b = points[i];
+				float edge_dist = fabsf(edge_function(a, b, x, y)) / binary_max(1.0f, vec2_norm(vec2_diff(b, a)));
+				if (edge_dist < min_edge)
+					min_edge = edge_dist;
+				if (((a.y > y) != (b.y > y)) && (x < (b.x - a.x) * (y - a.y) / binary_max(1e-6f, b.y - a.y) + a.x))
+					inside = !inside;
+			}
+			if (!inside && min_edge > 1.0f)
+				continue;
+			write_alpha_fill_pixel(buf, px, py, colour, (inside ? 1.0f : (1.0f - min_edge)) * opacity);
+		}
+	}
+}
+
 void draw_sausage(uint8_t *buf, wb_vec2 s, wb_vec2 d, float thickness, uint32_t colour)
 {
 	if (!buf)
