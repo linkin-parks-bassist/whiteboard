@@ -389,6 +389,30 @@ static int parse_move_layer(wb_spec_parser *p, char *line, int line_no)
 	return set_error(p, line_no, "expected move_layer name from (x,y) to (x,y) during Ts..Ts");
 }
 
+static int parse_move_camera(wb_spec_parser *p, char *line, int line_no)
+{
+	char name[64];
+	float d1 = 5.0f, s1 = 260.0f, cx1 = WIDTH * 0.5f, cy1 = HEIGHT * 0.5f;
+	float d2 = 5.0f, s2 = 260.0f, cx2 = WIDTH * 0.5f, cy2 = HEIGHT * 0.5f;
+	float t0 = 0.0f, t1 = 0.0f;
+	
+	if (sscanf(line,
+		"move_camera %63s from distance %f scale %f center (%f,%f) to distance %f scale %f center (%f,%f) during %fs..%fs",
+		name, &d1, &s1, &cx1, &cy1, &d2, &s2, &cx2, &cy2, &t0, &t1) == 11 ||
+		sscanf(line,
+		"move_camera %63s from distance %f scale %f center (%f, %f) to distance %f scale %f center (%f, %f) during %fs..%fs",
+		name, &d1, &s1, &cx1, &cy1, &d2, &s2, &cx2, &cy2, &t0, &t1) == 11)
+	{
+		int id = find_layer_name(p, name);
+		if (!id)
+			return set_error(p, line_no, "move_camera references unknown layer");
+		wb_scene_move_camera(p->scene, id, t0, t1, d1, s1, cx1, cy1, d2, s2, cx2, cy2);
+		return 1;
+	}
+	
+	return set_error(p, line_no, "expected move_camera layer from distance D scale S center (x,y) to distance D scale S center (x,y) during Ts..Ts");
+}
+
 static int parse_draw(wb_spec_parser *p, char *line, int line_no)
 {
 	char name[64];
@@ -1008,6 +1032,8 @@ static int parse_spec_line(wb_spec_parser *p, char *line, int line_no)
 		return parse_point_object(p, s, line_no, 1);
 	if (starts_with(s, "move_layer "))
 		return parse_move_layer(p, s, line_no);
+	if (starts_with(s, "move_camera "))
+		return parse_move_camera(p, s, line_no);
 	if (starts_with(s, "move "))
 		return parse_move(p, s, line_no);
 	if (starts_with(s, "draw "))

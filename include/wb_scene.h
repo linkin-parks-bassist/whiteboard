@@ -31,6 +31,9 @@ typedef struct
 	float camera_distance;
 	float camera_scale;
 	wb_vec2 camera_center;
+	float render_camera_distance;
+	float render_camera_scale;
+	wb_vec2 render_camera_center;
 	wb_vec2 offset;
 	wb_vec2 render_offset;
 } wb_scene_layer;
@@ -65,6 +68,10 @@ typedef struct
 	float end_time;
 	wb_vec2 from;
 	wb_vec2 to;
+	float from_z;
+	float to_z;
+	float aux0;
+	float aux1;
 } wb_scene_action;
 
 #define WB_OBJECT_MATH 1
@@ -88,6 +95,7 @@ typedef struct
 #define WB_ACTION_MOVE 1
 #define WB_ACTION_DRAW 2
 #define WB_ACTION_LAYER_MOVE 3
+#define WB_ACTION_CAMERA_MOVE 4
 
 typedef struct
 {
@@ -129,6 +137,7 @@ void wb_scene_set_layer_camera(wb_scene *scene, int layer_id, float distance, fl
 void wb_scene_set_object_jitter(wb_scene *scene, int object_id, float jitter_strength);
 void wb_scene_set_current_layer(wb_scene *scene, int layer_id);
 void wb_scene_move_layer(wb_scene *scene, int layer_id, float start_time, float end_time, float x1, float y1, float x2, float y2);
+void wb_scene_move_camera(wb_scene *scene, int layer_id, float start_time, float end_time, float distance1, float scale1, float cx1, float cy1, float distance2, float scale2, float cx2, float cy2);
 int wb_scene_add_math(wb_scene *scene, const char *src, float x, float y, float size, uint32_t colour);
 int wb_scene_add_line(wb_scene *scene, float x0, float y0, float x1, float y1, float thickness, uint32_t colour);
 int wb_scene_add_ray(wb_scene *scene, float x0, float y0, float x1, float y1, float thickness, uint32_t colour);

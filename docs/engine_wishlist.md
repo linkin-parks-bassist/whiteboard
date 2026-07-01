@@ -266,6 +266,7 @@ High urgency:
 29. Done: Add a polygon outline constructor. The spec supports `polygon/poly name ...` with 3 to 7 planar vertices, rendered as jitterable hand-drawn edges and compatible with draw-on timing.
 30. Done: Add a shaded polygon region constructor. The spec supports `shade_polygon/shade_poly name ...` with 3 to 7 planar vertices, composited through the true alpha path and compatible with draw-on opacity timing.
 31. Done: Add a dashed line constructor. The spec supports `dashed_line/dash name ...`, rendered as jitterable hand-drawn dash segments and compatible with draw-on timing.
+32. Done: Add first camera animation support for 3D layers. The spec supports `move_camera layer from distance D scale S center (x,y) to distance D scale S center (x,y) during Ts..Ts`, interpolated through the existing easing path.
 
 ## Open Questions
 
