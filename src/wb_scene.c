@@ -571,6 +571,28 @@ int wb_scene_add_open_point3d(wb_scene *scene, float x, float y, float z, float 
 	return obj->id;
 }
 
+int wb_scene_add_triangle3d(wb_scene *scene, float x0, float y0, float z0, float x1, float y1, float z1, float x2, float y2, float z2, float thickness, uint32_t colour)
+{
+	wb_scene_object *obj = append_object(scene);
+	
+	if (!obj)
+		return 0;
+	
+	memset(obj, 0, sizeof(*obj));
+	obj->id = scene->next_object_id++;
+	obj->type = WB_OBJECT_TRIANGLE3D;
+	obj->layer_id = scene->current_layer_id;
+	obj->q0 = vec3(x0, y0, z0);
+	obj->q1 = vec3(x1, y1, z1);
+	obj->q2 = vec3(x2, y2, z2);
+	obj->thickness = thickness;
+	obj->colour = colour;
+	obj->draw_progress = 1.0f;
+	obj->jitter_strength = 1.0f;
+	
+	return obj->id;
+}
+
 int wb_scene_add_line3d(wb_scene *scene, float x0, float y0, float z0, float x1, float y1, float z1, float thickness, uint32_t colour)
 {
 	wb_scene_object *obj = append_object(scene);
@@ -1307,6 +1329,15 @@ static void draw_scene_object(wb_scene_object *obj, wb_scene_layer *layer, int f
 		
 		if (project_3d_point(obj->q0, layer, &p))
 			draw_hand_open_point(buf, p.x + layer_offset.x, p.y + layer_offset.y, obj->radius, obj->thickness, obj->colour, jitter_strength, frame + obj->id * 6197, obj->draw_progress);
+	}
+	else if (obj->type == WB_OBJECT_TRIANGLE3D)
+	{
+		wb_vec2 a;
+		wb_vec2 b;
+		wb_vec2 c;
+		
+		if (project_3d_point(obj->q0, layer, &a) && project_3d_point(obj->q1, layer, &b) && project_3d_point(obj->q2, layer, &c))
+			draw_hand_triangle(buf, vec2(a.x + layer_offset.x, a.y + layer_offset.y), vec2(b.x + layer_offset.x, b.y + layer_offset.y), vec2(c.x + layer_offset.x, c.y + layer_offset.y), obj->thickness, obj->colour, jitter_strength, frame + obj->id * 8003, obj->draw_progress);
 	}
 	else if (obj->type == WB_OBJECT_LINE3D)
 	{

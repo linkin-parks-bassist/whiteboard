@@ -271,6 +271,7 @@ High urgency:
 34. Done: Add first object fade support for shaded primitives. The spec supports `fade name from A to A during Ts..Ts`; this pass applies to opacity-bearing shaded objects such as `shade_disc`, `shade_triangle`, and `shade_polygon`.
 35. Done: Add a projected 3D point primitive. The spec supports `point3d name at (x,y,z) radius R colour C`, projected through the current camera into the existing planar point renderer.
 36. Done: Add a projected 3D open-point primitive. The spec supports `open_point3d name at (x,y,z) radius R thickness T colour C`, projected through the current camera into the existing planar open-point renderer.
+37. Done: Add a projected 3D triangle outline primitive. The spec supports `triangle3d name points (x,y,z) (x,y,z) (x,y,z) thickness T colour C`, projected through the current camera into the existing planar hand-drawn triangle path.
 
 ## Open Questions
 

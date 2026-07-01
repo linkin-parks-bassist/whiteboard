@@ -929,6 +929,29 @@ static int parse_open_point3d_object(wb_spec_parser *p, char *line, int line_no)
 	return 1;
 }
 
+static int parse_triangle3d_object(wb_spec_parser *p, char *line, int line_no)
+{
+	char name[64];
+	char colour_name[64] = "blue";
+	float x0 = 0.0f, y0 = 0.0f, z0 = 0.0f, x1 = 0.0f, y1 = 0.0f, z1 = 0.0f, x2 = 0.0f, y2 = 0.0f, z2 = 0.0f, thickness = 3.0f;
+	float jitter_strength = 1.0f;
+	int matched = 0;
+	
+	matched = sscanf(line, "triangle3d %63s points (%f,%f,%f) (%f,%f,%f) (%f,%f,%f) thickness %f colour %63s", name, &x0, &y0, &z0, &x1, &y1, &z1, &x2, &y2, &z2, &thickness, colour_name);
+	if (matched < 10)
+		matched = sscanf(line, "triangle3d %63s points (%f, %f, %f) (%f, %f, %f) (%f, %f, %f) thickness %f colour %63s", name, &x0, &y0, &z0, &x1, &y1, &z1, &x2, &y2, &z2, &thickness, colour_name);
+	if (matched < 10)
+		return set_error(p, line_no, "expected triangle3d name points (x,y,z) (x,y,z) (x,y,z) thickness N colour name");
+	
+	int id = wb_scene_add_triangle3d(p->scene, x0, y0, z0, x1, y1, z1, x2, y2, z2, matched >= 11 ? thickness : 3.0f, parse_colour(matched >= 12 ? colour_name : "blue"));
+	if (!id)
+		return set_error(p, line_no, "failed to create triangle3d object");
+	if (parse_jitter_token(line, &jitter_strength))
+		wb_scene_set_object_jitter(p->scene, id, jitter_strength);
+	remember_name(p, name, id);
+	return 1;
+}
+
 static int parse_point_object(wb_spec_parser *p, char *line, int line_no, int open)
 {
 	char name[64];
@@ -1100,6 +1123,8 @@ static int parse_spec_line(wb_spec_parser *p, char *line, int line_no)
 		return parse_point3d_object(p, s, line_no);
 	if (starts_with(s, "open_point3d "))
 		return parse_open_point3d_object(p, s, line_no);
+	if (starts_with(s, "triangle3d "))
+		return parse_triangle3d_object(p, s, line_no);
 	if (starts_with(s, "dotted_line "))
 		return parse_dotted_line_object(p, s, line_no);
 	if (starts_with(s, "dashed_line ") || starts_with(s, "dash "))
