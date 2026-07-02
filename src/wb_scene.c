@@ -1039,25 +1039,72 @@ static float scene_seeded_unit(int seed)
 	return (float)(x & 0xffff) / 65535.0f;
 }
 
-static wb_nurbs_pcurve *new_jittered_line_curve(wb_vec2 a, wb_vec2 b, float thickness, float jitter_strength, int seed)
+typedef struct
 {
-	wb_nurbs_pcurve *curve = malloc(sizeof(*curve));
+	wb_nurbs_pcurve curve;
+	wb_nurbs nx;
+	wb_nurbs ny;
+	float x_knots[9];
+	float y_knots[9];
+	float x_control_points[5];
+	float y_control_points[5];
+	float x_weights[5];
+	float y_weights[5];
+} wb_stack_line_curve;
+
+typedef struct
+{
+	wb_nurbs_pcurve curve;
+	wb_nurbs nx;
+	wb_nurbs ny;
+	float x_knots[6];
+	float y_knots[6];
+	float x_control_points[3];
+	float y_control_points[3];
+	float x_weights[3];
+	float y_weights[3];
+} wb_stack_quad_curve;
+
+static void init_stack_nurbs(wb_nurbs *nurbs, int degree, int n_control_points, float *knots, float *control_points, float *weights)
+{
+	if (!nurbs)
+		return;
+	
+	nurbs->degree = degree;
+	nurbs->n_control_points = n_control_points;
+	nurbs->n_knots = degree + n_control_points + 1;
+	nurbs->knots = knots;
+	nurbs->control_points = control_points;
+	nurbs->weights = weights;
+	for (int i = 0; i < nurbs->n_knots; i++)
+		nurbs->knots[i] = (float)i;
+	for (int i = 0; i < n_control_points; i++)
+		nurbs->weights[i] = 1.0f;
+}
+
+static void init_stack_pcurve(wb_nurbs_pcurve *curve, wb_nurbs *nx, wb_nurbs *ny)
+{
+	if (!curve)
+		return;
+	
+	curve->nx = nx;
+	curve->ny = ny;
+	curve->colour = 0;
+}
+
+static int build_jittered_line_curve(wb_stack_line_curve *storage, wb_vec2 a, wb_vec2 b, float thickness, float jitter_strength, int seed)
+{
 	wb_vec2 d = vec2_diff(b, a);
 	wb_vec2 n = vec2_perp(vec2_normalised(d));
+	float d_norm = vec2_norm(d);
 	float amp = binary_max(1.0f, thickness * 0.65f) * jitter_strength;
 	
-	if (!curve)
-		return NULL;
+	if (!storage)
+		return 0;
 	
-	curve->nx = new_nurbs(3, 5);
-	curve->ny = new_nurbs(3, 5);
-	curve->colour = 0;
-	
-	if (!curve->nx || !curve->ny)
-	{
-		free_nurbs_pcurve(curve);
-		return NULL;
-	}
+	init_stack_nurbs(&storage->nx, 3, 5, storage->x_knots, storage->x_control_points, storage->x_weights);
+	init_stack_nurbs(&storage->ny, 3, 5, storage->y_knots, storage->y_control_points, storage->y_weights);
+	init_stack_pcurve(&storage->curve, &storage->nx, &storage->ny);
 	
 	for (int i = 0; i < 5; i++)
 	{
@@ -1071,11 +1118,11 @@ static wb_nurbs_pcurve *new_jittered_line_curve(wb_vec2 a, wb_vec2 b, float thic
 			across *= 0.35f;
 		}
 		
-		curve->nx->control_points[i] = a.x + d.x * t + d.x * along / binary_max(1.0f, vec2_norm(d)) + n.x * across;
-		curve->ny->control_points[i] = a.y + d.y * t + d.y * along / binary_max(1.0f, vec2_norm(d)) + n.y * across;
+		storage->nx.control_points[i] = a.x + d.x * t + d.x * along / binary_max(1.0f, d_norm) + n.x * across;
+		storage->ny.control_points[i] = a.y + d.y * t + d.y * along / binary_max(1.0f, d_norm) + n.y * across;
 	}
 	
-	return curve;
+	return 1;
 }
 
 static void draw_curve_stroke_progress(uint8_t *buf, wb_nurbs_pcurve *curve, float thickness, uint32_t colour, float progress)
@@ -1115,20 +1162,19 @@ static void draw_hand_ellipse(uint8_t *buf, float x, float y, float radius_x, fl
 
 static void draw_hand_line(uint8_t *buf, wb_vec2 a, wb_vec2 b, float thickness, uint32_t colour, float jitter_strength, int seed, float progress)
 {
-	wb_nurbs_pcurve *curve = new_jittered_line_curve(a, b, thickness, jitter_strength, seed);
+	wb_stack_line_curve curve_storage;
 	wb_vec2 partial_b;
 	
 	progress = clamp01(progress);
 	partial_b = vec2(a.x + (b.x - a.x) * progress, a.y + (b.y - a.y) * progress);
 	
-	if (!curve)
+	if (!build_jittered_line_curve(&curve_storage, a, b, thickness, jitter_strength, seed))
 	{
 		draw_sausage(buf, a, partial_b, thickness, colour);
 		return;
 	}
 	
-	draw_curve_stroke_progress(buf, curve, thickness, colour, progress);
-	free_nurbs_pcurve(curve);
+	draw_curve_stroke_progress(buf, &curve_storage.curve, thickness, colour, progress);
 }
 
 static wb_vec2 extend_ray_endpoint(wb_vec2 a, wb_vec2 through)
@@ -1367,37 +1413,26 @@ static int project_3d_point(wb_vec3 p, wb_scene_layer *layer, wb_vec2 *out)
 	return 1;
 }
 
-static wb_nurbs_pcurve *new_projected_curve3d(wb_vec3 q0, wb_vec3 q1, wb_vec3 q2, wb_scene_layer *layer)
+static int build_projected_curve3d(wb_stack_quad_curve *storage, wb_vec3 q0, wb_vec3 q1, wb_vec3 q2, wb_scene_layer *layer)
 {
 	wb_vec2 p0;
 	wb_vec2 p1;
 	wb_vec2 p2;
-	wb_nurbs_pcurve *curve;
 	
-	if (!project_3d_point(q0, layer, &p0) || !project_3d_point(q1, layer, &p1) || !project_3d_point(q2, layer, &p2))
-		return NULL;
+	if (!storage || !project_3d_point(q0, layer, &p0) || !project_3d_point(q1, layer, &p1) || !project_3d_point(q2, layer, &p2))
+		return 0;
 	
-	curve = malloc(sizeof(*curve));
-	if (!curve)
-		return NULL;
+	init_stack_nurbs(&storage->nx, 2, 3, storage->x_knots, storage->x_control_points, storage->x_weights);
+	init_stack_nurbs(&storage->ny, 2, 3, storage->y_knots, storage->y_control_points, storage->y_weights);
+	init_stack_pcurve(&storage->curve, &storage->nx, &storage->ny);
 	
-	curve->nx = new_nurbs(2, 3);
-	curve->ny = new_nurbs(2, 3);
-	curve->colour = 0;
-	
-	if (!curve->nx || !curve->ny)
-	{
-		free_nurbs_pcurve(curve);
-		return NULL;
-	}
-	
-	curve->nx->control_points[0] = p0.x;
-	curve->nx->control_points[1] = p1.x;
-	curve->nx->control_points[2] = p2.x;
-	curve->ny->control_points[0] = p0.y;
-	curve->ny->control_points[1] = p1.y;
-	curve->ny->control_points[2] = p2.y;
-	return curve;
+	storage->nx.control_points[0] = p0.x;
+	storage->nx.control_points[1] = p1.x;
+	storage->nx.control_points[2] = p2.x;
+	storage->ny.control_points[0] = p0.y;
+	storage->ny.control_points[1] = p1.y;
+	storage->ny.control_points[2] = p2.y;
+	return 1;
 }
 
 static void draw_scene_object(wb_scene_object *obj, wb_scene_layer *layer, int frame, uint8_t *buf)
@@ -1524,16 +1559,15 @@ static void draw_scene_object(wb_scene_object *obj, wb_scene_layer *layer, int f
 	}
 	else if (obj->type == WB_OBJECT_CURVE3D)
 	{
-		wb_nurbs_pcurve *curve = new_projected_curve3d(obj->q0, obj->q1, obj->q2, layer);
+		wb_stack_quad_curve curve_storage;
 		
-		if (!curve)
+		if (!build_projected_curve3d(&curve_storage, obj->q0, obj->q1, obj->q2, layer))
 			return;
 		
-		translate_nurbs_pcurve(curve, layer_offset.x, layer_offset.y);
+		translate_nurbs_pcurve(&curve_storage.curve, layer_offset.x, layer_offset.y);
 		if (jitter_strength > 0.0f)
-			jitter_nurbs_pcurve(curve, binary_max(0.6f, obj->thickness * 0.45f) * jitter_strength);
-		draw_curve_stroke_progress(buf, curve, obj->thickness, obj->colour, obj->draw_progress);
-		free_nurbs_pcurve(curve);
+			jitter_nurbs_pcurve(&curve_storage.curve, binary_max(0.6f, obj->thickness * 0.45f) * jitter_strength);
+		draw_curve_stroke_progress(buf, &curve_storage.curve, obj->thickness, obj->colour, obj->draw_progress);
 	}
 }
 
