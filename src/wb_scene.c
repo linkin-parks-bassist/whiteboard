@@ -140,13 +140,13 @@ int wb_scene_add_layer(wb_scene *scene, const char *name, int type, float opacit
 	layer->jitter_strength = WB_DEFAULT_LAYER_JITTER_STRENGTH;
 	layer->camera_distance = WB_DEFAULT_LAYER_CAMERA_DISTANCE;
 	layer->camera_scale = WB_DEFAULT_LAYER_CAMERA_SCALE;
-	layer->camera_yaw = 0.0f;
-	layer->camera_center = vec2(WIDTH * 0.5f, HEIGHT * 0.5f);
+	layer->camera_yaw = WB_DEFAULT_LAYER_CAMERA_YAW;
+	layer->camera_center = vec2(WB_DEFAULT_LAYER_CAMERA_CENTER_X, WB_DEFAULT_LAYER_CAMERA_CENTER_Y);
 	layer->render_camera_distance = layer->camera_distance;
 	layer->render_camera_scale = layer->camera_scale;
 	layer->render_camera_yaw = layer->camera_yaw;
 	layer->render_camera_center = layer->camera_center;
-	layer->offset = vec2(0, 0);
+	layer->offset = vec2(WB_DEFAULT_LAYER_OFFSET_X, WB_DEFAULT_LAYER_OFFSET_Y);
 	layer->render_offset = layer->offset;
 	scene->n_layers++;
 	scene->current_layer_id = layer->id;
@@ -161,10 +161,10 @@ void wb_scene_set_layer_blur(wb_scene *scene, int layer_id, float blur_radius)
 	if (!layer)
 		return;
 	
-	if (blur_radius < 0.0f)
-		blur_radius = 0.0f;
-	if (blur_radius > 32.0f)
-		blur_radius = 32.0f;
+	if (blur_radius < WB_MIN_OPACITY)
+		blur_radius = WB_MIN_OPACITY;
+	if (blur_radius > WB_MAX_LAYER_BLUR_RADIUS)
+		blur_radius = WB_MAX_LAYER_BLUR_RADIUS;
 	
 	layer->blur_radius = blur_radius;
 }
@@ -176,8 +176,8 @@ void wb_scene_set_layer_jitter(wb_scene *scene, int layer_id, float jitter_stren
 	if (!layer)
 		return;
 	
-	if (jitter_strength < 0.0f)
-		jitter_strength = 0.0f;
+	if (jitter_strength < WB_MIN_JITTER_STRENGTH)
+		jitter_strength = WB_MIN_JITTER_STRENGTH;
 	layer->jitter_strength = jitter_strength;
 }
 
@@ -188,10 +188,10 @@ void wb_scene_set_layer_camera(wb_scene *scene, int layer_id, float distance, fl
 	if (!layer)
 		return;
 	
-	if (distance < 0.1f)
-		distance = 0.1f;
-	if (scale < 1.0f)
-		scale = 1.0f;
+	if (distance < WB_MIN_LAYER_CAMERA_DISTANCE)
+		distance = WB_MIN_LAYER_CAMERA_DISTANCE;
+	if (scale < WB_MIN_LAYER_CAMERA_SCALE)
+		scale = WB_MIN_LAYER_CAMERA_SCALE;
 	
 	layer->camera_distance = distance;
 	layer->camera_scale = scale;
@@ -253,8 +253,8 @@ void wb_scene_set_object_jitter(wb_scene *scene, int object_id, float jitter_str
 	if (!obj)
 		return;
 	
-	if (jitter_strength < 0.0f)
-		jitter_strength = 0.0f;
+	if (jitter_strength < WB_MIN_JITTER_STRENGTH)
+		jitter_strength = WB_MIN_JITTER_STRENGTH;
 	obj->jitter_strength = jitter_strength;
 }
 
@@ -1297,17 +1297,17 @@ static void draw_hand_ellipse(uint8_t *buf, float x, float y, float radius_x, fl
 
 static int project_3d_point(wb_vec3 p, wb_scene_layer *layer, wb_vec2 *out)
 {
-	float camera_distance = layer ? layer->render_camera_distance : 5.0f;
-	float scale = layer ? layer->render_camera_scale : 260.0f;
-	float yaw = layer ? layer->render_camera_yaw : 0.0f;
-	wb_vec2 center = layer ? layer->render_camera_center : vec2(WIDTH * 0.5f, HEIGHT * 0.5f);
+	float camera_distance = layer ? layer->render_camera_distance : WB_DEFAULT_LAYER_CAMERA_DISTANCE;
+	float scale = layer ? layer->render_camera_scale : WB_DEFAULT_LAYER_CAMERA_SCALE;
+	float yaw = layer ? layer->render_camera_yaw : WB_DEFAULT_LAYER_CAMERA_YAW;
+	wb_vec2 center = layer ? layer->render_camera_center : vec2(WB_DEFAULT_LAYER_CAMERA_CENTER_X, WB_DEFAULT_LAYER_CAMERA_CENTER_Y);
 	float c = cosf(yaw);
 	float s = sinf(yaw);
 	float rx = c * p.x + s * p.z;
 	float rz = -s * p.x + c * p.z;
 	float z = rz + camera_distance;
 	
-	if (!out || z <= 0.1f)
+	if (!out || z <= WB_MIN_LAYER_CAMERA_DISTANCE)
 		return 0;
 	
 	out->x = center.x + (rx / z) * scale;

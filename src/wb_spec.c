@@ -407,10 +407,10 @@ static int parse_layer(wb_spec_parser *p, char *line, int line_no)
 	else
 		return set_error(p, line_no, "layer type must be 2d or 3d");
 	
-	if (opacity < 0.0f)
-		opacity = 0.0f;
-	if (opacity > 1.0f)
-		opacity = 1.0f;
+	if (opacity < WB_MIN_OPACITY)
+		opacity = WB_MIN_OPACITY;
+	if (opacity > WB_MAX_OPACITY)
+		opacity = WB_MAX_OPACITY;
 	
 	id = wb_scene_add_layer(p->scene, name, type, opacity);
 	if (!id)
@@ -430,9 +430,9 @@ static int parse_camera(wb_spec_parser *p, char *line, int line_no)
 {
 	float distance = WB_DEFAULT_LAYER_CAMERA_DISTANCE;
 	float scale = WB_DEFAULT_LAYER_CAMERA_SCALE;
-	float yaw = 0.0f;
-	float cx = WIDTH * 0.5f;
-	float cy = HEIGHT * 0.5f;
+	float yaw = WB_DEFAULT_LAYER_CAMERA_YAW;
+	float cx = WB_DEFAULT_LAYER_CAMERA_CENTER_X;
+	float cy = WB_DEFAULT_LAYER_CAMERA_CENTER_Y;
 	int matched = 0;
 	
 	matched = sscanf(line, "camera distance %f scale %f yaw %f center (%f,%f)", &distance, &scale, &yaw, &cx, &cy);
@@ -502,8 +502,8 @@ static int parse_move_layer(wb_spec_parser *p, char *line, int line_no)
 static int parse_move_camera(wb_spec_parser *p, char *line, int line_no)
 {
 	char name[64];
-	float d1 = WB_DEFAULT_LAYER_CAMERA_DISTANCE, s1 = WB_DEFAULT_LAYER_CAMERA_SCALE, y1 = 0.0f, cx1 = WIDTH * 0.5f, cy1 = HEIGHT * 0.5f;
-	float d2 = WB_DEFAULT_LAYER_CAMERA_DISTANCE, s2 = WB_DEFAULT_LAYER_CAMERA_SCALE, y2 = 0.0f, cx2 = WIDTH * 0.5f, cy2 = HEIGHT * 0.5f;
+	float d1 = WB_DEFAULT_LAYER_CAMERA_DISTANCE, s1 = WB_DEFAULT_LAYER_CAMERA_SCALE, y1 = WB_DEFAULT_LAYER_CAMERA_YAW, cx1 = WB_DEFAULT_LAYER_CAMERA_CENTER_X, cy1 = WB_DEFAULT_LAYER_CAMERA_CENTER_Y;
+	float d2 = WB_DEFAULT_LAYER_CAMERA_DISTANCE, s2 = WB_DEFAULT_LAYER_CAMERA_SCALE, y2 = WB_DEFAULT_LAYER_CAMERA_YAW, cx2 = WB_DEFAULT_LAYER_CAMERA_CENTER_X, cy2 = WB_DEFAULT_LAYER_CAMERA_CENTER_Y;
 	float t0 = 0.0f, t1 = 0.0f;
 	
 	if (sscanf(line,
@@ -544,7 +544,7 @@ static int parse_move_camera(wb_spec_parser *p, char *line, int line_no)
 static int parse_orbit_camera(wb_spec_parser *p, char *line, int line_no)
 {
 	char name[64];
-	float y0 = 0.0f, y1 = 0.0f, t0 = 0.0f, t1 = 0.0f;
+	float y0 = WB_DEFAULT_LAYER_CAMERA_YAW, y1 = WB_DEFAULT_LAYER_CAMERA_YAW, t0 = 0.0f, t1 = 0.0f;
 	
 	if (sscanf(line, "orbit_camera %63s from %f to %f during %fs..%fs", name, &y0, &y1, &t0, &t1) == 5 ||
 		sscanf(line, "orbit_camera %63s %f -> %f %fs..%fs", name, &y0, &y1, &t0, &t1) == 5)
@@ -562,7 +562,7 @@ static int parse_orbit_camera(wb_spec_parser *p, char *line, int line_no)
 static int parse_fade_layer(wb_spec_parser *p, char *line, int line_no)
 {
 	char name[64];
-	float a0 = 1.0f, a1 = 1.0f, t0 = 0.0f, t1 = 0.0f;
+	float a0 = WB_DEFAULT_LAYER_OPACITY, a1 = WB_DEFAULT_LAYER_OPACITY, t0 = 0.0f, t1 = 0.0f;
 	
 	if (sscanf(line, "fade_layer %63s from %f to %f during %fs..%fs", name, &a0, &a1, &t0, &t1) == 5 ||
 		sscanf(line, "fade_layer %63s %f -> %f %fs..%fs", name, &a0, &a1, &t0, &t1) == 5)
@@ -570,14 +570,14 @@ static int parse_fade_layer(wb_spec_parser *p, char *line, int line_no)
 		int id = find_layer_name(p, name);
 		if (!id)
 			return set_error(p, line_no, "fade_layer references unknown layer");
-		if (a0 < 0.0f)
-			a0 = 0.0f;
-		if (a0 > 1.0f)
-			a0 = 1.0f;
-		if (a1 < 0.0f)
-			a1 = 0.0f;
-		if (a1 > 1.0f)
-			a1 = 1.0f;
+		if (a0 < WB_MIN_OPACITY)
+			a0 = WB_MIN_OPACITY;
+		if (a0 > WB_MAX_OPACITY)
+			a0 = WB_MAX_OPACITY;
+		if (a1 < WB_MIN_OPACITY)
+			a1 = WB_MIN_OPACITY;
+		if (a1 > WB_MAX_OPACITY)
+			a1 = WB_MAX_OPACITY;
 		wb_scene_fade_layer(p->scene, id, t0, t1, a0, a1);
 		return 1;
 	}
@@ -588,7 +588,7 @@ static int parse_fade_layer(wb_spec_parser *p, char *line, int line_no)
 static int parse_fade(wb_spec_parser *p, char *line, int line_no)
 {
 	char name[64];
-	float a0 = 1.0f, a1 = 1.0f, t0 = 0.0f, t1 = 0.0f;
+	float a0 = WB_DEFAULT_LAYER_OPACITY, a1 = WB_DEFAULT_LAYER_OPACITY, t0 = 0.0f, t1 = 0.0f;
 	
 	if (sscanf(line, "fade %63s from %f to %f during %fs..%fs", name, &a0, &a1, &t0, &t1) == 5 ||
 		sscanf(line, "fade %63s %f -> %f %fs..%fs", name, &a0, &a1, &t0, &t1) == 5)
@@ -596,14 +596,14 @@ static int parse_fade(wb_spec_parser *p, char *line, int line_no)
 		int id = find_name(p, name);
 		if (!id)
 			return set_error(p, line_no, "fade references unknown object");
-		if (a0 < 0.0f)
-			a0 = 0.0f;
-		if (a0 > 1.0f)
-			a0 = 1.0f;
-		if (a1 < 0.0f)
-			a1 = 0.0f;
-		if (a1 > 1.0f)
-			a1 = 1.0f;
+		if (a0 < WB_MIN_OPACITY)
+			a0 = WB_MIN_OPACITY;
+		if (a0 > WB_MAX_OPACITY)
+			a0 = WB_MAX_OPACITY;
+		if (a1 < WB_MIN_OPACITY)
+			a1 = WB_MIN_OPACITY;
+		if (a1 > WB_MAX_OPACITY)
+			a1 = WB_MAX_OPACITY;
 		wb_scene_fade_object(p->scene, id, t0, t1, a0, a1);
 		return 1;
 	}
@@ -798,9 +798,9 @@ static int parse_shade_triangle_object(wb_spec_parser *p, char *line, int line_n
 		return set_error(p, line_no, "expected shade_triangle name points (x,y) (x,y) (x,y) colour name opacity A");
 	
 	if (opacity < 0.0f)
-		opacity = 0.0f;
-	if (opacity > 1.0f)
-		opacity = 1.0f;
+		opacity = WB_MIN_OPACITY;
+	if (opacity > WB_MAX_OPACITY)
+		opacity = WB_MAX_OPACITY;
 	
 	int id = wb_scene_add_shade_triangle(p->scene, x0, y0, x1, y1, x2, y2, parse_colour(matched >= 8 ? colour_name : "blue"), matched >= 9 ? opacity : WB_DEFAULT_SHADE_OPACITY);
 	if (!id)
@@ -973,9 +973,9 @@ static int parse_shade_polygon_object(wb_spec_parser *p, char *line, int line_no
 			sscanf(tok, " a %f", &opacity);
 	}
 	if (opacity < 0.0f)
-		opacity = 0.0f;
-	if (opacity > 1.0f)
-		opacity = 1.0f;
+		opacity = WB_MIN_OPACITY;
+	if (opacity > WB_MAX_OPACITY)
+		opacity = WB_MAX_OPACITY;
 	
 	id = wb_scene_add_shade_polygon(p->scene, points, n_points, parse_colour(colour_name), opacity);
 	if (!id)
@@ -1115,9 +1115,9 @@ static int parse_shade_triangle3d_object(wb_spec_parser *p, char *line, int line
 	if (matched < 10)
 		return set_error(p, line_no, "expected shade_triangle3d name points (x,y,z) (x,y,z) (x,y,z) colour name opacity A");
 	if (opacity < 0.0f)
-		opacity = 0.0f;
-	if (opacity > 1.0f)
-		opacity = 1.0f;
+		opacity = WB_MIN_OPACITY;
+	if (opacity > WB_MAX_OPACITY)
+		opacity = WB_MAX_OPACITY;
 	
 	int id = wb_scene_add_shade_triangle3d(p->scene, x0, y0, z0, x1, y1, z1, x2, y2, z2, parse_colour(matched >= 11 ? colour_name : "blue"), matched >= 12 ? opacity : WB_DEFAULT_SHADE_OPACITY);
 	if (!id)
@@ -1240,10 +1240,10 @@ static int parse_shade_disc_object(wb_spec_parser *p, char *line, int line_no)
 	if (matched < 4)
 		return set_error(p, line_no, "expected shade_disc name center (x,y) radius N colour name opacity A");
 	
-	if (opacity < 0.0f)
-		opacity = 0.0f;
-	if (opacity > 1.0f)
-		opacity = 1.0f;
+	if (opacity < WB_MIN_OPACITY)
+		opacity = WB_MIN_OPACITY;
+	if (opacity > WB_MAX_OPACITY)
+		opacity = WB_MAX_OPACITY;
 	
 	int id = wb_scene_add_shade_disc(p->scene, x, y, radius, parse_colour(matched >= 5 ? colour_name : "blue"), matched >= 6 ? opacity : WB_DEFAULT_SHADE_OPACITY);
 	if (!id)
