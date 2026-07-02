@@ -3,10 +3,10 @@
 ```whiteboard
 video fps 60 jitter_fps 15 output "topology_demo.mp4"
 
-scene "quotient circle" duration 0.35s
+scene "quotient circle" duration 6s
   background radial center #ffffff edge #eef1f6
   layer board 2d opacity 1 jitter 1.1
-    math title "$S^1/\\sim$" at (250,210) size 82 colour black jitter 0.7
+    math title "$S^1/\sim$" at (250,210) size 82 colour black jitter 0.7
     shade_disc disk center (440,520) radius 138 colour green opacity 0.16
     circle source center (440,520) radius 140 thickness 4 colour blue jitter 1.4
     ellipse neighbourhood center (1330,330) radii (120,74) thickness 4 colour grey jitter 0.9
@@ -37,7 +37,7 @@ scene "quotient circle" duration 0.35s
   layer glow 2d opacity 0.35 blur 10 jitter 0.6
     circle halo center (440,520) radius 148 thickness 9 colour green jitter 1.2
 
-scene "projected path" duration 0.35s
+scene "projected path" duration 6s
   background radial center #ffffff edge #eef1f6
   layer model 3d opacity 1 jitter 1.2
     camera distance 4.5 scale 430 center (960,560)
@@ -51,6 +51,6 @@ scene "projected path" duration 0.35s
     draw sheet_fill during 0.04s..0.28s
     draw arc during 0s..0.35s
   layer labels 2d opacity 1 jitter 0.8
-    math label "$\\gamma:[0,1]\\to X$" at (300,230) size 64 colour black jitter 0.8
+    math label "$\gamma:[0,1]\to X$" at (300,230) size 64 colour black jitter 0.8
   fade_layer labels from 0 to 1 during 0.08s..0.28s
 ```

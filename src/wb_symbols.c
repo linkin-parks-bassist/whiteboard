@@ -4,6 +4,7 @@
 static wb_symbol_variant scratch_variant;
 static wb_symbol scratch_symbol;
 static float wb_symbol_jitter_strength = 1.0f;
+static float wb_symbol_stroke_scale = 1.0f;
 
 #define WB_MARKER_THICKNESS 2.0f
 
@@ -332,7 +333,7 @@ float wb_symbol_spacing(int left_symbol_id, int right_symbol_id, float size)
 
 float wb_marker_thickness(void)
 {
-	return WB_MARKER_THICKNESS;
+	return WB_MARKER_THICKNESS * wb_symbol_stroke_scale;
 }
 
 void wb_set_symbol_jitter_strength(float strength)
@@ -340,6 +341,13 @@ void wb_set_symbol_jitter_strength(float strength)
 	if (strength < 0.0f)
 		strength = 0.0f;
 	wb_symbol_jitter_strength = strength;
+}
+
+void wb_set_symbol_stroke_scale(float scale)
+{
+	if (scale < 0.25f)
+		scale = 0.25f;
+	wb_symbol_stroke_scale = scale;
 }
 
 void wb_debug_print_symbol_metrics(int symbol_id)

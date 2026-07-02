@@ -77,6 +77,15 @@ Also useful:
 - Custom radial gradients.
 - Paper/whiteboard texture later if it helps, but keep it subtle.
 
+Defaults should be centralized rather than re-declared ad hoc in many call sites. In practice this probably means a small set of renderer/spec defaults collected in one place, likely as `#define`s or an equivalent central configuration layer for:
+
+- Default background type and colors.
+- Default stroke thickness.
+- Default layer opacity.
+- Default blur radius.
+- Default jitter behavior and strength.
+- Default render dimensions / frame rate where appropriate.
+
 ## 2D Figures
 
 Convenient constructors:
@@ -161,6 +170,7 @@ Needed:
 - Timing functions/easing.
 - Per-object and per-layer timing controls.
 - Long videos with many timed events.
+- Scene-to-scene transitions.
 
 Motion should be smooth independently of any low-rate hand jitter.
 
@@ -181,6 +191,14 @@ Current direction:
 - Prefer coherent position-based noise fields, individualized by object/figure seed.
 - Preserve endpoints only when semantically needed; otherwise the whole object should feel redrawn.
 
+Default behavior is still an open design choice. A promising direction is:
+
+- Jitter off by default for static objects.
+- Temporarily raise jitter during object or camera motion so moving elements feel hand-redrawn rather than mechanically translated.
+- Let jitter decay back down once motion settles.
+
+This would preserve readability in still compositions while keeping motion from feeling sterile.
+
 ## Effects
 
 Needed:
@@ -191,6 +209,15 @@ Needed:
 - Potentially color grading or vignette later.
 
 The glow use case does not need real shadow casting. A luminous blurred shape or layer-level bloom is enough.
+
+For scene transitions, the first useful tier is probably simple compositing-based transitions rather than ambitious spatial ones:
+
+- Fade through.
+- Crossfade.
+- Brief dip-to-background / dip-to-white.
+- Possibly wipe or slide later if they fit the visual language.
+
+The main requirement is that multi-scene videos should not always hard-cut unless the author wants that.
 
 ## Styling
 
@@ -204,6 +231,29 @@ Needed:
 - Antialiasing across stroke, fill, text, and layer-composited edges.
 - Constant-thickness rendering.
 - Whiteboard style defaults.
+
+## Coordinate System
+
+Needed:
+
+- A coordinate system that is easier to reason about than literal pixels.
+- Specs that are less tightly coupled to one render resolution.
+- A clear answer for how aspect-ratio changes should affect diagrams.
+
+The main options are:
+
+- Pixel coordinates everywhere. This is simple for the renderer but unpleasant to author and too tied to one output size.
+- Normalize `x` by width and `y` by height. This makes full-frame layout easy and naturally allows stretching/squishing when aspect ratio changes, but a unit square is not automatically a square unless the author compensates.
+- Normalize both axes by `min(width, height)`. This makes geometric reasoning nicer and preserves squares/circles more naturally, but objects near the frame edges become less intuitive to place and aspect-ratio changes do not fully behave like ordinary screen scaling.
+- Support both screen-space layout coordinates and geometry-space coordinates. This is probably the most useful end state, but it is more design and parser work.
+
+Current recommendation:
+
+- Default to frame-relative coordinates for layout: think in proportions of the frame rather than pixels.
+- Normalize `x` and `y` separately by width and height for ordinary placement, accepting that aspect-ratio changes may stretch the composition.
+- Add a second geometry-friendly mode later for objects that should preserve shape more naturally.
+
+This keeps title cards and scene layout easy to author while leaving room for a better mathematical geometry space later.
 
 ## Shading
 
@@ -228,10 +278,22 @@ Likely direction:
 
 This should make blur, glow, opacity, and layer translation natural.
 
+## Render UX
+
+Needed:
+
+- Clear progress reporting during renders.
+- Per-scene progress and overall video progress.
+- Useful timing information such as frame counts, elapsed time, and possibly ETA.
+- Output that is readable during long renders rather than silent or spammy.
+
+Pretty progress bars are not a core rendering feature, but they matter for usability. If a long-form render takes a while, the tool should make it obvious that it is healthy and how far along it is.
+
 High urgency:
 
 - Replace the transparent-black layer mask with a true alpha channel. Black currently leaks into final renders and is not acceptable as a transparency key.
 - Represent simple primitives as jitterable NURBS-style drawn figures, not perfect analytic shapes. Line segments should have hand-drawn variation and jitter; open points should be drawn/jitterable circle curves rather than static filled-disc cutouts.
+- Optimize the renderer aggressively. The current engine is far too slow and too casual about CPU work to be comfortable for long-form video iteration.
 
 ## Near-Term Implementation Steps
 
@@ -274,11 +336,137 @@ High urgency:
 37. Done: Add a projected 3D triangle outline primitive. The spec supports `triangle3d name points (x,y,z) (x,y,z) (x,y,z) thickness T colour C`, projected through the current camera into the existing planar hand-drawn triangle path.
 38. Done: Add a projected 3D shaded triangle primitive. The spec supports `shade_triangle3d name points (x,y,z) (x,y,z) (x,y,z) colour C opacity A`, projected through the current camera into the existing planar alpha-fill triangle path and compatible with draw-on opacity timing.
 39. Pending: Make the spec syntax genuinely pretty. The current first-pass shorthands help, but the language still reads too much like a parser test. Push it toward something terser, more mathematical, and more pleasant to author for long-form video specs.
+40. Pending: Add a more human-friendly coordinate system than raw pixels. The first pass should support frame-relative coordinates for 2D layout so specs are less resolution-bound; a later pass may add a separate geometry-oriented mode if preserving squares/circles under aspect-ratio changes matters.
+41. Pending: Centralize engine/spec defaults. Collect default background, colors, jitter settings, stroke thickness, and other common defaults into one obvious configuration point instead of scattering magic numbers through the renderer and parser.
+42. Pending: Revisit default jitter behavior. The leading candidate is “off by default, increased automatically during movement, then reduced again once motion settles,” with spec-level overrides for exceptions.
+43. Pending: Optimize the renderer hard enough for practical iteration. Profile the hottest paths, reduce unnecessary per-frame allocations/work, and treat long-form render throughput as a first-class requirement rather than a future polish task.
+44. Done: Add first-pass render progress reporting. Long renders now emit a single-line updating stderr progress bar with overall percentage, current scene, per-scene frame count, total frame count, and elapsed time; richer terminal UI and ETA estimation can come later.
+45. Done: Add first scene transition support. The spec now supports top-level `transition fade Ns` and `transition crossfade Ns` declarations between scenes; multi-scene renders are emitted as one continuous video timeline with overlapped scene compositing instead of forced hard cuts.
+
+## Next Wave
+
+The next batch of work should probably focus less on adding one more primitive and more on making the engine pleasant to author with and practical to iterate on.
+
+Recommended order:
+
+1. Coordinate system and defaults.
+2. Jitter behavior.
+3. Render speed and render UX.
+4. Scene transitions.
+5. DSL cleanup.
+
+Rationale:
+
+- Better coordinates and sensible defaults improve every spec immediately.
+- Better jitter policy improves the visual feel of almost every animation.
+- Better performance and progress reporting are necessary before long-form use becomes tolerable.
+- Scene transitions matter once multi-scene videos become common.
+- Prettier syntax is important, but it is easier to judge once the behavioral defaults are less clumsy.
+
+### First-Pass Proposals
+
+For the current pending items, the most plausible first implementations are:
+
+- `39`: Add a second, cleaner spelling for common commands without removing the current parser-friendly forms. Treat this as syntax layering, not a parser rewrite.
+- `40`: Introduce frame-relative 2D coordinates, probably in `[0,1]` screen space or something similarly explicit, while keeping raw pixels as a fallback during migration.
+- `41`: Move the current scattered magic defaults into one header/config section and make the parser rely on those values instead of open-coded literals.
+- `42`: Keep static jitter low or off by default, and attach extra jitter to motion interpolation paths rather than to every resting object.
+- `43`: Start with profiling and allocation audits before doing speculative micro-optimizations. The first target should be frame-to-frame repeated work and expensive temporary geometry generation.
+- `44`: Add a single-line updating progress display first; fancier bars or richer terminal UI can come later if they do not complicate logging.
+- `45`: Start with `fade` and `crossfade` transitions between whole scenes; do not begin with wipes, slides, or object-aware transitions.
+
+### First-Pass Acceptance Criteria
+
+The next pending items should not be considered "done" merely because some code exists. A reasonable first-pass bar for each item is:
+
+- `39`: At least one cleaner author-facing syntax path exists for common scene/layer/object declarations, is documented by example, and can coexist with the old forms without breaking them.
+- `40`: A spec author can place ordinary 2D content using frame-relative coordinates without manually converting to pixels, and the coordinate mode is explicit rather than magical.
+- `41`: There is one obvious source of truth for renderer/spec defaults, and changing a default there actually changes parser/runtime behavior consistently.
+- `42`: Static scenes no longer look overly jittery by default, while moving objects visibly gain redraw energy during motion without requiring manual per-object tuning in every spec.
+- `43`: There is evidence from measurement, not guesswork, that the slowest render paths were identified and at least one meaningful bottleneck was improved.
+- `44`: Long renders expose ongoing progress in a way that is legible in a normal terminal and useful enough that the user can tell the process is healthy and advancing.
+- `45`: A multi-scene spec can request at least one non-hard-cut transition and get a visibly correct result in the final render.
+
+### Suggested Implementation Sketches
+
+These are not commitments, but they are plausible first cuts:
+
+- `39`: Add optional aliases such as scene-local shorthand blocks or terser constructor spellings before attempting any grand syntax redesign.
+- `40`: Accept coordinates like `(0.5w, 0.3h)` or an explicit normalized mode, rather than replacing pixels wholesale on day one.
+- `41`: Introduce a single defaults header and route parser fallbacks through it before worrying about user-overridable configuration files.
+- `42`: Modulate jitter from the motion/easing path or from object velocity, rather than inventing a large new timing language immediately.
+- `43`: Instrument frame time, allocation count, or per-stage timing first; optimize second.
+- `44`: Keep progress reporting on stderr or otherwise separate from ordinary output paths so snapshot/video filenames remain scriptable.
+- `45`: Implement scene overlap in the compositor first, because that reuses existing opacity/layer machinery and is easier to reason about than bespoke transition rendering.
+
+### Design Gating
+
+Not all pending items are equally ready to build. Some mainly need engineering time; others still need one or two product/design decisions before implementation will be clean.
+
+Items that can largely start immediately:
+
+- `41` centralize defaults
+- `43` optimize the renderer
+- `44` add render progress reporting
+
+These are mostly engineering tasks. They may still involve design judgment, but they do not seem blocked on a major language or UX decision.
+
+Items that need a clearer design decision first:
+
+- `39` prettier syntax
+- `40` better coordinate system
+- `42` default jitter behavior
+- `45` scene transitions
+
+These affect the author-facing model of the tool, so a messy first implementation could create long-lived compatibility or UX baggage.
+
+Minimal decisions that would unblock them:
+
+- `39`: Decide whether the prettier syntax should be layered on top of the current DSL or whether the DSL itself is about to change shape more substantially.
+- `40`: Decide whether frame-relative coordinates should become the default, an opt-in mode, or a separate syntax for specific fields.
+- `42`: Decide whether motion-activated jitter is automatic engine behavior, a default policy with overrides, or an explicit spec feature.
+- `45`: Decide where transitions live in the language: per-scene, between-scene declarations, or video-level defaults.
+
+Practical implication:
+
+- If implementation work should start immediately, `41`, `43`, and `44` are the safest next targets.
+- If the next step is more design discussion, `40` and `42` are probably the highest-leverage choices because they affect how nearly every future spec will feel to author.
+
+### Dependency Map
+
+Some of the pending items are not just individually valuable; they also make later work cleaner.
+
+- `41` defaults supports `40` coordinates, `42` jitter policy, and `45` transitions by providing one place for fallback behavior.
+- `40` coordinates influences `39` prettier syntax, because the nicest surface syntax depends partly on how positions are spelled.
+- `42` jitter policy interacts with `43` optimization, because automatic motion-linked jitter may change where the expensive paths are.
+- `43` optimization and `44` progress reporting fit well together, because profiling/instrumentation work can power both performance improvements and better user feedback.
+- `45` transitions are easier once `41` defaults exist, because transition durations/types/background handling can inherit sane defaults instead of requiring verbose per-scene declarations.
+
+In other words:
+
+- `41` is a cleanup task that also removes friction for several later features.
+- `40` and `42` are design choices that should be made before investing too heavily in `39`.
+- `43` and `44` can proceed in parallel or in one combined pass.
+- `45` should not block everything else, but it will be cleaner after defaults are centralized.
+
+### Immediate Next Actions
+
+If the project wants a concrete "what should I do next?" answer, the most sensible choices are:
+
+1. Start `41`: create the central defaults source of truth.
+2. In parallel or immediately after, start `43`/`44`: add measurement hooks and basic render progress output.
+3. After that, make a deliberate call on `40` and `42`.
+4. Only then spend real time on `39` syntax cleanup.
+5. Add `45` transitions once the surrounding defaults/compositor behavior are less ad hoc.
 
 ## Open Questions
 
 - Use a bespoke DSL, Lua, or markdown plus fenced blocks?
 - How expressive should mathematical expressions in constructors be?
+- Should 2D coordinates be normalized by width/height, by `min(width, height)`, or should the language expose both layout-space and geometry-space coordinates?
+- Should jitter be a mostly explicit stylistic choice, or should the engine automatically inject it during motion while keeping static frames cleaner?
+- Which defaults belong in compile-time constants/`#define`s versus user-visible spec-level defaults?
+- How should scene transitions be expressed in the spec: transition objects between scenes, per-scene outgoing/incoming transition declarations, or video-level defaults?
 - Should 3D surfaces be true NURBS from the start, or should the first version support sampled parametric curves/surfaces and graduate later?
 - How much of LaTeX parsing should be implemented locally versus delegated to a preprocessing step?
 - Should long videos be one spec file or a directory of scene files?

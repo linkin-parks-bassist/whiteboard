@@ -3,9 +3,23 @@
 
 typedef struct
 {
+	int type;
+	float duration;
+} wb_scene_transition;
+
+enum
+{
+	WB_TRANSITION_NONE = 0,
+	WB_TRANSITION_FADE = 1,
+	WB_TRANSITION_CROSSFADE = 2,
+};
+
+typedef struct
+{
 	wb_scene *scene;
 	wb_scene **scenes;
 	float *durations;
+	wb_scene_transition *transitions;
 	int n_scenes;
 	float duration;
 	char output_path[256];

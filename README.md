@@ -1,12 +1,29 @@
 # Whiteboard
 
+![Whiteboard title card](docs/title_card.png)
+
 Whiteboard is a text-driven animation tool for producing hand-drawn mathematical explanation videos.
 
-The project started as a way to make my own workflow for long-form educational videos more practical. I wanted a system that could describe scenes, diagrams, timing, math notation, and motion directly in a spec, while still preserving the handmade visual style I care about.
+This project exists because making the original [Boarbarktree](https://www.youtube.com/@boarbarktree) videos by hand was an outrageous amount of work, and I could not sustain it. I managed three videos in Adobe Animate through sheer stubbornness, then stopped because the process demanded more time and energy than I could keep giving it.
+
+The obvious next idea was to automate the workflow. I wanted something in the general direction of Grant Sanderson's animation tooling, but I am far too opinionated about style and workflow to simply adopt his stack directly, so I started writing my own system instead.
+
+That also turned out to be a great deal of work, and the project stalled before it got very far.
+
+I came back to it once I decided to give coding agents a real try. Almost everything in this repository, including most of the code and this README, is effectively AI-generated. At this point I have made peace with that. The goal is not purity; the goal is to make my videos again.
 
 The result is deliberately opinionated: it is meant for math-heavy explanation videos, not generic motion graphics. The focus is on clarity, whiteboard-style linework, and a spec format that stays close to the way these videos are actually built.
 
 Example specs live in `examples/`, including a smoke test, a topology sketch, and a title-card demo.
+
+For quick visual inspection without encoding a full video, render a still snapshot:
+
+```text
+./Whiteboard examples/title_card.md --snapshot
+./Whiteboard examples/title_card.md --snapshot snaps/title.ppm --snapshot-time 0.14
+```
+
+This writes a binary PPM image of the chosen scene/frame. If no path is given, Whiteboard derives one from the video output name.
 
 ## What this is
 
@@ -76,6 +93,8 @@ Possible directions include:
 
 The important thing is that the author can write mathematical animation naturally and tersely.
 
+Math strings are parsed directly. Use `"$\alpha+\beta$"`, not doubled backslashes.
+
 A rough target might look like this:
 
 ```text
@@ -84,7 +103,7 @@ scene "quotient space intuition" duration 45s
 background radial near-white -> light-grey
 
 layer board 2d:
-  text "$X / \\sim$" at (0.2, 0.15) size 72
+  text "$X / \sim$" at (0.2, 0.15) size 72
   circle center (0, 0) radius 2 stroke blue
   point p at (1, 0)
   open_point q at (-1, 0)

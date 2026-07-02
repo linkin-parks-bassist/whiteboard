@@ -39,6 +39,7 @@
 #include "wb_math.h"
 #include "wb_scene.h"
 #include "wb_spec.h"
+#include "wb_defaults.h"
 
 #include "wb_draw.h"
 

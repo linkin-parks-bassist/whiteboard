@@ -126,6 +126,10 @@ typedef struct
 	int background_type;
 	uint32_t background_center_colour;
 	uint32_t background_edge_colour;
+	uint8_t *render_layer_buf;
+	uint8_t *render_scratch_buf;
+	uint8_t *render_layer_alpha;
+	uint8_t *render_scratch_alpha;
 	
 	wb_scene_event_pll *events;
 	wb_camera camera;

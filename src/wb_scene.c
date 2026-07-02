@@ -1,6 +1,7 @@
 #include "whiteboard.h"
 
 static wb_scene_layer *find_layer(wb_scene *scene, int layer_id);
+static int ensure_render_buffers(wb_scene *scene);
 
 void init_camera(wb_camera *camera)
 {
@@ -20,10 +21,10 @@ wb_scene *new_scene()
 	memset(result, 0, sizeof(wb_scene));
 	result->next_object_id = 1;
 	result->background_type = WB_BACKGROUND_RADIAL;
-	result->background_center_colour = 0xFFFFFF;
-	result->background_edge_colour = 0xF1F2F4;
+	result->background_center_colour = WB_DEFAULT_BACKGROUND_CENTER_COLOUR;
+	result->background_edge_colour = WB_DEFAULT_BACKGROUND_EDGE_COLOUR;
 	init_camera(&result->camera);
-	wb_scene_add_layer(result, "default", WB_LAYER_2D, 1.0f);
+	wb_scene_add_layer(result, "default", WB_LAYER_2D, WB_DEFAULT_LAYER_OPACITY);
 	
 	return result;
 }
@@ -42,7 +43,61 @@ void free_scene(wb_scene *scene)
 	free(scene->layers);
 	free(scene->objects);
 	free(scene->actions);
+	free(scene->render_scratch_alpha);
+	free(scene->render_layer_alpha);
+	free(scene->render_scratch_buf);
+	free(scene->render_layer_buf);
 	free(scene);
+}
+
+static int ensure_render_buffers(wb_scene *scene)
+{
+	uint8_t *layer_buf;
+	uint8_t *scratch_buf;
+	uint8_t *layer_alpha;
+	uint8_t *scratch_alpha;
+	size_t colour_bytes;
+	size_t alpha_bytes;
+	
+	if (!scene)
+		return 0;
+	
+	if (scene->render_layer_buf && scene->render_scratch_buf &&
+		scene->render_layer_alpha && scene->render_scratch_alpha)
+		return 1;
+	
+	colour_bytes = (size_t)WIDTH * (size_t)HEIGHT * 3u;
+	alpha_bytes = (size_t)WIDTH * (size_t)HEIGHT;
+	layer_buf = malloc(colour_bytes);
+	if (!layer_buf)
+		return 0;
+	scratch_buf = malloc(colour_bytes);
+	if (!scratch_buf)
+	{
+		free(layer_buf);
+		return 0;
+	}
+	layer_alpha = malloc(alpha_bytes);
+	if (!layer_alpha)
+	{
+		free(scratch_buf);
+		free(layer_buf);
+		return 0;
+	}
+	scratch_alpha = malloc(alpha_bytes);
+	if (!scratch_alpha)
+	{
+		free(layer_alpha);
+		free(scratch_buf);
+		free(layer_buf);
+		return 0;
+	}
+	
+	scene->render_layer_buf = layer_buf;
+	scene->render_scratch_buf = scratch_buf;
+	scene->render_layer_alpha = layer_alpha;
+	scene->render_scratch_alpha = scratch_alpha;
+	return 1;
 }
 
 void wb_scene_set_radial_background(wb_scene *scene, uint32_t center_colour, uint32_t edge_colour)
@@ -81,10 +136,10 @@ int wb_scene_add_layer(wb_scene *scene, const char *name, int type, float opacit
 	layer->type = type ? type : WB_LAYER_2D;
 	layer->opacity = opacity;
 	layer->render_opacity = layer->opacity;
-	layer->blur_radius = 0.0f;
-	layer->jitter_strength = 1.0f;
-	layer->camera_distance = 5.0f;
-	layer->camera_scale = 260.0f;
+	layer->blur_radius = WB_DEFAULT_LAYER_BLUR_RADIUS;
+	layer->jitter_strength = WB_DEFAULT_LAYER_JITTER_STRENGTH;
+	layer->camera_distance = WB_DEFAULT_LAYER_CAMERA_DISTANCE;
+	layer->camera_scale = WB_DEFAULT_LAYER_CAMERA_SCALE;
 	layer->camera_center = vec2(WIDTH * 0.5f, HEIGHT * 0.5f);
 	layer->render_camera_distance = layer->camera_distance;
 	layer->render_camera_scale = layer->camera_scale;
@@ -255,8 +310,9 @@ int wb_scene_add_math(wb_scene *scene, const char *src, float x, float y, float 
 	obj->y = y;
 	obj->size = size;
 	obj->colour = colour;
+	obj->thickness = WB_DEFAULT_MATH_THICKNESS;
 	obj->draw_progress = 1.0f;
-	obj->jitter_strength = 1.0f;
+	obj->jitter_strength = WB_DEFAULT_OBJECT_JITTER_STRENGTH;
 	
 	if (!obj->math)
 		return 0;
@@ -280,7 +336,7 @@ int wb_scene_add_line(wb_scene *scene, float x0, float y0, float x1, float y1, f
 	obj->thickness = thickness;
 	obj->colour = colour;
 	obj->draw_progress = 1.0f;
-	obj->jitter_strength = 1.0f;
+	obj->jitter_strength = WB_DEFAULT_OBJECT_JITTER_STRENGTH;
 	
 	return obj->id;
 }
@@ -301,7 +357,7 @@ int wb_scene_add_ray(wb_scene *scene, float x0, float y0, float x1, float y1, fl
 	obj->thickness = thickness;
 	obj->colour = colour;
 	obj->draw_progress = 1.0f;
-	obj->jitter_strength = 1.0f;
+	obj->jitter_strength = WB_DEFAULT_OBJECT_JITTER_STRENGTH;
 	
 	return obj->id;
 }
@@ -323,7 +379,7 @@ int wb_scene_add_dotted_line(wb_scene *scene, float x0, float y0, float x1, floa
 	obj->size = gap;
 	obj->colour = colour;
 	obj->draw_progress = 1.0f;
-	obj->jitter_strength = 1.0f;
+	obj->jitter_strength = WB_DEFAULT_OBJECT_JITTER_STRENGTH;
 	
 	return obj->id;
 }
@@ -345,7 +401,7 @@ int wb_scene_add_dashed_line(wb_scene *scene, float x0, float y0, float x1, floa
 	obj->size = gap;
 	obj->colour = colour;
 	obj->draw_progress = 1.0f;
-	obj->jitter_strength = 1.0f;
+	obj->jitter_strength = WB_DEFAULT_OBJECT_JITTER_STRENGTH;
 	
 	return obj->id;
 }
@@ -367,7 +423,7 @@ int wb_scene_add_arrow(wb_scene *scene, float x0, float y0, float x1, float y1, 
 	obj->size = head_size;
 	obj->colour = colour;
 	obj->draw_progress = 1.0f;
-	obj->jitter_strength = 1.0f;
+	obj->jitter_strength = WB_DEFAULT_OBJECT_JITTER_STRENGTH;
 	
 	return obj->id;
 }
@@ -390,7 +446,7 @@ int wb_scene_add_triangle(wb_scene *scene, float x0, float y0, float x1, float y
 	obj->thickness = thickness;
 	obj->colour = colour;
 	obj->draw_progress = 1.0f;
-	obj->jitter_strength = 1.0f;
+	obj->jitter_strength = WB_DEFAULT_OBJECT_JITTER_STRENGTH;
 	
 	return obj->id;
 }
@@ -413,7 +469,7 @@ int wb_scene_add_shade_triangle(wb_scene *scene, float x0, float y0, float x1, f
 	obj->size = opacity;
 	obj->colour = colour;
 	obj->draw_progress = 1.0f;
-	obj->jitter_strength = 1.0f;
+	obj->jitter_strength = WB_DEFAULT_OBJECT_JITTER_STRENGTH;
 	obj->render_alpha = 1.0f;
 	
 	return obj->id;
@@ -437,7 +493,7 @@ int wb_scene_add_quad(wb_scene *scene, float x0, float y0, float x1, float y1, f
 	obj->thickness = thickness;
 	obj->colour = colour;
 	obj->draw_progress = 1.0f;
-	obj->jitter_strength = 1.0f;
+	obj->jitter_strength = WB_DEFAULT_OBJECT_JITTER_STRENGTH;
 	
 	return obj->id;
 }
@@ -466,7 +522,7 @@ int wb_scene_add_polygon(wb_scene *scene, const wb_vec2 *points, int n_points, f
 	obj->thickness = thickness;
 	obj->colour = colour;
 	obj->draw_progress = 1.0f;
-	obj->jitter_strength = 1.0f;
+	obj->jitter_strength = WB_DEFAULT_OBJECT_JITTER_STRENGTH;
 	if (n_points < 4)
 		obj->q1 = obj->q0;
 	if (n_points < 5)
@@ -509,7 +565,7 @@ int wb_scene_add_shade_polygon(wb_scene *scene, const wb_vec2 *points, int n_poi
 	obj->colour = colour;
 	obj->thickness = 0.0f;
 	obj->draw_progress = 1.0f;
-	obj->jitter_strength = 1.0f;
+	obj->jitter_strength = WB_DEFAULT_OBJECT_JITTER_STRENGTH;
 	obj->render_alpha = 1.0f;
 	if (n_points < 4)
 		obj->q1 = obj->q0;
@@ -545,7 +601,7 @@ int wb_scene_add_point3d(wb_scene *scene, float x, float y, float z, float radiu
 	obj->radius = radius;
 	obj->colour = colour;
 	obj->draw_progress = 1.0f;
-	obj->jitter_strength = 1.0f;
+	obj->jitter_strength = WB_DEFAULT_OBJECT_JITTER_STRENGTH;
 	
 	return obj->id;
 }
@@ -566,7 +622,7 @@ int wb_scene_add_open_point3d(wb_scene *scene, float x, float y, float z, float 
 	obj->thickness = thickness;
 	obj->colour = colour;
 	obj->draw_progress = 1.0f;
-	obj->jitter_strength = 1.0f;
+	obj->jitter_strength = WB_DEFAULT_OBJECT_JITTER_STRENGTH;
 	
 	return obj->id;
 }
@@ -588,7 +644,7 @@ int wb_scene_add_triangle3d(wb_scene *scene, float x0, float y0, float z0, float
 	obj->thickness = thickness;
 	obj->colour = colour;
 	obj->draw_progress = 1.0f;
-	obj->jitter_strength = 1.0f;
+	obj->jitter_strength = WB_DEFAULT_OBJECT_JITTER_STRENGTH;
 	
 	return obj->id;
 }
@@ -610,7 +666,7 @@ int wb_scene_add_shade_triangle3d(wb_scene *scene, float x0, float y0, float z0,
 	obj->size = opacity;
 	obj->colour = colour;
 	obj->draw_progress = 1.0f;
-	obj->jitter_strength = 1.0f;
+	obj->jitter_strength = WB_DEFAULT_OBJECT_JITTER_STRENGTH;
 	obj->render_alpha = 1.0f;
 	
 	return obj->id;
@@ -632,7 +688,7 @@ int wb_scene_add_line3d(wb_scene *scene, float x0, float y0, float z0, float x1,
 	obj->thickness = thickness;
 	obj->colour = colour;
 	obj->draw_progress = 1.0f;
-	obj->jitter_strength = 1.0f;
+	obj->jitter_strength = WB_DEFAULT_OBJECT_JITTER_STRENGTH;
 	
 	return obj->id;
 }
@@ -654,7 +710,7 @@ int wb_scene_add_curve3d(wb_scene *scene, float x0, float y0, float z0, float x1
 	obj->thickness = thickness;
 	obj->colour = colour;
 	obj->draw_progress = 1.0f;
-	obj->jitter_strength = 1.0f;
+	obj->jitter_strength = WB_DEFAULT_OBJECT_JITTER_STRENGTH;
 	
 	return obj->id;
 }
@@ -675,7 +731,7 @@ int wb_scene_add_point(wb_scene *scene, float x, float y, float radius, uint32_t
 	obj->radius = radius;
 	obj->colour = colour;
 	obj->draw_progress = 1.0f;
-	obj->jitter_strength = 1.0f;
+	obj->jitter_strength = WB_DEFAULT_OBJECT_JITTER_STRENGTH;
 	
 	return obj->id;
 }
@@ -697,7 +753,7 @@ int wb_scene_add_open_point(wb_scene *scene, float x, float y, float radius, flo
 	obj->thickness = thickness;
 	obj->colour = colour;
 	obj->draw_progress = 1.0f;
-	obj->jitter_strength = 1.0f;
+	obj->jitter_strength = WB_DEFAULT_OBJECT_JITTER_STRENGTH;
 	
 	return obj->id;
 }
@@ -719,7 +775,7 @@ int wb_scene_add_circle(wb_scene *scene, float x, float y, float radius, float t
 	obj->thickness = thickness;
 	obj->colour = colour;
 	obj->draw_progress = 1.0f;
-	obj->jitter_strength = 1.0f;
+	obj->jitter_strength = WB_DEFAULT_OBJECT_JITTER_STRENGTH;
 	
 	return obj->id;
 }
@@ -741,7 +797,7 @@ int wb_scene_add_ellipse(wb_scene *scene, float x, float y, float radius_x, floa
 	obj->thickness = thickness;
 	obj->colour = colour;
 	obj->draw_progress = 1.0f;
-	obj->jitter_strength = 1.0f;
+	obj->jitter_strength = WB_DEFAULT_OBJECT_JITTER_STRENGTH;
 	
 	return obj->id;
 }
@@ -763,7 +819,7 @@ int wb_scene_add_shade_disc(wb_scene *scene, float x, float y, float radius, uin
 	obj->size = opacity;
 	obj->colour = colour;
 	obj->draw_progress = 1.0f;
-	obj->jitter_strength = 1.0f;
+	obj->jitter_strength = WB_DEFAULT_OBJECT_JITTER_STRENGTH;
 	obj->render_alpha = 1.0f;
 	
 	return obj->id;
@@ -1278,7 +1334,9 @@ static void draw_scene_object(wb_scene_object *obj, wb_scene_layer *layer, int f
 	if (obj->type == WB_OBJECT_MATH)
 	{
 		wb_set_math_jitter_strength(jitter_strength);
+		wb_set_symbol_stroke_scale(obj->thickness);
 		wb_math_draw_seeded(obj->math ? buf : NULL, obj->math, obj->x + layer_offset.x, obj->y + layer_offset.y, obj->size, obj->colour, frame + obj->id * 1009);
+		wb_set_symbol_stroke_scale(1.0f);
 		wb_set_math_jitter_strength(1.0f);
 	}
 	else if (obj->type == WB_OBJECT_LINE)
@@ -1691,30 +1749,13 @@ void wb_scene_render(wb_scene *scene, float time, int frame, uint8_t *buf)
 		}
 	}
 	
-	layer_buf = malloc(WIDTH * HEIGHT * 3);
-	if (!layer_buf)
+	if (!ensure_render_buffers(scene))
 		return;
-	scratch_buf = malloc(WIDTH * HEIGHT * 3);
-	if (!scratch_buf)
-	{
-		free(layer_buf);
-		return;
-	}
-	layer_alpha = malloc(WIDTH * HEIGHT);
-	if (!layer_alpha)
-	{
-		free(scratch_buf);
-		free(layer_buf);
-		return;
-	}
-	scratch_alpha = malloc(WIDTH * HEIGHT);
-	if (!scratch_alpha)
-	{
-		free(layer_alpha);
-		free(scratch_buf);
-		free(layer_buf);
-		return;
-	}
+	
+	layer_buf = scene->render_layer_buf;
+	scratch_buf = scene->render_scratch_buf;
+	layer_alpha = scene->render_layer_alpha;
+	scratch_alpha = scene->render_scratch_alpha;
 	
 	for (int layer_i = 0; layer_i < scene->n_layers; layer_i++)
 	{
@@ -1737,9 +1778,4 @@ void wb_scene_render(wb_scene *scene, float time, int frame, uint8_t *buf)
 		}
 		composite_layer_buffer(buf, layer_buf, layer_alpha, layer->render_opacity);
 	}
-	
-	free(scratch_alpha);
-	free(layer_alpha);
-	free(scratch_buf);
-	free(layer_buf);
 }

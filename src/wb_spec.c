@@ -12,6 +12,7 @@ typedef struct
 	wb_scene *scene;
 	wb_scene **scenes;
 	float *durations;
+	wb_scene_transition *transitions;
 	int n_scenes;
 	int cap_scenes;
 	wb_spec_name names[256];
@@ -78,11 +79,13 @@ static int append_parser_scene(wb_spec_parser *p, wb_scene *scene, float duratio
 		int new_cap = p->cap_scenes ? p->cap_scenes * 2 : 4;
 		wb_scene **scenes = malloc(sizeof(wb_scene*) * new_cap);
 		float *durations = malloc(sizeof(float) * new_cap);
+		wb_scene_transition *transitions = malloc(sizeof(wb_scene_transition) * new_cap);
 		
-		if (!scenes || !durations)
+		if (!scenes || !durations || !transitions)
 		{
 			free(scenes);
 			free(durations);
+			free(transitions);
 			return 0;
 		}
 		
@@ -90,17 +93,22 @@ static int append_parser_scene(wb_spec_parser *p, wb_scene *scene, float duratio
 		{
 			scenes[i] = p->scenes[i];
 			durations[i] = p->durations[i];
+			transitions[i] = p->transitions[i];
 		}
 		
 		free(p->scenes);
 		free(p->durations);
+		free(p->transitions);
 		p->scenes = scenes;
 		p->durations = durations;
+		p->transitions = transitions;
 		p->cap_scenes = new_cap;
 	}
 	
 	p->scenes[p->n_scenes] = scene;
 	p->durations[p->n_scenes] = duration;
+	p->transitions[p->n_scenes].type = WB_TRANSITION_NONE;
+	p->transitions[p->n_scenes].duration = 0.0f;
 	p->n_scenes++;
 	return 1;
 }
@@ -142,6 +150,8 @@ static uint32_t parse_colour(const char *s)
 		return 0xe03131;
 	if (strcmp(s, "green") == 0)
 		return 0x2fb344;
+	if (strcmp(s, "purple") == 0 || strcmp(s, "violet") == 0)
+		return 0x7c4dff;
 	if (strcmp(s, "grey") == 0 || strcmp(s, "gray") == 0)
 		return 0x6c757d;
 	if (s[0] == '#')
@@ -171,7 +181,7 @@ static int parse_jitter_token(char *line, float *strength)
 	}
 	if (strcmp(value, "on") == 0 || strcmp(value, "true") == 0)
 	{
-		*strength = 1.0f;
+		*strength = WB_DEFAULT_OBJECT_JITTER_STRENGTH;
 		return 1;
 	}
 	
@@ -247,13 +257,41 @@ static int parse_video(wb_spec_parser *p, char *line, int line_no)
 	return 1;
 }
 
+static int parse_transition(wb_spec_parser *p, char *line, int line_no)
+{
+	char type_name[32];
+	float duration = 0.0f;
+	int type = WB_TRANSITION_NONE;
+	
+	if (!p->scene || p->n_scenes <= 0)
+		return set_error(p, line_no, "transition must appear after a scene");
+	
+	if (sscanf(line, "transition %31s %fs", type_name, &duration) != 2)
+		return set_error(p, line_no, "expected transition fade|crossfade Ns");
+	
+	if (strcmp(type_name, "fade") == 0)
+		type = WB_TRANSITION_FADE;
+	else if (strcmp(type_name, "crossfade") == 0)
+		type = WB_TRANSITION_CROSSFADE;
+	else
+		return set_error(p, line_no, "transition type must be fade or crossfade");
+	
+	if (duration <= 0.0f)
+		return set_error(p, line_no, "transition duration must be positive");
+	
+	p->transitions[p->n_scenes - 1].type = type;
+	p->transitions[p->n_scenes - 1].duration = duration;
+	return 1;
+}
+
 static int parse_math(wb_spec_parser *p, char *line, int line_no)
 {
 	char name[64];
 	char latex[512];
 	char colour_name[64] = "blue";
-	float x = 0.0f, y = 0.0f, size = 70.0f;
-	float jitter_strength = 1.0f;
+	float x = 0.0f, y = 0.0f, size = WB_DEFAULT_MATH_SIZE;
+	float jitter_strength = WB_DEFAULT_OBJECT_JITTER_STRENGTH;
+	float thickness = WB_DEFAULT_MATH_THICKNESS;
 	int n = 0;
 	
 	if (sscanf(line, "math %63s \"%511[^\"]\" at (%f,%f) size %f colour %63s%n", name, latex, &x, &y, &size, colour_name, &n) >= 5 ||
@@ -262,6 +300,8 @@ static int parse_math(wb_spec_parser *p, char *line, int line_no)
 		int id = wb_scene_add_math(p->scene, latex, x, y, size, parse_colour(colour_name));
 		if (!id)
 			return set_error(p, line_no, "failed to create math object");
+		if (sscanf(line + n, " thickness %f", &thickness) == 1)
+			p->scene->objects[p->scene->n_objects - 1].thickness = thickness;
 		if (parse_jitter_token(line, &jitter_strength))
 			wb_scene_set_object_jitter(p->scene, id, jitter_strength);
 		remember_name(p, name, id);
@@ -290,9 +330,9 @@ static int parse_layer(wb_spec_parser *p, char *line, int line_no)
 	char name[64];
 	char type_name[32] = "2d";
 	char opacity_word[32];
-	float opacity = 1.0f;
-	float blur_radius = 0.0f;
-	float jitter_strength = 1.0f;
+	float opacity = WB_DEFAULT_LAYER_OPACITY;
+	float blur_radius = WB_DEFAULT_LAYER_BLUR_RADIUS;
+	float jitter_strength = WB_DEFAULT_LAYER_JITTER_STRENGTH;
 	int matched = 0;
 	int type = WB_LAYER_2D;
 	int id = 0;
@@ -335,8 +375,8 @@ static int parse_layer(wb_spec_parser *p, char *line, int line_no)
 
 static int parse_camera(wb_spec_parser *p, char *line, int line_no)
 {
-	float distance = 5.0f;
-	float scale = 260.0f;
+	float distance = WB_DEFAULT_LAYER_CAMERA_DISTANCE;
+	float scale = WB_DEFAULT_LAYER_CAMERA_SCALE;
 	float cx = WIDTH * 0.5f;
 	float cy = HEIGHT * 0.5f;
 	int matched = 0;
@@ -392,8 +432,8 @@ static int parse_move_layer(wb_spec_parser *p, char *line, int line_no)
 static int parse_move_camera(wb_spec_parser *p, char *line, int line_no)
 {
 	char name[64];
-	float d1 = 5.0f, s1 = 260.0f, cx1 = WIDTH * 0.5f, cy1 = HEIGHT * 0.5f;
-	float d2 = 5.0f, s2 = 260.0f, cx2 = WIDTH * 0.5f, cy2 = HEIGHT * 0.5f;
+	float d1 = WB_DEFAULT_LAYER_CAMERA_DISTANCE, s1 = WB_DEFAULT_LAYER_CAMERA_SCALE, cx1 = WIDTH * 0.5f, cy1 = HEIGHT * 0.5f;
+	float d2 = WB_DEFAULT_LAYER_CAMERA_DISTANCE, s2 = WB_DEFAULT_LAYER_CAMERA_SCALE, cx2 = WIDTH * 0.5f, cy2 = HEIGHT * 0.5f;
 	float t0 = 0.0f, t1 = 0.0f;
 	
 	if (sscanf(line,
@@ -484,8 +524,8 @@ static int parse_line_object(wb_spec_parser *p, char *line, int line_no)
 {
 	char name[64];
 	char colour_name[64] = "blue";
-	float x0 = 0.0f, y0 = 0.0f, x1 = 0.0f, y1 = 0.0f, thickness = 3.0f;
-	float jitter_strength = 1.0f;
+	float x0 = 0.0f, y0 = 0.0f, x1 = 0.0f, y1 = 0.0f, thickness = WB_DEFAULT_LINE_THICKNESS;
+	float jitter_strength = WB_DEFAULT_OBJECT_JITTER_STRENGTH;
 	int matched = 0;
 	
 	matched = sscanf(line, "line %63s from (%f,%f) to (%f,%f) thickness %f colour %63s", name, &x0, &y0, &x1, &y1, &thickness, colour_name);
@@ -511,8 +551,8 @@ static int parse_ray_object(wb_spec_parser *p, char *line, int line_no)
 {
 	char name[64];
 	char colour_name[64] = "blue";
-	float x0 = 0.0f, y0 = 0.0f, x1 = 0.0f, y1 = 0.0f, thickness = 3.0f;
-	float jitter_strength = 1.0f;
+	float x0 = 0.0f, y0 = 0.0f, x1 = 0.0f, y1 = 0.0f, thickness = WB_DEFAULT_LINE_THICKNESS;
+	float jitter_strength = WB_DEFAULT_OBJECT_JITTER_STRENGTH;
 	int matched = 0;
 	
 	matched = sscanf(line, "ray %63s from (%f,%f) through (%f,%f) thickness %f colour %63s", name, &x0, &y0, &x1, &y1, &thickness, colour_name);
@@ -525,7 +565,7 @@ static int parse_ray_object(wb_spec_parser *p, char *line, int line_no)
 	if (matched < 5)
 		return set_error(p, line_no, "expected ray name from (x,y) through (x,y) thickness N colour name");
 	
-	int id = wb_scene_add_ray(p->scene, x0, y0, x1, y1, matched >= 6 ? thickness : 3.0f, parse_colour(matched >= 7 ? colour_name : "blue"));
+	int id = wb_scene_add_ray(p->scene, x0, y0, x1, y1, matched >= 6 ? thickness : WB_DEFAULT_LINE_THICKNESS, parse_colour(matched >= 7 ? colour_name : "blue"));
 	if (!id)
 		return set_error(p, line_no, "failed to create ray object");
 	if (parse_jitter_token(line, &jitter_strength))
@@ -538,8 +578,8 @@ static int parse_dotted_line_object(wb_spec_parser *p, char *line, int line_no)
 {
 	char name[64];
 	char colour_name[64] = "blue";
-	float x0 = 0.0f, y0 = 0.0f, x1 = 0.0f, y1 = 0.0f, thickness = 3.0f, gap = 18.0f;
-	float jitter_strength = 1.0f;
+	float x0 = 0.0f, y0 = 0.0f, x1 = 0.0f, y1 = 0.0f, thickness = WB_DEFAULT_LINE_THICKNESS, gap = WB_DEFAULT_DOTTED_GAP;
+	float jitter_strength = WB_DEFAULT_OBJECT_JITTER_STRENGTH;
 	int matched = 0;
 	
 	matched = sscanf(line, "dotted_line %63s from (%f,%f) to (%f,%f) thickness %f gap %f colour %63s", name, &x0, &y0, &x1, &y1, &thickness, &gap, colour_name);
@@ -561,8 +601,8 @@ static int parse_dashed_line_object(wb_spec_parser *p, char *line, int line_no)
 {
 	char name[64];
 	char colour_name[64] = "blue";
-	float x0 = 0.0f, y0 = 0.0f, x1 = 0.0f, y1 = 0.0f, thickness = 3.0f, gap = 18.0f;
-	float jitter_strength = 1.0f;
+	float x0 = 0.0f, y0 = 0.0f, x1 = 0.0f, y1 = 0.0f, thickness = WB_DEFAULT_LINE_THICKNESS, gap = WB_DEFAULT_DASHED_GAP;
+	float jitter_strength = WB_DEFAULT_OBJECT_JITTER_STRENGTH;
 	int matched = 0;
 	
 	matched = sscanf(line, "dashed_line %63s from (%f,%f) to (%f,%f) thickness %f gap %f colour %63s", name, &x0, &y0, &x1, &y1, &thickness, &gap, colour_name);
@@ -575,7 +615,7 @@ static int parse_dashed_line_object(wb_spec_parser *p, char *line, int line_no)
 	if (matched < 5)
 		return set_error(p, line_no, "expected dashed_line/dash name from (x,y) to (x,y) thickness N gap N colour name");
 	
-	int id = wb_scene_add_dashed_line(p->scene, x0, y0, x1, y1, matched >= 6 ? thickness : 3.0f, matched >= 7 ? gap : 18.0f, parse_colour(matched >= 8 ? colour_name : "blue"));
+	int id = wb_scene_add_dashed_line(p->scene, x0, y0, x1, y1, matched >= 6 ? thickness : WB_DEFAULT_LINE_THICKNESS, matched >= 7 ? gap : WB_DEFAULT_DASHED_GAP, parse_colour(matched >= 8 ? colour_name : "blue"));
 	if (!id)
 		return set_error(p, line_no, "failed to create dashed_line object");
 	if (parse_jitter_token(line, &jitter_strength))
@@ -588,8 +628,8 @@ static int parse_arrow_object(wb_spec_parser *p, char *line, int line_no)
 {
 	char name[64];
 	char colour_name[64] = "blue";
-	float x0 = 0.0f, y0 = 0.0f, x1 = 0.0f, y1 = 0.0f, thickness = 3.0f, head_size = 24.0f;
-	float jitter_strength = 1.0f;
+	float x0 = 0.0f, y0 = 0.0f, x1 = 0.0f, y1 = 0.0f, thickness = WB_DEFAULT_LINE_THICKNESS, head_size = WB_DEFAULT_ARROW_HEAD_SIZE;
+	float jitter_strength = WB_DEFAULT_OBJECT_JITTER_STRENGTH;
 	int matched = 0;
 	
 	matched = sscanf(line, "arrow %63s from (%f,%f) to (%f,%f) thickness %f head %f colour %63s", name, &x0, &y0, &x1, &y1, &thickness, &head_size, colour_name);
@@ -598,7 +638,7 @@ static int parse_arrow_object(wb_spec_parser *p, char *line, int line_no)
 	if (matched < 5)
 		return set_error(p, line_no, "expected arrow name from (x,y) to (x,y) thickness N head N colour name");
 	
-	int id = wb_scene_add_arrow(p->scene, x0, y0, x1, y1, matched >= 6 ? thickness : 3.0f, matched >= 7 ? head_size : 24.0f, parse_colour(matched >= 8 ? colour_name : "blue"));
+	int id = wb_scene_add_arrow(p->scene, x0, y0, x1, y1, matched >= 6 ? thickness : WB_DEFAULT_LINE_THICKNESS, matched >= 7 ? head_size : WB_DEFAULT_ARROW_HEAD_SIZE, parse_colour(matched >= 8 ? colour_name : "blue"));
 	if (!id)
 		return set_error(p, line_no, "failed to create arrow object");
 	if (parse_jitter_token(line, &jitter_strength))
@@ -611,8 +651,8 @@ static int parse_triangle_object(wb_spec_parser *p, char *line, int line_no)
 {
 	char name[64];
 	char colour_name[64] = "blue";
-	float x0 = 0.0f, y0 = 0.0f, x1 = 0.0f, y1 = 0.0f, x2 = 0.0f, y2 = 0.0f, thickness = 3.0f;
-	float jitter_strength = 1.0f;
+	float x0 = 0.0f, y0 = 0.0f, x1 = 0.0f, y1 = 0.0f, x2 = 0.0f, y2 = 0.0f, thickness = WB_DEFAULT_LINE_THICKNESS;
+	float jitter_strength = WB_DEFAULT_OBJECT_JITTER_STRENGTH;
 	int matched = 0;
 	
 	matched = sscanf(line, "triangle %63s points (%f,%f) (%f,%f) (%f,%f) thickness %f colour %63s", name, &x0, &y0, &x1, &y1, &x2, &y2, &thickness, colour_name);
@@ -625,7 +665,7 @@ static int parse_triangle_object(wb_spec_parser *p, char *line, int line_no)
 	if (matched < 7)
 		return set_error(p, line_no, "expected triangle/tri name points (x,y) (x,y) (x,y) thickness N colour name");
 	
-	int id = wb_scene_add_triangle(p->scene, x0, y0, x1, y1, x2, y2, matched >= 8 ? thickness : 3.0f, parse_colour(matched >= 9 ? colour_name : "blue"));
+	int id = wb_scene_add_triangle(p->scene, x0, y0, x1, y1, x2, y2, matched >= 8 ? thickness : WB_DEFAULT_LINE_THICKNESS, parse_colour(matched >= 9 ? colour_name : "blue"));
 	if (!id)
 		return set_error(p, line_no, "failed to create triangle object");
 	if (parse_jitter_token(line, &jitter_strength))
@@ -638,8 +678,8 @@ static int parse_shade_triangle_object(wb_spec_parser *p, char *line, int line_n
 {
 	char name[64];
 	char colour_name[64] = "blue";
-	float x0 = 0.0f, y0 = 0.0f, x1 = 0.0f, y1 = 0.0f, x2 = 0.0f, y2 = 0.0f, opacity = 0.25f;
-	float jitter_strength = 1.0f;
+	float x0 = 0.0f, y0 = 0.0f, x1 = 0.0f, y1 = 0.0f, x2 = 0.0f, y2 = 0.0f, opacity = WB_DEFAULT_SHADE_OPACITY;
+	float jitter_strength = WB_DEFAULT_OBJECT_JITTER_STRENGTH;
 	int matched = 0;
 	
 	matched = sscanf(line, "shade_triangle %63s points (%f,%f) (%f,%f) (%f,%f) colour %63s opacity %f", name, &x0, &y0, &x1, &y1, &x2, &y2, colour_name, &opacity);
@@ -653,7 +693,7 @@ static int parse_shade_triangle_object(wb_spec_parser *p, char *line, int line_n
 	if (opacity > 1.0f)
 		opacity = 1.0f;
 	
-	int id = wb_scene_add_shade_triangle(p->scene, x0, y0, x1, y1, x2, y2, parse_colour(matched >= 8 ? colour_name : "blue"), matched >= 9 ? opacity : 0.25f);
+	int id = wb_scene_add_shade_triangle(p->scene, x0, y0, x1, y1, x2, y2, parse_colour(matched >= 8 ? colour_name : "blue"), matched >= 9 ? opacity : WB_DEFAULT_SHADE_OPACITY);
 	if (!id)
 		return set_error(p, line_no, "failed to create shade_triangle object");
 	if (parse_jitter_token(line, &jitter_strength))
@@ -666,8 +706,8 @@ static int parse_quad_object(wb_spec_parser *p, char *line, int line_no)
 {
 	char name[64];
 	char colour_name[64] = "blue";
-	float x0 = 0.0f, y0 = 0.0f, x1 = 0.0f, y1 = 0.0f, x2 = 0.0f, y2 = 0.0f, x3 = 0.0f, y3 = 0.0f, thickness = 3.0f;
-	float jitter_strength = 1.0f;
+	float x0 = 0.0f, y0 = 0.0f, x1 = 0.0f, y1 = 0.0f, x2 = 0.0f, y2 = 0.0f, x3 = 0.0f, y3 = 0.0f, thickness = WB_DEFAULT_LINE_THICKNESS;
+	float jitter_strength = WB_DEFAULT_OBJECT_JITTER_STRENGTH;
 	int matched = 0;
 
 	matched = sscanf(line, "quad %63s points (%f,%f) (%f,%f) (%f,%f) (%f,%f) thickness %f colour %63s",
@@ -678,7 +718,7 @@ static int parse_quad_object(wb_spec_parser *p, char *line, int line_no)
 	if (matched < 9)
 		return set_error(p, line_no, "expected quad name points (x,y) (x,y) (x,y) (x,y) thickness N colour name");
 
-	int id = wb_scene_add_quad(p->scene, x0, y0, x1, y1, x2, y2, x3, y3, matched >= 10 ? thickness : 3.0f, parse_colour(matched >= 11 ? colour_name : "blue"));
+	int id = wb_scene_add_quad(p->scene, x0, y0, x1, y1, x2, y2, x3, y3, matched >= 10 ? thickness : WB_DEFAULT_LINE_THICKNESS, parse_colour(matched >= 11 ? colour_name : "blue"));
 	if (!id)
 		return set_error(p, line_no, "failed to create quad object");
 	if (parse_jitter_token(line, &jitter_strength))
@@ -692,8 +732,8 @@ static int parse_polygon_object(wb_spec_parser *p, char *line, int line_no)
 	char name[64];
 	char colour_name[64] = "blue";
 	wb_vec2 points[7];
-	float thickness = 3.0f;
-	float jitter_strength = 1.0f;
+	float thickness = WB_DEFAULT_LINE_THICKNESS;
+	float jitter_strength = WB_DEFAULT_OBJECT_JITTER_STRENGTH;
 	char *cursor;
 	char *tok;
 	int n_points = 0;
@@ -765,8 +805,8 @@ static int parse_shade_polygon_object(wb_spec_parser *p, char *line, int line_no
 	char name[64];
 	char colour_name[64] = "blue";
 	wb_vec2 points[7];
-	float opacity = 0.25f;
-	float jitter_strength = 1.0f;
+	float opacity = WB_DEFAULT_SHADE_OPACITY;
+	float jitter_strength = WB_DEFAULT_OBJECT_JITTER_STRENGTH;
 	char *cursor;
 	char *tok;
 	int n_points = 0;
@@ -841,8 +881,8 @@ static int parse_line3d_object(wb_spec_parser *p, char *line, int line_no)
 {
 	char name[64];
 	char colour_name[64] = "blue";
-	float x0 = 0.0f, y0 = 0.0f, z0 = 0.0f, x1 = 0.0f, y1 = 0.0f, z1 = 0.0f, thickness = 3.0f;
-	float jitter_strength = 1.0f;
+	float x0 = 0.0f, y0 = 0.0f, z0 = 0.0f, x1 = 0.0f, y1 = 0.0f, z1 = 0.0f, thickness = WB_DEFAULT_LINE_THICKNESS;
+	float jitter_strength = WB_DEFAULT_OBJECT_JITTER_STRENGTH;
 	int matched = 0;
 	
 	matched = sscanf(line, "line3d %63s from (%f,%f,%f) to (%f,%f,%f) thickness %f colour %63s", name, &x0, &y0, &z0, &x1, &y1, &z1, &thickness, colour_name);
@@ -851,7 +891,7 @@ static int parse_line3d_object(wb_spec_parser *p, char *line, int line_no)
 	if (matched < 7)
 		return set_error(p, line_no, "expected line3d name from (x,y,z) to (x,y,z) thickness N colour name");
 	
-	int id = wb_scene_add_line3d(p->scene, x0, y0, z0, x1, y1, z1, matched >= 8 ? thickness : 3.0f, parse_colour(matched >= 9 ? colour_name : "blue"));
+	int id = wb_scene_add_line3d(p->scene, x0, y0, z0, x1, y1, z1, matched >= 8 ? thickness : WB_DEFAULT_LINE_THICKNESS, parse_colour(matched >= 9 ? colour_name : "blue"));
 	if (!id)
 		return set_error(p, line_no, "failed to create line3d object");
 	if (parse_jitter_token(line, &jitter_strength))
@@ -864,8 +904,8 @@ static int parse_curve3d_object(wb_spec_parser *p, char *line, int line_no)
 {
 	char name[64];
 	char colour_name[64] = "blue";
-	float x0 = 0.0f, y0 = 0.0f, z0 = 0.0f, x1 = 0.0f, y1 = 0.0f, z1 = 0.0f, x2 = 0.0f, y2 = 0.0f, z2 = 0.0f, thickness = 3.0f;
-	float jitter_strength = 1.0f;
+	float x0 = 0.0f, y0 = 0.0f, z0 = 0.0f, x1 = 0.0f, y1 = 0.0f, z1 = 0.0f, x2 = 0.0f, y2 = 0.0f, z2 = 0.0f, thickness = WB_DEFAULT_LINE_THICKNESS;
+	float jitter_strength = WB_DEFAULT_OBJECT_JITTER_STRENGTH;
 	int matched = 0;
 	
 	matched = sscanf(line, "curve3d %63s through (%f,%f,%f) (%f,%f,%f) (%f,%f,%f) thickness %f colour %63s", name, &x0, &y0, &z0, &x1, &y1, &z1, &x2, &y2, &z2, &thickness, colour_name);
@@ -874,7 +914,7 @@ static int parse_curve3d_object(wb_spec_parser *p, char *line, int line_no)
 	if (matched < 10)
 		return set_error(p, line_no, "expected curve3d name through (x,y,z) (x,y,z) (x,y,z) thickness N colour name");
 	
-	int id = wb_scene_add_curve3d(p->scene, x0, y0, z0, x1, y1, z1, x2, y2, z2, matched >= 11 ? thickness : 3.0f, parse_colour(matched >= 12 ? colour_name : "blue"));
+	int id = wb_scene_add_curve3d(p->scene, x0, y0, z0, x1, y1, z1, x2, y2, z2, matched >= 11 ? thickness : WB_DEFAULT_LINE_THICKNESS, parse_colour(matched >= 12 ? colour_name : "blue"));
 	if (!id)
 		return set_error(p, line_no, "failed to create curve3d object");
 	if (parse_jitter_token(line, &jitter_strength))
@@ -887,8 +927,8 @@ static int parse_point3d_object(wb_spec_parser *p, char *line, int line_no)
 {
 	char name[64];
 	char colour_name[64] = "blue";
-	float x = 0.0f, y = 0.0f, z = 0.0f, radius = 6.0f;
-	float jitter_strength = 1.0f;
+	float x = 0.0f, y = 0.0f, z = 0.0f, radius = WB_DEFAULT_POINT_RADIUS;
+	float jitter_strength = WB_DEFAULT_OBJECT_JITTER_STRENGTH;
 	int matched = 0;
 	
 	matched = sscanf(line, "point3d %63s at (%f,%f,%f) radius %f colour %63s", name, &x, &y, &z, &radius, colour_name);
@@ -897,7 +937,7 @@ static int parse_point3d_object(wb_spec_parser *p, char *line, int line_no)
 	if (matched < 4)
 		return set_error(p, line_no, "expected point3d name at (x,y,z) radius N colour name");
 	
-	int id = wb_scene_add_point3d(p->scene, x, y, z, matched >= 5 ? radius : 6.0f, parse_colour(matched >= 6 ? colour_name : "blue"));
+	int id = wb_scene_add_point3d(p->scene, x, y, z, matched >= 5 ? radius : WB_DEFAULT_POINT_RADIUS, parse_colour(matched >= 6 ? colour_name : "blue"));
 	if (!id)
 		return set_error(p, line_no, "failed to create point3d object");
 	if (parse_jitter_token(line, &jitter_strength))
@@ -910,8 +950,8 @@ static int parse_open_point3d_object(wb_spec_parser *p, char *line, int line_no)
 {
 	char name[64];
 	char colour_name[64] = "blue";
-	float x = 0.0f, y = 0.0f, z = 0.0f, radius = 8.0f, thickness = 2.5f;
-	float jitter_strength = 1.0f;
+	float x = 0.0f, y = 0.0f, z = 0.0f, radius = WB_DEFAULT_OPEN_POINT_RADIUS, thickness = WB_DEFAULT_OPEN_POINT_THICKNESS;
+	float jitter_strength = WB_DEFAULT_OBJECT_JITTER_STRENGTH;
 	int matched = 0;
 	
 	matched = sscanf(line, "open_point3d %63s at (%f,%f,%f) radius %f thickness %f colour %63s", name, &x, &y, &z, &radius, &thickness, colour_name);
@@ -920,7 +960,7 @@ static int parse_open_point3d_object(wb_spec_parser *p, char *line, int line_no)
 	if (matched < 4)
 		return set_error(p, line_no, "expected open_point3d name at (x,y,z) radius N thickness N colour name");
 	
-	int id = wb_scene_add_open_point3d(p->scene, x, y, z, matched >= 5 ? radius : 8.0f, matched >= 6 ? thickness : 2.5f, parse_colour(matched >= 7 ? colour_name : "blue"));
+	int id = wb_scene_add_open_point3d(p->scene, x, y, z, matched >= 5 ? radius : WB_DEFAULT_OPEN_POINT_RADIUS, matched >= 6 ? thickness : WB_DEFAULT_OPEN_POINT_THICKNESS, parse_colour(matched >= 7 ? colour_name : "blue"));
 	if (!id)
 		return set_error(p, line_no, "failed to create open_point3d object");
 	if (parse_jitter_token(line, &jitter_strength))
@@ -933,8 +973,8 @@ static int parse_triangle3d_object(wb_spec_parser *p, char *line, int line_no)
 {
 	char name[64];
 	char colour_name[64] = "blue";
-	float x0 = 0.0f, y0 = 0.0f, z0 = 0.0f, x1 = 0.0f, y1 = 0.0f, z1 = 0.0f, x2 = 0.0f, y2 = 0.0f, z2 = 0.0f, thickness = 3.0f;
-	float jitter_strength = 1.0f;
+	float x0 = 0.0f, y0 = 0.0f, z0 = 0.0f, x1 = 0.0f, y1 = 0.0f, z1 = 0.0f, x2 = 0.0f, y2 = 0.0f, z2 = 0.0f, thickness = WB_DEFAULT_LINE_THICKNESS;
+	float jitter_strength = WB_DEFAULT_OBJECT_JITTER_STRENGTH;
 	int matched = 0;
 	
 	matched = sscanf(line, "triangle3d %63s points (%f,%f,%f) (%f,%f,%f) (%f,%f,%f) thickness %f colour %63s", name, &x0, &y0, &z0, &x1, &y1, &z1, &x2, &y2, &z2, &thickness, colour_name);
@@ -943,7 +983,7 @@ static int parse_triangle3d_object(wb_spec_parser *p, char *line, int line_no)
 	if (matched < 10)
 		return set_error(p, line_no, "expected triangle3d name points (x,y,z) (x,y,z) (x,y,z) thickness N colour name");
 	
-	int id = wb_scene_add_triangle3d(p->scene, x0, y0, z0, x1, y1, z1, x2, y2, z2, matched >= 11 ? thickness : 3.0f, parse_colour(matched >= 12 ? colour_name : "blue"));
+	int id = wb_scene_add_triangle3d(p->scene, x0, y0, z0, x1, y1, z1, x2, y2, z2, matched >= 11 ? thickness : WB_DEFAULT_LINE_THICKNESS, parse_colour(matched >= 12 ? colour_name : "blue"));
 	if (!id)
 		return set_error(p, line_no, "failed to create triangle3d object");
 	if (parse_jitter_token(line, &jitter_strength))
@@ -956,8 +996,8 @@ static int parse_shade_triangle3d_object(wb_spec_parser *p, char *line, int line
 {
 	char name[64];
 	char colour_name[64] = "blue";
-	float x0 = 0.0f, y0 = 0.0f, z0 = 0.0f, x1 = 0.0f, y1 = 0.0f, z1 = 0.0f, x2 = 0.0f, y2 = 0.0f, z2 = 0.0f, opacity = 0.25f;
-	float jitter_strength = 1.0f;
+	float x0 = 0.0f, y0 = 0.0f, z0 = 0.0f, x1 = 0.0f, y1 = 0.0f, z1 = 0.0f, x2 = 0.0f, y2 = 0.0f, z2 = 0.0f, opacity = WB_DEFAULT_SHADE_OPACITY;
+	float jitter_strength = WB_DEFAULT_OBJECT_JITTER_STRENGTH;
 	int matched = 0;
 	
 	matched = sscanf(line, "shade_triangle3d %63s points (%f,%f,%f) (%f,%f,%f) (%f,%f,%f) colour %63s opacity %f", name, &x0, &y0, &z0, &x1, &y1, &z1, &x2, &y2, &z2, colour_name, &opacity);
@@ -970,7 +1010,7 @@ static int parse_shade_triangle3d_object(wb_spec_parser *p, char *line, int line
 	if (opacity > 1.0f)
 		opacity = 1.0f;
 	
-	int id = wb_scene_add_shade_triangle3d(p->scene, x0, y0, z0, x1, y1, z1, x2, y2, z2, parse_colour(matched >= 11 ? colour_name : "blue"), matched >= 12 ? opacity : 0.25f);
+	int id = wb_scene_add_shade_triangle3d(p->scene, x0, y0, z0, x1, y1, z1, x2, y2, z2, parse_colour(matched >= 11 ? colour_name : "blue"), matched >= 12 ? opacity : WB_DEFAULT_SHADE_OPACITY);
 	if (!id)
 		return set_error(p, line_no, "failed to create shade_triangle3d object");
 	if (parse_jitter_token(line, &jitter_strength))
@@ -983,8 +1023,8 @@ static int parse_point_object(wb_spec_parser *p, char *line, int line_no, int op
 {
 	char name[64];
 	char colour_name[64] = "blue";
-	float x = 0.0f, y = 0.0f, radius = 6.0f, thickness = 2.5f;
-	float jitter_strength = 1.0f;
+	float x = 0.0f, y = 0.0f, radius = WB_DEFAULT_POINT_RADIUS, thickness = WB_DEFAULT_OPEN_POINT_THICKNESS;
+	float jitter_strength = WB_DEFAULT_OBJECT_JITTER_STRENGTH;
 	int matched = 0;
 	int id = 0;
 	
@@ -999,7 +1039,7 @@ static int parse_point_object(wb_spec_parser *p, char *line, int line_no, int op
 			matched = sscanf(line, "opt %63s (%f, %f) r %f t %f c %63s", name, &x, &y, &radius, &thickness, colour_name);
 		if (matched < 3)
 			return set_error(p, line_no, "expected open_point/opt name at (x,y) radius N thickness N colour name");
-		id = wb_scene_add_open_point(p->scene, x, y, radius, matched >= 5 ? thickness : 2.5f, parse_colour(matched >= 6 ? colour_name : "blue"));
+		id = wb_scene_add_open_point(p->scene, x, y, radius, matched >= 5 ? thickness : WB_DEFAULT_OPEN_POINT_THICKNESS, parse_colour(matched >= 6 ? colour_name : "blue"));
 	}
 	else
 	{
@@ -1012,7 +1052,7 @@ static int parse_point_object(wb_spec_parser *p, char *line, int line_no, int op
 			matched = sscanf(line, "pt %63s (%f, %f) r %f c %63s", name, &x, &y, &radius, colour_name);
 		if (matched < 3)
 			return set_error(p, line_no, "expected point/pt name at (x,y) radius N colour name");
-		id = wb_scene_add_point(p->scene, x, y, matched >= 4 ? radius : 6.0f, parse_colour(matched >= 5 ? colour_name : "blue"));
+		id = wb_scene_add_point(p->scene, x, y, matched >= 4 ? radius : WB_DEFAULT_POINT_RADIUS, parse_colour(matched >= 5 ? colour_name : "blue"));
 	}
 	
 	if (!id)
@@ -1027,8 +1067,8 @@ static int parse_circle_object(wb_spec_parser *p, char *line, int line_no)
 {
 	char name[64];
 	char colour_name[64] = "blue";
-	float x = 0.0f, y = 0.0f, radius = 40.0f, thickness = 3.0f;
-	float jitter_strength = 1.0f;
+	float x = 0.0f, y = 0.0f, radius = WB_DEFAULT_CIRCLE_RADIUS, thickness = WB_DEFAULT_LINE_THICKNESS;
+	float jitter_strength = WB_DEFAULT_OBJECT_JITTER_STRENGTH;
 	int matched = 0;
 	
 	matched = sscanf(line, "circle %63s center (%f,%f) radius %f thickness %f colour %63s", name, &x, &y, &radius, &thickness, colour_name);
@@ -1041,7 +1081,7 @@ static int parse_circle_object(wb_spec_parser *p, char *line, int line_no)
 	if (matched < 4)
 		return set_error(p, line_no, "expected circle/circ name center (x,y) radius N thickness N colour name");
 	
-	int id = wb_scene_add_circle(p->scene, x, y, radius, matched >= 5 ? thickness : 3.0f, parse_colour(matched >= 6 ? colour_name : "blue"));
+	int id = wb_scene_add_circle(p->scene, x, y, radius, matched >= 5 ? thickness : WB_DEFAULT_LINE_THICKNESS, parse_colour(matched >= 6 ? colour_name : "blue"));
 	if (!id)
 		return set_error(p, line_no, "failed to create circle object");
 	if (parse_jitter_token(line, &jitter_strength))
@@ -1054,8 +1094,8 @@ static int parse_ellipse_object(wb_spec_parser *p, char *line, int line_no)
 {
 	char name[64];
 	char colour_name[64] = "blue";
-	float x = 0.0f, y = 0.0f, radius_x = 60.0f, radius_y = 40.0f, thickness = 3.0f;
-	float jitter_strength = 1.0f;
+	float x = 0.0f, y = 0.0f, radius_x = WB_DEFAULT_ELLIPSE_RADIUS_X, radius_y = WB_DEFAULT_ELLIPSE_RADIUS_Y, thickness = WB_DEFAULT_LINE_THICKNESS;
+	float jitter_strength = WB_DEFAULT_OBJECT_JITTER_STRENGTH;
 	int matched = 0;
 	
 	matched = sscanf(line, "ellipse %63s center (%f,%f) radii (%f,%f) thickness %f colour %63s", name, &x, &y, &radius_x, &radius_y, &thickness, colour_name);
@@ -1068,7 +1108,7 @@ static int parse_ellipse_object(wb_spec_parser *p, char *line, int line_no)
 	if (matched < 5)
 		return set_error(p, line_no, "expected ellipse/ell name center (x,y) radii (rx,ry) thickness N colour name");
 	
-	int id = wb_scene_add_ellipse(p->scene, x, y, radius_x, radius_y, matched >= 6 ? thickness : 3.0f, parse_colour(matched >= 7 ? colour_name : "blue"));
+	int id = wb_scene_add_ellipse(p->scene, x, y, radius_x, radius_y, matched >= 6 ? thickness : WB_DEFAULT_LINE_THICKNESS, parse_colour(matched >= 7 ? colour_name : "blue"));
 	if (!id)
 		return set_error(p, line_no, "failed to create ellipse object");
 	if (parse_jitter_token(line, &jitter_strength))
@@ -1081,8 +1121,8 @@ static int parse_shade_disc_object(wb_spec_parser *p, char *line, int line_no)
 {
 	char name[64];
 	char colour_name[64] = "blue";
-	float x = 0.0f, y = 0.0f, radius = 40.0f, opacity = 0.25f;
-	float jitter_strength = 1.0f;
+	float x = 0.0f, y = 0.0f, radius = WB_DEFAULT_CIRCLE_RADIUS, opacity = WB_DEFAULT_SHADE_OPACITY;
+	float jitter_strength = WB_DEFAULT_OBJECT_JITTER_STRENGTH;
 	int matched = 0;
 	
 	matched = sscanf(line, "shade_disc %63s center (%f,%f) radius %f colour %63s opacity %f", name, &x, &y, &radius, colour_name, &opacity);
@@ -1096,7 +1136,7 @@ static int parse_shade_disc_object(wb_spec_parser *p, char *line, int line_no)
 	if (opacity > 1.0f)
 		opacity = 1.0f;
 	
-	int id = wb_scene_add_shade_disc(p->scene, x, y, radius, parse_colour(matched >= 5 ? colour_name : "blue"), matched >= 6 ? opacity : 0.25f);
+	int id = wb_scene_add_shade_disc(p->scene, x, y, radius, parse_colour(matched >= 5 ? colour_name : "blue"), matched >= 6 ? opacity : WB_DEFAULT_SHADE_OPACITY);
 	if (!id)
 		return set_error(p, line_no, "failed to create shade_disc object");
 	if (parse_jitter_token(line, &jitter_strength))
@@ -1132,6 +1172,8 @@ static int parse_spec_line(wb_spec_parser *p, char *line, int line_no)
 		return parse_video(p, s, line_no);
 	if (starts_with(s, "scene "))
 		return parse_scene(p, s, line_no);
+	if (starts_with(s, "transition "))
+		return parse_transition(p, s, line_no);
 	if (!p->scene && !start_new_scene(p, (float)FRAMES_PER_SCENE / FPS))
 		return set_error(p, line_no, "failed to create default scene");
 	if (starts_with(s, "layer "))
@@ -1235,6 +1277,7 @@ wb_loaded_video wb_load_video_spec(const char *path)
 			free_scene(parser.scenes[i]);
 		free(parser.scenes);
 		free(parser.durations);
+		free(parser.transitions);
 		return result;
 	}
 	
@@ -1247,11 +1290,18 @@ wb_loaded_video wb_load_video_spec(const char *path)
 	result.scene = parser.scenes[0];
 	result.scenes = parser.scenes;
 	result.durations = parser.durations;
+	result.transitions = parser.transitions;
 	result.n_scenes = parser.n_scenes;
 	snprintf(result.output_path, sizeof(result.output_path), "%s", parser.output_path);
 	for (int i = 0; i < result.n_scenes; i++)
 		result.durations[i] = binary_max(result.durations[i], result.scenes[i]->total_duration);
-	result.duration = result.durations[0];
+	result.duration = 0.0f;
+	for (int i = 0; i < result.n_scenes; i++)
+	{
+		result.duration += result.durations[i];
+		if (i + 1 < result.n_scenes)
+			result.duration -= binary_min(result.transitions[i].duration, binary_min(result.durations[i], result.durations[i + 1]));
+	}
 	return result;
 }
 
@@ -1266,6 +1316,7 @@ void wb_free_loaded_video(wb_loaded_video *video)
 			free_scene(video->scenes[i]);
 		free(video->scenes);
 		free(video->durations);
+		free(video->transitions);
 	}
 	else if (video->scene)
 		free_scene(video->scene);
