@@ -2,5 +2,8 @@ Whiteboard
 obj
 __pycache__
 *.mp4
+*.ppm
 symbol_captures
 docs/*.md
+title_card_snapshot*.png
+title_card_vibe_snapshot.png

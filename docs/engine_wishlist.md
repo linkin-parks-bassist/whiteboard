@@ -29,7 +29,7 @@ scene "quotient space intuition" duration 45s
 background radial near-white -> light-grey
 
 layer board 2d:
-  text "$X / \\sim$" at (0.2, 0.15) size 72
+  text "$X / \sim$" at (0.2, 0.15) size 72
   circle center (0, 0) radius 2 stroke blue
   point p at (1, 0)
   open_point q at (-1, 0)
