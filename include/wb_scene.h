@@ -29,6 +29,8 @@ typedef struct
 	float render_opacity;
 	float blur_radius;
 	float jitter_strength;
+	int jitter_explicit;
+	float render_jitter_strength;
 	float camera_distance;
 	float camera_scale;
 	float camera_yaw;
@@ -60,6 +62,8 @@ typedef struct
 	uint32_t colour;
 	float draw_progress;
 	float jitter_strength;
+	int jitter_explicit;
+	float render_jitter_strength;
 	float render_alpha;
 } wb_scene_object;
 

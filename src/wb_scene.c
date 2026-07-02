@@ -138,6 +138,8 @@ int wb_scene_add_layer(wb_scene *scene, const char *name, int type, float opacit
 	layer->render_opacity = layer->opacity;
 	layer->blur_radius = WB_DEFAULT_LAYER_BLUR_RADIUS;
 	layer->jitter_strength = WB_DEFAULT_LAYER_JITTER_STRENGTH;
+	layer->jitter_explicit = 0;
+	layer->render_jitter_strength = layer->jitter_strength;
 	layer->camera_distance = WB_DEFAULT_LAYER_CAMERA_DISTANCE;
 	layer->camera_scale = WB_DEFAULT_LAYER_CAMERA_SCALE;
 	layer->camera_yaw = WB_DEFAULT_LAYER_CAMERA_YAW;
@@ -179,6 +181,8 @@ void wb_scene_set_layer_jitter(wb_scene *scene, int layer_id, float jitter_stren
 	if (jitter_strength < WB_MIN_JITTER_STRENGTH)
 		jitter_strength = WB_MIN_JITTER_STRENGTH;
 	layer->jitter_strength = jitter_strength;
+	layer->jitter_explicit = 1;
+	layer->render_jitter_strength = jitter_strength;
 }
 
 void wb_scene_set_layer_camera(wb_scene *scene, int layer_id, float distance, float scale, float yaw, float center_x, float center_y)
@@ -256,6 +260,8 @@ void wb_scene_set_object_jitter(wb_scene *scene, int object_id, float jitter_str
 	if (jitter_strength < WB_MIN_JITTER_STRENGTH)
 		jitter_strength = WB_MIN_JITTER_STRENGTH;
 	obj->jitter_strength = jitter_strength;
+	obj->jitter_explicit = 1;
+	obj->render_jitter_strength = jitter_strength;
 }
 
 static wb_scene_object *append_object(wb_scene *scene)
@@ -317,6 +323,9 @@ int wb_scene_add_math(wb_scene *scene, const char *src, float x, float y, float 
 	obj->thickness = WB_DEFAULT_MATH_THICKNESS;
 	obj->draw_progress = 1.0f;
 	obj->jitter_strength = WB_DEFAULT_OBJECT_JITTER_STRENGTH;
+	obj->jitter_explicit = 0;
+	obj->render_jitter_strength = obj->jitter_strength;
+
 	
 	if (!obj->math)
 		return 0;
@@ -341,6 +350,9 @@ int wb_scene_add_line(wb_scene *scene, float x0, float y0, float x1, float y1, f
 	obj->colour = colour;
 	obj->draw_progress = 1.0f;
 	obj->jitter_strength = WB_DEFAULT_OBJECT_JITTER_STRENGTH;
+	obj->jitter_explicit = 0;
+	obj->render_jitter_strength = obj->jitter_strength;
+
 	
 	return obj->id;
 }
@@ -362,6 +374,8 @@ int wb_scene_add_ray(wb_scene *scene, float x0, float y0, float x1, float y1, fl
 	obj->colour = colour;
 	obj->draw_progress = 1.0f;
 	obj->jitter_strength = WB_DEFAULT_OBJECT_JITTER_STRENGTH;
+	obj->jitter_explicit = 0;
+	obj->render_jitter_strength = obj->jitter_strength;
 	
 	return obj->id;
 }
@@ -384,6 +398,8 @@ int wb_scene_add_dotted_line(wb_scene *scene, float x0, float y0, float x1, floa
 	obj->colour = colour;
 	obj->draw_progress = 1.0f;
 	obj->jitter_strength = WB_DEFAULT_OBJECT_JITTER_STRENGTH;
+	obj->jitter_explicit = 0;
+	obj->render_jitter_strength = obj->jitter_strength;
 	
 	return obj->id;
 }
@@ -406,6 +422,8 @@ int wb_scene_add_dashed_line(wb_scene *scene, float x0, float y0, float x1, floa
 	obj->colour = colour;
 	obj->draw_progress = 1.0f;
 	obj->jitter_strength = WB_DEFAULT_OBJECT_JITTER_STRENGTH;
+	obj->jitter_explicit = 0;
+	obj->render_jitter_strength = obj->jitter_strength;
 	
 	return obj->id;
 }
@@ -428,6 +446,8 @@ int wb_scene_add_arrow(wb_scene *scene, float x0, float y0, float x1, float y1, 
 	obj->colour = colour;
 	obj->draw_progress = 1.0f;
 	obj->jitter_strength = WB_DEFAULT_OBJECT_JITTER_STRENGTH;
+	obj->jitter_explicit = 0;
+	obj->render_jitter_strength = obj->jitter_strength;
 	
 	return obj->id;
 }
@@ -451,6 +471,8 @@ int wb_scene_add_triangle(wb_scene *scene, float x0, float y0, float x1, float y
 	obj->colour = colour;
 	obj->draw_progress = 1.0f;
 	obj->jitter_strength = WB_DEFAULT_OBJECT_JITTER_STRENGTH;
+	obj->jitter_explicit = 0;
+	obj->render_jitter_strength = obj->jitter_strength;
 	
 	return obj->id;
 }
@@ -474,6 +496,8 @@ int wb_scene_add_shade_triangle(wb_scene *scene, float x0, float y0, float x1, f
 	obj->colour = colour;
 	obj->draw_progress = 1.0f;
 	obj->jitter_strength = WB_DEFAULT_OBJECT_JITTER_STRENGTH;
+	obj->jitter_explicit = 0;
+	obj->render_jitter_strength = obj->jitter_strength;
 	obj->render_alpha = 1.0f;
 	
 	return obj->id;
@@ -498,6 +522,8 @@ int wb_scene_add_quad(wb_scene *scene, float x0, float y0, float x1, float y1, f
 	obj->colour = colour;
 	obj->draw_progress = 1.0f;
 	obj->jitter_strength = WB_DEFAULT_OBJECT_JITTER_STRENGTH;
+	obj->jitter_explicit = 0;
+	obj->render_jitter_strength = obj->jitter_strength;
 	
 	return obj->id;
 }
@@ -527,6 +553,8 @@ int wb_scene_add_polygon(wb_scene *scene, const wb_vec2 *points, int n_points, f
 	obj->colour = colour;
 	obj->draw_progress = 1.0f;
 	obj->jitter_strength = WB_DEFAULT_OBJECT_JITTER_STRENGTH;
+	obj->jitter_explicit = 0;
+	obj->render_jitter_strength = obj->jitter_strength;
 	if (n_points < 4)
 		obj->q1 = obj->q0;
 	if (n_points < 5)
@@ -570,6 +598,8 @@ int wb_scene_add_shade_polygon(wb_scene *scene, const wb_vec2 *points, int n_poi
 	obj->thickness = 0.0f;
 	obj->draw_progress = 1.0f;
 	obj->jitter_strength = WB_DEFAULT_OBJECT_JITTER_STRENGTH;
+	obj->jitter_explicit = 0;
+	obj->render_jitter_strength = obj->jitter_strength;
 	obj->render_alpha = 1.0f;
 	if (n_points < 4)
 		obj->q1 = obj->q0;
@@ -606,6 +636,8 @@ int wb_scene_add_point3d(wb_scene *scene, float x, float y, float z, float radiu
 	obj->colour = colour;
 	obj->draw_progress = 1.0f;
 	obj->jitter_strength = WB_DEFAULT_OBJECT_JITTER_STRENGTH;
+	obj->jitter_explicit = 0;
+	obj->render_jitter_strength = obj->jitter_strength;
 	
 	return obj->id;
 }
@@ -627,6 +659,8 @@ int wb_scene_add_open_point3d(wb_scene *scene, float x, float y, float z, float 
 	obj->colour = colour;
 	obj->draw_progress = 1.0f;
 	obj->jitter_strength = WB_DEFAULT_OBJECT_JITTER_STRENGTH;
+	obj->jitter_explicit = 0;
+	obj->render_jitter_strength = obj->jitter_strength;
 	
 	return obj->id;
 }
@@ -649,6 +683,8 @@ int wb_scene_add_triangle3d(wb_scene *scene, float x0, float y0, float z0, float
 	obj->colour = colour;
 	obj->draw_progress = 1.0f;
 	obj->jitter_strength = WB_DEFAULT_OBJECT_JITTER_STRENGTH;
+	obj->jitter_explicit = 0;
+	obj->render_jitter_strength = obj->jitter_strength;
 	
 	return obj->id;
 }
@@ -671,6 +707,8 @@ int wb_scene_add_shade_triangle3d(wb_scene *scene, float x0, float y0, float z0,
 	obj->colour = colour;
 	obj->draw_progress = 1.0f;
 	obj->jitter_strength = WB_DEFAULT_OBJECT_JITTER_STRENGTH;
+	obj->jitter_explicit = 0;
+	obj->render_jitter_strength = obj->jitter_strength;
 	obj->render_alpha = 1.0f;
 	
 	return obj->id;
@@ -693,6 +731,8 @@ int wb_scene_add_line3d(wb_scene *scene, float x0, float y0, float z0, float x1,
 	obj->colour = colour;
 	obj->draw_progress = 1.0f;
 	obj->jitter_strength = WB_DEFAULT_OBJECT_JITTER_STRENGTH;
+	obj->jitter_explicit = 0;
+	obj->render_jitter_strength = obj->jitter_strength;
 	
 	return obj->id;
 }
@@ -715,6 +755,8 @@ int wb_scene_add_curve3d(wb_scene *scene, float x0, float y0, float z0, float x1
 	obj->colour = colour;
 	obj->draw_progress = 1.0f;
 	obj->jitter_strength = WB_DEFAULT_OBJECT_JITTER_STRENGTH;
+	obj->jitter_explicit = 0;
+	obj->render_jitter_strength = obj->jitter_strength;
 	
 	return obj->id;
 }
@@ -736,6 +778,8 @@ int wb_scene_add_point(wb_scene *scene, float x, float y, float radius, uint32_t
 	obj->colour = colour;
 	obj->draw_progress = 1.0f;
 	obj->jitter_strength = WB_DEFAULT_OBJECT_JITTER_STRENGTH;
+	obj->jitter_explicit = 0;
+	obj->render_jitter_strength = obj->jitter_strength;
 	
 	return obj->id;
 }
@@ -758,6 +802,8 @@ int wb_scene_add_open_point(wb_scene *scene, float x, float y, float radius, flo
 	obj->colour = colour;
 	obj->draw_progress = 1.0f;
 	obj->jitter_strength = WB_DEFAULT_OBJECT_JITTER_STRENGTH;
+	obj->jitter_explicit = 0;
+	obj->render_jitter_strength = obj->jitter_strength;
 	
 	return obj->id;
 }
@@ -780,6 +826,8 @@ int wb_scene_add_circle(wb_scene *scene, float x, float y, float radius, float t
 	obj->colour = colour;
 	obj->draw_progress = 1.0f;
 	obj->jitter_strength = WB_DEFAULT_OBJECT_JITTER_STRENGTH;
+	obj->jitter_explicit = 0;
+	obj->render_jitter_strength = obj->jitter_strength;
 	
 	return obj->id;
 }
@@ -802,6 +850,8 @@ int wb_scene_add_ellipse(wb_scene *scene, float x, float y, float radius_x, floa
 	obj->colour = colour;
 	obj->draw_progress = 1.0f;
 	obj->jitter_strength = WB_DEFAULT_OBJECT_JITTER_STRENGTH;
+	obj->jitter_explicit = 0;
+	obj->render_jitter_strength = obj->jitter_strength;
 	
 	return obj->id;
 }
@@ -824,6 +874,8 @@ int wb_scene_add_shade_disc(wb_scene *scene, float x, float y, float radius, uin
 	obj->colour = colour;
 	obj->draw_progress = 1.0f;
 	obj->jitter_strength = WB_DEFAULT_OBJECT_JITTER_STRENGTH;
+	obj->jitter_explicit = 0;
+	obj->render_jitter_strength = obj->jitter_strength;
 	obj->render_alpha = 1.0f;
 	
 	return obj->id;
@@ -1357,7 +1409,12 @@ static void draw_scene_object(wb_scene_object *obj, wb_scene_layer *layer, int f
 		return;
 	
 	layer_offset = layer ? layer->render_offset : vec2(0, 0);
-	jitter_strength = obj->jitter_strength * (layer ? layer->jitter_strength : 1.0f);
+	if (obj->jitter_explicit)
+		jitter_strength = obj->render_jitter_strength;
+	else if (layer && layer->jitter_explicit)
+		jitter_strength = layer->render_jitter_strength;
+	else
+		jitter_strength = binary_max(obj->render_jitter_strength, (layer ? layer->render_jitter_strength : WB_DEFAULT_LAYER_JITTER_STRENGTH));
 	
 	if (obj->type == WB_OBJECT_MATH)
 	{
@@ -1697,11 +1754,13 @@ void wb_scene_render(wb_scene *scene, float time, int frame, uint8_t *buf)
 	{
 		scene->objects[i].draw_progress = 1.0f;
 		scene->objects[i].render_alpha = 1.0f;
+		scene->objects[i].render_jitter_strength = scene->objects[i].jitter_explicit ? scene->objects[i].jitter_strength : WB_DEFAULT_OBJECT_JITTER_STRENGTH;
 	}
 	for (int i = 0; i < scene->n_layers; i++)
 	{
 		scene->layers[i].render_opacity = scene->layers[i].opacity;
 		scene->layers[i].render_offset = scene->layers[i].offset;
+		scene->layers[i].render_jitter_strength = scene->layers[i].jitter_explicit ? scene->layers[i].jitter_strength : WB_DEFAULT_LAYER_JITTER_STRENGTH;
 		scene->layers[i].render_camera_distance = scene->layers[i].camera_distance;
 		scene->layers[i].render_camera_scale = scene->layers[i].camera_scale;
 		scene->layers[i].render_camera_yaw = scene->layers[i].camera_yaw;
@@ -1720,6 +1779,12 @@ void wb_scene_render(wb_scene *scene, float time, int frame, uint8_t *buf)
 			float a = action_alpha(action, time);
 			obj->x = action->from.x + (action->to.x - action->from.x) * a;
 			obj->y = action->from.y + (action->to.y - action->from.y) * a;
+			if (!obj->jitter_explicit)
+			{
+				float motion_jitter = WB_AUTO_OBJECT_MOVE_JITTER_STRENGTH * sinf(a * PI);
+				if (motion_jitter > obj->render_jitter_strength)
+					obj->render_jitter_strength = motion_jitter;
+			}
 		}
 		else if (action->type == WB_ACTION_DRAW)
 		{
@@ -1740,6 +1805,12 @@ void wb_scene_render(wb_scene *scene, float time, int frame, uint8_t *buf)
 			float a = action_alpha(action, time);
 			layer->render_offset.x = action->from.x + (action->to.x - action->from.x) * a;
 			layer->render_offset.y = action->from.y + (action->to.y - action->from.y) * a;
+			if (!layer->jitter_explicit)
+			{
+				float motion_jitter = WB_AUTO_LAYER_MOVE_JITTER_STRENGTH * sinf(a * PI);
+				if (motion_jitter > layer->render_jitter_strength)
+					layer->render_jitter_strength = motion_jitter;
+			}
 		}
 		else if (action->type == WB_ACTION_CAMERA_MOVE)
 		{
@@ -1754,6 +1825,12 @@ void wb_scene_render(wb_scene *scene, float time, int frame, uint8_t *buf)
 			layer->render_camera_yaw = action->aux2 + (action->aux3 - action->aux2) * a;
 			layer->render_camera_center.x = action->from.x + (action->to.x - action->from.x) * a;
 			layer->render_camera_center.y = action->from.y + (action->to.y - action->from.y) * a;
+			if (!layer->jitter_explicit)
+			{
+				float motion_jitter = WB_AUTO_CAMERA_MOVE_JITTER_STRENGTH * sinf(a * PI);
+				if (motion_jitter > layer->render_jitter_strength)
+					layer->render_jitter_strength = motion_jitter;
+			}
 		}
 		else if (action->type == WB_ACTION_CAMERA_ORBIT)
 		{
@@ -1764,6 +1841,12 @@ void wb_scene_render(wb_scene *scene, float time, int frame, uint8_t *buf)
 			
 			float a = action_alpha(action, time);
 			layer->render_camera_yaw = action->aux2 + (action->aux3 - action->aux2) * a;
+			if (!layer->jitter_explicit)
+			{
+				float motion_jitter = WB_AUTO_CAMERA_MOVE_JITTER_STRENGTH * sinf(a * PI);
+				if (motion_jitter > layer->render_jitter_strength)
+					layer->render_jitter_strength = motion_jitter;
+			}
 		}
 		else if (action->type == WB_ACTION_LAYER_FADE)
 		{
