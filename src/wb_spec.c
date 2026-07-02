@@ -1304,6 +1304,108 @@ static int parse_axes3d_object(wb_spec_parser *p, char *line, int line_no)
 	return 1;
 }
 
+static int add_cube3d_objects(wb_spec_parser *p, const char *name, float cx, float cy, float cz, float size, float thickness, uint32_t colour, float opacity, float jitter_strength)
+{
+	char part_name[64];
+	float h = size * 0.5f;
+	wb_vec3 v[8];
+	int edge_pairs[12][2] = {
+		{0, 1}, {1, 2}, {2, 3}, {3, 0},
+		{4, 5}, {5, 6}, {6, 7}, {7, 4},
+		{0, 4}, {1, 5}, {2, 6}, {3, 7}
+	};
+	int face_tris[12][3] = {
+		{0, 1, 2}, {0, 2, 3},
+		{4, 5, 6}, {4, 6, 7},
+		{0, 1, 5}, {0, 5, 4},
+		{1, 2, 6}, {1, 6, 5},
+		{2, 3, 7}, {2, 7, 6},
+		{3, 0, 4}, {3, 4, 7}
+	};
+	int id = 0;
+	
+	if (!p || !name || !*name || size <= 0.0f)
+		return 0;
+	
+	v[0] = vec3(cx - h, cy - h, cz - h);
+	v[1] = vec3(cx + h, cy - h, cz - h);
+	v[2] = vec3(cx + h, cy + h, cz - h);
+	v[3] = vec3(cx - h, cy + h, cz - h);
+	v[4] = vec3(cx - h, cy - h, cz + h);
+	v[5] = vec3(cx + h, cy - h, cz + h);
+	v[6] = vec3(cx + h, cy + h, cz + h);
+	v[7] = vec3(cx - h, cy + h, cz + h);
+	
+	if (opacity > 0.0f)
+	{
+		for (int i = 0; i < 12; i++)
+		{
+			float face_opacity = opacity * (0.78f + 0.02f * (float)(i % 6));
+			if (!wb_scene_add_shade_triangle3d(p->scene,
+				v[face_tris[i][0]].x, v[face_tris[i][0]].y, v[face_tris[i][0]].z,
+				v[face_tris[i][1]].x, v[face_tris[i][1]].y, v[face_tris[i][1]].z,
+				v[face_tris[i][2]].x, v[face_tris[i][2]].y, v[face_tris[i][2]].z,
+				colour, face_opacity))
+				return 0;
+		}
+	}
+	
+	for (int i = 0; i < 12; i++)
+	{
+		id = wb_scene_add_line3d(p->scene,
+			v[edge_pairs[i][0]].x, v[edge_pairs[i][0]].y, v[edge_pairs[i][0]].z,
+			v[edge_pairs[i][1]].x, v[edge_pairs[i][1]].y, v[edge_pairs[i][1]].z,
+			thickness, colour);
+		if (!id)
+			return 0;
+		wb_scene_set_object_jitter(p->scene, id, jitter_strength);
+	}
+	
+	for (int i = 0; i < 8; i++)
+	{
+		id = wb_scene_add_point3d(p->scene, v[i].x, v[i].y, v[i].z, WB_DEFAULT_POINT_RADIUS, colour);
+		if (!id)
+			return 0;
+		snprintf(part_name, sizeof(part_name), "%s_v%d", name, i);
+		remember_name(p, part_name, id);
+	}
+	
+	remember_name(p, name, p->scene->objects[p->scene->n_objects - 1].id);
+	return 1;
+}
+
+static int parse_cube3d_object(wb_spec_parser *p, char *line, int line_no)
+{
+	char name[64];
+	char colour_name[64] = "blue";
+	float cx = 0.0f, cy = 0.0f, cz = 0.0f;
+	float size = 1.0f;
+	float thickness = WB_DEFAULT_LINE_THICKNESS;
+	float opacity = 0.08f;
+	float jitter_strength = WB_DEFAULT_OBJECT_JITTER_STRENGTH;
+	int matched = 0;
+	
+	matched = sscanf(line, "cube3d %63s center (%f,%f,%f) size %f thickness %f colour %63s opacity %f", name, &cx, &cy, &cz, &size, &thickness, colour_name, &opacity);
+	if (matched < 4)
+		matched = sscanf(line, "cube3d %63s center (%f, %f, %f) size %f thickness %f colour %63s opacity %f", name, &cx, &cy, &cz, &size, &thickness, colour_name, &opacity);
+	if (matched < 4)
+		matched = sscanf(line, "cube %63s (%f,%f,%f) s %f t %f c %63s a %f", name, &cx, &cy, &cz, &size, &thickness, colour_name, &opacity);
+	if (matched < 4)
+		matched = sscanf(line, "cube %63s (%f, %f, %f) s %f t %f c %63s a %f", name, &cx, &cy, &cz, &size, &thickness, colour_name, &opacity);
+	if (matched < 4)
+		return set_error(p, line_no, "expected cube3d/cube name center (x,y,z) size N thickness N colour name opacity A");
+	
+	if (opacity < WB_MIN_OPACITY)
+		opacity = WB_MIN_OPACITY;
+	if (opacity > WB_MAX_OPACITY)
+		opacity = WB_MAX_OPACITY;
+	if (parse_jitter_token(line, &jitter_strength) == 0)
+		jitter_strength = WB_DEFAULT_OBJECT_JITTER_STRENGTH;
+	if (!add_cube3d_objects(p, name, cx, cy, cz, matched >= 5 ? size : 1.0f, matched >= 6 ? thickness : WB_DEFAULT_LINE_THICKNESS, parse_colour(matched >= 7 ? colour_name : "blue"), matched >= 8 ? opacity : 0.08f, jitter_strength))
+		return set_error(p, line_no, "failed to create cube3d object");
+	return 1;
+}
+
 static int parse_point_object(wb_spec_parser *p, char *line, int line_no, int open)
 {
 	char name[64];
@@ -1479,6 +1581,8 @@ static int parse_spec_line(wb_spec_parser *p, char *line, int line_no)
 		return parse_open_point3d_object(p, s, line_no);
 	if (starts_with(s, "axes3d ") || starts_with(s, "axes "))
 		return parse_axes3d_object(p, s, line_no);
+	if (starts_with(s, "cube3d ") || starts_with(s, "cube "))
+		return parse_cube3d_object(p, s, line_no);
 	if (starts_with(s, "tetrahedron3d ") || starts_with(s, "tetra3d "))
 		return parse_tetrahedron3d_object(p, s, line_no);
 	if (starts_with(s, "shade_triangle3d "))
