@@ -31,9 +31,11 @@ typedef struct
 	float jitter_strength;
 	float camera_distance;
 	float camera_scale;
+	float camera_yaw;
 	wb_vec2 camera_center;
 	float render_camera_distance;
 	float render_camera_scale;
+	float render_camera_yaw;
 	wb_vec2 render_camera_center;
 	wb_vec2 offset;
 	wb_vec2 render_offset;
@@ -74,6 +76,8 @@ typedef struct
 	float to_z;
 	float aux0;
 	float aux1;
+	float aux2;
+	float aux3;
 } wb_scene_action;
 
 #define WB_OBJECT_MATH 1
@@ -104,6 +108,7 @@ typedef struct
 #define WB_ACTION_CAMERA_MOVE 4
 #define WB_ACTION_LAYER_FADE 5
 #define WB_ACTION_FADE 6
+#define WB_ACTION_CAMERA_ORBIT 7
 
 typedef struct
 {
@@ -145,11 +150,12 @@ void wb_scene_set_radial_background(wb_scene *scene, uint32_t center_colour, uin
 int wb_scene_add_layer(wb_scene *scene, const char *name, int type, float opacity);
 void wb_scene_set_layer_blur(wb_scene *scene, int layer_id, float blur_radius);
 void wb_scene_set_layer_jitter(wb_scene *scene, int layer_id, float jitter_strength);
-void wb_scene_set_layer_camera(wb_scene *scene, int layer_id, float distance, float scale, float center_x, float center_y);
+void wb_scene_set_layer_camera(wb_scene *scene, int layer_id, float distance, float scale, float yaw, float center_x, float center_y);
 void wb_scene_set_object_jitter(wb_scene *scene, int object_id, float jitter_strength);
 void wb_scene_set_current_layer(wb_scene *scene, int layer_id);
 void wb_scene_move_layer(wb_scene *scene, int layer_id, float start_time, float end_time, float x1, float y1, float x2, float y2);
-void wb_scene_move_camera(wb_scene *scene, int layer_id, float start_time, float end_time, float distance1, float scale1, float cx1, float cy1, float distance2, float scale2, float cx2, float cy2);
+void wb_scene_move_camera(wb_scene *scene, int layer_id, float start_time, float end_time, float distance1, float scale1, float yaw1, float cx1, float cy1, float distance2, float scale2, float yaw2, float cx2, float cy2);
+void wb_scene_orbit_camera(wb_scene *scene, int layer_id, float start_time, float end_time, float yaw1, float yaw2);
 void wb_scene_fade_layer(wb_scene *scene, int layer_id, float start_time, float end_time, float opacity1, float opacity2);
 void wb_scene_fade_object(wb_scene *scene, int object_id, float start_time, float end_time, float opacity1, float opacity2);
 int wb_scene_add_math(wb_scene *scene, const char *src, float x, float y, float size, uint32_t colour);

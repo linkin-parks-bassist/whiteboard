@@ -377,20 +377,25 @@ static int parse_camera(wb_spec_parser *p, char *line, int line_no)
 {
 	float distance = WB_DEFAULT_LAYER_CAMERA_DISTANCE;
 	float scale = WB_DEFAULT_LAYER_CAMERA_SCALE;
+	float yaw = 0.0f;
 	float cx = WIDTH * 0.5f;
 	float cy = HEIGHT * 0.5f;
 	int matched = 0;
 	
-	matched = sscanf(line, "camera distance %f scale %f center (%f,%f)", &distance, &scale, &cx, &cy);
+	matched = sscanf(line, "camera distance %f scale %f yaw %f center (%f,%f)", &distance, &scale, &yaw, &cx, &cy);
+	if (matched < 5)
+		matched = sscanf(line, "camera distance %f scale %f yaw %f center (%f, %f)", &distance, &scale, &yaw, &cx, &cy);
+	if (matched < 4)
+		matched = sscanf(line, "camera distance %f scale %f center (%f,%f)", &distance, &scale, &cx, &cy);
 	if (matched < 4)
 		matched = sscanf(line, "camera distance %f scale %f center (%f, %f)", &distance, &scale, &cx, &cy);
-	if (matched == 4)
+	if (matched == 5 || matched == 4)
 	{
-		wb_scene_set_layer_camera(p->scene, p->scene->current_layer_id, distance, scale, cx, cy);
+		wb_scene_set_layer_camera(p->scene, p->scene->current_layer_id, distance, scale, matched == 5 ? yaw : 0.0f, cx, cy);
 		return 1;
 	}
 	
-	return set_error(p, line_no, "expected camera distance D scale S center (x,y)");
+	return set_error(p, line_no, "expected camera distance D scale S [yaw A] center (x,y)");
 }
 
 static int parse_move(wb_spec_parser *p, char *line, int line_no)
@@ -432,11 +437,17 @@ static int parse_move_layer(wb_spec_parser *p, char *line, int line_no)
 static int parse_move_camera(wb_spec_parser *p, char *line, int line_no)
 {
 	char name[64];
-	float d1 = WB_DEFAULT_LAYER_CAMERA_DISTANCE, s1 = WB_DEFAULT_LAYER_CAMERA_SCALE, cx1 = WIDTH * 0.5f, cy1 = HEIGHT * 0.5f;
-	float d2 = WB_DEFAULT_LAYER_CAMERA_DISTANCE, s2 = WB_DEFAULT_LAYER_CAMERA_SCALE, cx2 = WIDTH * 0.5f, cy2 = HEIGHT * 0.5f;
+	float d1 = WB_DEFAULT_LAYER_CAMERA_DISTANCE, s1 = WB_DEFAULT_LAYER_CAMERA_SCALE, y1 = 0.0f, cx1 = WIDTH * 0.5f, cy1 = HEIGHT * 0.5f;
+	float d2 = WB_DEFAULT_LAYER_CAMERA_DISTANCE, s2 = WB_DEFAULT_LAYER_CAMERA_SCALE, y2 = 0.0f, cx2 = WIDTH * 0.5f, cy2 = HEIGHT * 0.5f;
 	float t0 = 0.0f, t1 = 0.0f;
 	
 	if (sscanf(line,
+		"move_camera %63s from distance %f scale %f yaw %f center (%f,%f) to distance %f scale %f yaw %f center (%f,%f) during %fs..%fs",
+		name, &d1, &s1, &y1, &cx1, &cy1, &d2, &s2, &y2, &cx2, &cy2, &t0, &t1) == 13 ||
+		sscanf(line,
+		"move_camera %63s from distance %f scale %f yaw %f center (%f, %f) to distance %f scale %f yaw %f center (%f, %f) during %fs..%fs",
+		name, &d1, &s1, &y1, &cx1, &cy1, &d2, &s2, &y2, &cx2, &cy2, &t0, &t1) == 13 ||
+		sscanf(line,
 		"move_camera %63s from distance %f scale %f center (%f,%f) to distance %f scale %f center (%f,%f) during %fs..%fs",
 		name, &d1, &s1, &cx1, &cy1, &d2, &s2, &cx2, &cy2, &t0, &t1) == 11 ||
 		sscanf(line,
@@ -446,11 +457,28 @@ static int parse_move_camera(wb_spec_parser *p, char *line, int line_no)
 		int id = find_layer_name(p, name);
 		if (!id)
 			return set_error(p, line_no, "move_camera references unknown layer");
-		wb_scene_move_camera(p->scene, id, t0, t1, d1, s1, cx1, cy1, d2, s2, cx2, cy2);
+		wb_scene_move_camera(p->scene, id, t0, t1, d1, s1, y1, cx1, cy1, d2, s2, y2, cx2, cy2);
 		return 1;
 	}
 	
-	return set_error(p, line_no, "expected move_camera layer from distance D scale S center (x,y) to distance D scale S center (x,y) during Ts..Ts");
+	return set_error(p, line_no, "expected move_camera layer from distance D scale S [yaw A] center (x,y) to distance D scale S [yaw A] center (x,y) during Ts..Ts");
+}
+
+static int parse_orbit_camera(wb_spec_parser *p, char *line, int line_no)
+{
+	char name[64];
+	float y0 = 0.0f, y1 = 0.0f, t0 = 0.0f, t1 = 0.0f;
+	
+	if (sscanf(line, "orbit_camera %63s from %f to %f during %fs..%fs", name, &y0, &y1, &t0, &t1) == 5)
+	{
+		int id = find_layer_name(p, name);
+		if (!id)
+			return set_error(p, line_no, "orbit_camera references unknown layer");
+		wb_scene_orbit_camera(p->scene, id, t0, t1, y0, y1);
+		return 1;
+	}
+	
+	return set_error(p, line_no, "expected orbit_camera layer from A to A during Ts..Ts");
 }
 
 static int parse_fade_layer(wb_spec_parser *p, char *line, int line_no)
@@ -1230,6 +1258,8 @@ static int parse_spec_line(wb_spec_parser *p, char *line, int line_no)
 		return parse_move_layer(p, s, line_no);
 	if (starts_with(s, "move_camera "))
 		return parse_move_camera(p, s, line_no);
+	if (starts_with(s, "orbit_camera "))
+		return parse_orbit_camera(p, s, line_no);
 	if (starts_with(s, "fade_layer "))
 		return parse_fade_layer(p, s, line_no);
 	if (starts_with(s, "fade "))

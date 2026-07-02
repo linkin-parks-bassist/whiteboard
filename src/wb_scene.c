@@ -140,9 +140,11 @@ int wb_scene_add_layer(wb_scene *scene, const char *name, int type, float opacit
 	layer->jitter_strength = WB_DEFAULT_LAYER_JITTER_STRENGTH;
 	layer->camera_distance = WB_DEFAULT_LAYER_CAMERA_DISTANCE;
 	layer->camera_scale = WB_DEFAULT_LAYER_CAMERA_SCALE;
+	layer->camera_yaw = 0.0f;
 	layer->camera_center = vec2(WIDTH * 0.5f, HEIGHT * 0.5f);
 	layer->render_camera_distance = layer->camera_distance;
 	layer->render_camera_scale = layer->camera_scale;
+	layer->render_camera_yaw = layer->camera_yaw;
 	layer->render_camera_center = layer->camera_center;
 	layer->offset = vec2(0, 0);
 	layer->render_offset = layer->offset;
@@ -179,7 +181,7 @@ void wb_scene_set_layer_jitter(wb_scene *scene, int layer_id, float jitter_stren
 	layer->jitter_strength = jitter_strength;
 }
 
-void wb_scene_set_layer_camera(wb_scene *scene, int layer_id, float distance, float scale, float center_x, float center_y)
+void wb_scene_set_layer_camera(wb_scene *scene, int layer_id, float distance, float scale, float yaw, float center_x, float center_y)
 {
 	wb_scene_layer *layer = find_layer(scene, layer_id);
 	
@@ -193,9 +195,11 @@ void wb_scene_set_layer_camera(wb_scene *scene, int layer_id, float distance, fl
 	
 	layer->camera_distance = distance;
 	layer->camera_scale = scale;
+	layer->camera_yaw = yaw;
 	layer->camera_center = vec2(center_x, center_y);
 	layer->render_camera_distance = layer->camera_distance;
 	layer->render_camera_scale = layer->camera_scale;
+	layer->render_camera_yaw = layer->camera_yaw;
 	layer->render_camera_center = layer->camera_center;
 }
 
@@ -858,7 +862,7 @@ void wb_scene_move_layer(wb_scene *scene, int layer_id, float start_time, float 
 	scene->total_duration = binary_max(scene->total_duration, end_time);
 }
 
-void wb_scene_move_camera(wb_scene *scene, int layer_id, float start_time, float end_time, float distance1, float scale1, float cx1, float cy1, float distance2, float scale2, float cx2, float cy2)
+void wb_scene_move_camera(wb_scene *scene, int layer_id, float start_time, float end_time, float distance1, float scale1, float yaw1, float cx1, float cy1, float distance2, float scale2, float yaw2, float cx2, float cy2)
 {
 	wb_scene_action *action = append_action(scene);
 	
@@ -876,6 +880,25 @@ void wb_scene_move_camera(wb_scene *scene, int layer_id, float start_time, float
 	action->to_z = distance2;
 	action->aux0 = scale1;
 	action->aux1 = scale2;
+	action->aux2 = yaw1;
+	action->aux3 = yaw2;
+	scene->total_duration = binary_max(scene->total_duration, end_time);
+}
+
+void wb_scene_orbit_camera(wb_scene *scene, int layer_id, float start_time, float end_time, float yaw1, float yaw2)
+{
+	wb_scene_action *action = append_action(scene);
+	
+	if (!action)
+		return;
+	
+	action->object_id = 0;
+	action->layer_id = layer_id;
+	action->type = WB_ACTION_CAMERA_ORBIT;
+	action->start_time = start_time;
+	action->end_time = end_time;
+	action->aux2 = yaw1;
+	action->aux3 = yaw2;
 	scene->total_duration = binary_max(scene->total_duration, end_time);
 }
 
@@ -1276,13 +1299,18 @@ static int project_3d_point(wb_vec3 p, wb_scene_layer *layer, wb_vec2 *out)
 {
 	float camera_distance = layer ? layer->render_camera_distance : 5.0f;
 	float scale = layer ? layer->render_camera_scale : 260.0f;
+	float yaw = layer ? layer->render_camera_yaw : 0.0f;
 	wb_vec2 center = layer ? layer->render_camera_center : vec2(WIDTH * 0.5f, HEIGHT * 0.5f);
-	float z = p.z + camera_distance;
+	float c = cosf(yaw);
+	float s = sinf(yaw);
+	float rx = c * p.x + s * p.z;
+	float rz = -s * p.x + c * p.z;
+	float z = rz + camera_distance;
 	
 	if (!out || z <= 0.1f)
 		return 0;
 	
-	out->x = center.x + (p.x / z) * scale;
+	out->x = center.x + (rx / z) * scale;
 	out->y = center.y - (p.y / z) * scale;
 	return 1;
 }
@@ -1676,6 +1704,7 @@ void wb_scene_render(wb_scene *scene, float time, int frame, uint8_t *buf)
 		scene->layers[i].render_offset = scene->layers[i].offset;
 		scene->layers[i].render_camera_distance = scene->layers[i].camera_distance;
 		scene->layers[i].render_camera_scale = scene->layers[i].camera_scale;
+		scene->layers[i].render_camera_yaw = scene->layers[i].camera_yaw;
 		scene->layers[i].render_camera_center = scene->layers[i].camera_center;
 	}
 	
@@ -1722,8 +1751,19 @@ void wb_scene_render(wb_scene *scene, float time, int frame, uint8_t *buf)
 			float a = action_alpha(action, time);
 			layer->render_camera_distance = action->from_z + (action->to_z - action->from_z) * a;
 			layer->render_camera_scale = action->aux0 + (action->aux1 - action->aux0) * a;
+			layer->render_camera_yaw = action->aux2 + (action->aux3 - action->aux2) * a;
 			layer->render_camera_center.x = action->from.x + (action->to.x - action->from.x) * a;
 			layer->render_camera_center.y = action->from.y + (action->to.y - action->from.y) * a;
+		}
+		else if (action->type == WB_ACTION_CAMERA_ORBIT)
+		{
+			wb_scene_layer *layer = find_layer(scene, action->layer_id);
+			
+			if (!layer)
+				continue;
+			
+			float a = action_alpha(action, time);
+			layer->render_camera_yaw = action->aux2 + (action->aux3 - action->aux2) * a;
 		}
 		else if (action->type == WB_ACTION_LAYER_FADE)
 		{
