@@ -40,6 +40,53 @@ static void trim_right(char *s)
 		s[--n] = 0;
 }
 
+static void expand_relative_coords(char *line, size_t cap)
+{
+	char out[2048];
+	size_t i = 0;
+	size_t j = 0;
+	int in_quotes = 0;
+	
+	if (!line || cap == 0)
+		return;
+	
+	while (line[i] && j + 1 < sizeof(out))
+	{
+		if (line[i] == '"')
+		{
+			out[j++] = line[i++];
+			in_quotes = !in_quotes;
+			continue;
+		}
+		
+		if (!in_quotes && line[i] == '[')
+		{
+			float rx = 0.0f;
+			float ry = 0.0f;
+			int consumed = 0;
+			int matched = sscanf(line + i, "[%f,%f]%n", &rx, &ry, &consumed);
+			
+			if (matched != 2)
+				matched = sscanf(line + i, "[%f, %f]%n", &rx, &ry, &consumed);
+			if (matched == 2 && consumed > 0)
+			{
+				int written = snprintf(out + j, sizeof(out) - j, "(%.3f,%.3f)", rx * WIDTH, ry * HEIGHT);
+				
+				if (written <= 0 || (size_t)written >= sizeof(out) - j)
+					break;
+				j += (size_t)written;
+				i += (size_t)consumed;
+				continue;
+			}
+		}
+		
+		out[j++] = line[i++];
+	}
+	
+	out[j] = 0;
+	snprintf(line, cap, "%s", out);
+}
+
 static int starts_with(const char *s, const char *prefix)
 {
 	return strncmp(s, prefix, strlen(prefix)) == 0;
@@ -1328,6 +1375,7 @@ wb_loaded_video wb_load_video_spec(const char *path)
 	while (fgets(line, sizeof(line), f))
 	{
 		line_no++;
+		expand_relative_coords(line, sizeof(line));
 		if (!parse_spec_line(&parser, line, line_no))
 			break;
 	}
