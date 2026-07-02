@@ -5,8 +5,8 @@ video fps 60 jitter_fps 15 output "scene_00.mp4"
 
 scene "minimal parsed scene" duration 4s
   background radial center #ffffff edge #f1f2f4
-  layer board 2d opacity 0.95 blur 1
-    math eq "$\frac{1}{2}\int \mu(A)^{-1}\chi_A+\mu(B)^{-1}\chi_B d\mu$" at (220,540) size 70 colour blue
+  layer board 2d o 0.95 blur 1
+    math eq "$\frac{1}{2}\int \mu(A)^{-1}\chi_A+\mu(B)^{-1}\chi_B d\mu$" @ (220,540) s 70 c blue
     seg axis (220,680) -> (620,680) t 3 c grey
     pt p (220,680) r 7 c blue
     opt q (620,680) r 8 t 3 c blue
@@ -16,7 +16,7 @@ scene "minimal parsed scene" duration 4s
     shade_poly pent_fill (980,600) (1060,560) (1140,620) (1110,710) (1010,720) c green a 0.12
     poly pent (980,600) (1060,560) (1140,620) (1110,710) (1010,720) t 3 c green
     dash guide (220,740) -> (620,740) t 3 g 18 c grey
-    fade pent_fill from 0 to 1 during 0.5s..2.0s
-    move eq from (220,540) to (420,420) during 1s..3s
-    move_layer board from (0,0) to (0,-24) during 2s..4s
+    fade pent_fill 0 -> 1 0.5s..2.0s
+    move eq (220,540) -> (420,420) 1s..3s
+    move_layer board (0,0) -> (0,-24) 2s..4s
 ```

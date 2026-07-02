@@ -295,7 +295,9 @@ static int parse_math(wb_spec_parser *p, char *line, int line_no)
 	int n = 0;
 	
 	if (sscanf(line, "math %63s \"%511[^\"]\" at (%f,%f) size %f colour %63s%n", name, latex, &x, &y, &size, colour_name, &n) >= 5 ||
-		sscanf(line, "math %63s \"%511[^\"]\" at (%f, %f) size %f colour %63s%n", name, latex, &x, &y, &size, colour_name, &n) >= 5)
+		sscanf(line, "math %63s \"%511[^\"]\" at (%f, %f) size %f colour %63s%n", name, latex, &x, &y, &size, colour_name, &n) >= 5 ||
+		sscanf(line, "math %63s \"%511[^\"]\" @ (%f,%f) s %f c %63s%n", name, latex, &x, &y, &size, colour_name, &n) >= 4 ||
+		sscanf(line, "math %63s \"%511[^\"]\" @ (%f, %f) s %f c %63s%n", name, latex, &x, &y, &size, colour_name, &n) >= 4)
 	{
 		int id = wb_scene_add_math(p->scene, latex, x, y, size, parse_colour(colour_name));
 		if (!id)
@@ -338,6 +340,10 @@ static int parse_layer(wb_spec_parser *p, char *line, int line_no)
 	int id = 0;
 	
 	matched = sscanf(line, "layer %63s %31s opacity %f", name, type_name, &opacity);
+	if (matched < 2)
+		matched = sscanf(line, "layer %63s %31s", name, type_name);
+	if (matched < 2)
+		matched = sscanf(line, "layer %63s %31s o %f", name, type_name, &opacity);
 	if (matched < 2)
 		matched = sscanf(line, "layer %63s %31s", name, type_name);
 	if (matched < 1)
@@ -386,9 +392,17 @@ static int parse_camera(wb_spec_parser *p, char *line, int line_no)
 	if (matched < 5)
 		matched = sscanf(line, "camera distance %f scale %f yaw %f center (%f, %f)", &distance, &scale, &yaw, &cx, &cy);
 	if (matched < 4)
+		matched = sscanf(line, "cam d %f s %f y %f @ (%f,%f)", &distance, &scale, &yaw, &cx, &cy);
+	if (matched < 4)
+		matched = sscanf(line, "cam d %f s %f y %f @ (%f, %f)", &distance, &scale, &yaw, &cx, &cy);
+	if (matched < 4)
 		matched = sscanf(line, "camera distance %f scale %f center (%f,%f)", &distance, &scale, &cx, &cy);
 	if (matched < 4)
 		matched = sscanf(line, "camera distance %f scale %f center (%f, %f)", &distance, &scale, &cx, &cy);
+	if (matched < 2)
+		matched = sscanf(line, "cam d %f s %f @ (%f,%f)", &distance, &scale, &cx, &cy);
+	if (matched < 2)
+		matched = sscanf(line, "cam d %f s %f @ (%f, %f)", &distance, &scale, &cx, &cy);
 	if (matched == 5 || matched == 4)
 	{
 		wb_scene_set_layer_camera(p->scene, p->scene->current_layer_id, distance, scale, matched == 5 ? yaw : 0.0f, cx, cy);
@@ -404,7 +418,9 @@ static int parse_move(wb_spec_parser *p, char *line, int line_no)
 	float x1 = 0.0f, y1 = 0.0f, x2 = 0.0f, y2 = 0.0f, t0 = 0.0f, t1 = 0.0f;
 	
 	if (sscanf(line, "move %63s from (%f,%f) to (%f,%f) during %fs..%fs", name, &x1, &y1, &x2, &y2, &t0, &t1) == 7 ||
-		sscanf(line, "move %63s from (%f, %f) to (%f, %f) during %fs..%fs", name, &x1, &y1, &x2, &y2, &t0, &t1) == 7)
+		sscanf(line, "move %63s from (%f, %f) to (%f, %f) during %fs..%fs", name, &x1, &y1, &x2, &y2, &t0, &t1) == 7 ||
+		sscanf(line, "move %63s (%f,%f) -> (%f,%f) %fs..%fs", name, &x1, &y1, &x2, &y2, &t0, &t1) == 7 ||
+		sscanf(line, "move %63s (%f, %f) -> (%f, %f) %fs..%fs", name, &x1, &y1, &x2, &y2, &t0, &t1) == 7)
 	{
 		int id = find_name(p, name);
 		if (!id)
@@ -422,7 +438,9 @@ static int parse_move_layer(wb_spec_parser *p, char *line, int line_no)
 	float x1 = 0.0f, y1 = 0.0f, x2 = 0.0f, y2 = 0.0f, t0 = 0.0f, t1 = 0.0f;
 	
 	if (sscanf(line, "move_layer %63s from (%f,%f) to (%f,%f) during %fs..%fs", name, &x1, &y1, &x2, &y2, &t0, &t1) == 7 ||
-		sscanf(line, "move_layer %63s from (%f, %f) to (%f, %f) during %fs..%fs", name, &x1, &y1, &x2, &y2, &t0, &t1) == 7)
+		sscanf(line, "move_layer %63s from (%f, %f) to (%f, %f) during %fs..%fs", name, &x1, &y1, &x2, &y2, &t0, &t1) == 7 ||
+		sscanf(line, "move_layer %63s (%f,%f) -> (%f,%f) %fs..%fs", name, &x1, &y1, &x2, &y2, &t0, &t1) == 7 ||
+		sscanf(line, "move_layer %63s (%f, %f) -> (%f, %f) %fs..%fs", name, &x1, &y1, &x2, &y2, &t0, &t1) == 7)
 	{
 		int id = find_layer_name(p, name);
 		if (!id)
@@ -448,10 +466,22 @@ static int parse_move_camera(wb_spec_parser *p, char *line, int line_no)
 		"move_camera %63s from distance %f scale %f yaw %f center (%f, %f) to distance %f scale %f yaw %f center (%f, %f) during %fs..%fs",
 		name, &d1, &s1, &y1, &cx1, &cy1, &d2, &s2, &y2, &cx2, &cy2, &t0, &t1) == 13 ||
 		sscanf(line,
+		"move_camera %63s d %f s %f y %f @ (%f,%f) -> d %f s %f y %f @ (%f,%f) %fs..%fs",
+		name, &d1, &s1, &y1, &cx1, &cy1, &d2, &s2, &y2, &cx2, &cy2, &t0, &t1) == 13 ||
+		sscanf(line,
+		"move_camera %63s d %f s %f y %f @ (%f, %f) -> d %f s %f y %f @ (%f, %f) %fs..%fs",
+		name, &d1, &s1, &y1, &cx1, &cy1, &d2, &s2, &y2, &cx2, &cy2, &t0, &t1) == 13 ||
+		sscanf(line,
 		"move_camera %63s from distance %f scale %f center (%f,%f) to distance %f scale %f center (%f,%f) during %fs..%fs",
 		name, &d1, &s1, &cx1, &cy1, &d2, &s2, &cx2, &cy2, &t0, &t1) == 11 ||
 		sscanf(line,
 		"move_camera %63s from distance %f scale %f center (%f, %f) to distance %f scale %f center (%f, %f) during %fs..%fs",
+		name, &d1, &s1, &cx1, &cy1, &d2, &s2, &cx2, &cy2, &t0, &t1) == 11 ||
+		sscanf(line,
+		"move_camera %63s d %f s %f @ (%f,%f) -> d %f s %f @ (%f,%f) %fs..%fs",
+		name, &d1, &s1, &cx1, &cy1, &d2, &s2, &cx2, &cy2, &t0, &t1) == 11 ||
+		sscanf(line,
+		"move_camera %63s d %f s %f @ (%f, %f) -> d %f s %f @ (%f, %f) %fs..%fs",
 		name, &d1, &s1, &cx1, &cy1, &d2, &s2, &cx2, &cy2, &t0, &t1) == 11)
 	{
 		int id = find_layer_name(p, name);
@@ -469,7 +499,8 @@ static int parse_orbit_camera(wb_spec_parser *p, char *line, int line_no)
 	char name[64];
 	float y0 = 0.0f, y1 = 0.0f, t0 = 0.0f, t1 = 0.0f;
 	
-	if (sscanf(line, "orbit_camera %63s from %f to %f during %fs..%fs", name, &y0, &y1, &t0, &t1) == 5)
+	if (sscanf(line, "orbit_camera %63s from %f to %f during %fs..%fs", name, &y0, &y1, &t0, &t1) == 5 ||
+		sscanf(line, "orbit_camera %63s %f -> %f %fs..%fs", name, &y0, &y1, &t0, &t1) == 5)
 	{
 		int id = find_layer_name(p, name);
 		if (!id)
@@ -486,7 +517,8 @@ static int parse_fade_layer(wb_spec_parser *p, char *line, int line_no)
 	char name[64];
 	float a0 = 1.0f, a1 = 1.0f, t0 = 0.0f, t1 = 0.0f;
 	
-	if (sscanf(line, "fade_layer %63s from %f to %f during %fs..%fs", name, &a0, &a1, &t0, &t1) == 5)
+	if (sscanf(line, "fade_layer %63s from %f to %f during %fs..%fs", name, &a0, &a1, &t0, &t1) == 5 ||
+		sscanf(line, "fade_layer %63s %f -> %f %fs..%fs", name, &a0, &a1, &t0, &t1) == 5)
 	{
 		int id = find_layer_name(p, name);
 		if (!id)
@@ -511,7 +543,8 @@ static int parse_fade(wb_spec_parser *p, char *line, int line_no)
 	char name[64];
 	float a0 = 1.0f, a1 = 1.0f, t0 = 0.0f, t1 = 0.0f;
 	
-	if (sscanf(line, "fade %63s from %f to %f during %fs..%fs", name, &a0, &a1, &t0, &t1) == 5)
+	if (sscanf(line, "fade %63s from %f to %f during %fs..%fs", name, &a0, &a1, &t0, &t1) == 5 ||
+		sscanf(line, "fade %63s %f -> %f %fs..%fs", name, &a0, &a1, &t0, &t1) == 5)
 	{
 		int id = find_name(p, name);
 		if (!id)
@@ -536,7 +569,8 @@ static int parse_draw(wb_spec_parser *p, char *line, int line_no)
 	char name[64];
 	float t0 = 0.0f, t1 = 0.0f;
 	
-	if (sscanf(line, "draw %63s during %fs..%fs", name, &t0, &t1) == 3)
+	if (sscanf(line, "draw %63s during %fs..%fs", name, &t0, &t1) == 3 ||
+		sscanf(line, "draw %63s %fs..%fs", name, &t0, &t1) == 3)
 	{
 		int id = find_name(p, name);
 		if (!id)
