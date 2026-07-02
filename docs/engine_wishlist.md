@@ -343,6 +343,7 @@ High urgency:
 44. Done: Land a first renderer-throughput pass. The hottest hand-drawn stroke and projected-curve paths now build their small NURBS on the stack instead of heap-allocating and freeing them every frame; broader profiling and deeper rasterization/blur work still remain.
 45. Done: Add first-pass render progress reporting. Long renders now emit a single-line updating stderr progress bar with overall percentage, current scene, per-scene frame count, total frame count, and elapsed time; richer terminal UI and ETA estimation can come later.
 46. Done: Add first scene transition support. The spec now supports top-level `transition fade Ns` and `transition crossfade Ns` declarations between scenes; multi-scene renders are emitted as one continuous video timeline with overlapped scene compositing instead of forced hard cuts.
+47. Done: Add a first tetrahedron convenience primitive for 3D authoring. The spec now supports `tetrahedron3d/tetra3d name ...` as a parser-level convenience that expands to shaded faces, wireframe edges, and vertex markers, which is enough to make rotating-polyhedron demos readable without manually spelling out every edge and face.
 
 ## Next Wave
 

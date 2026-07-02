@@ -1128,6 +1128,114 @@ static int parse_shade_triangle3d_object(wb_spec_parser *p, char *line, int line
 	return 1;
 }
 
+static int add_tetrahedron3d_objects(wb_spec_parser *p, const char *name,
+	float ax, float ay, float az,
+	float bx, float by, float bz,
+	float cx, float cy, float cz,
+	float dx, float dy, float dz,
+	float thickness, uint32_t colour, float opacity, float jitter_strength)
+{
+	char part_name[64];
+	int id = 0;
+	
+	if (!p || !name || !*name)
+		return 0;
+	
+	if (opacity > 0.0f)
+	{
+		if (!wb_scene_add_shade_triangle3d(p->scene, ax, ay, az, bx, by, bz, cx, cy, cz, colour, opacity))
+			return 0;
+		if (!wb_scene_add_shade_triangle3d(p->scene, ax, ay, az, bx, by, bz, dx, dy, dz, colour, opacity * 0.92f))
+			return 0;
+		if (!wb_scene_add_shade_triangle3d(p->scene, ax, ay, az, cx, cy, cz, dx, dy, dz, colour, opacity * 0.84f))
+			return 0;
+		if (!wb_scene_add_shade_triangle3d(p->scene, bx, by, bz, cx, cy, cz, dx, dy, dz, colour, opacity * 0.76f))
+			return 0;
+	}
+	
+	if (!wb_scene_add_line3d(p->scene, ax, ay, az, bx, by, bz, thickness, colour) ||
+		!wb_scene_add_line3d(p->scene, ax, ay, az, cx, cy, cz, thickness, colour) ||
+		!wb_scene_add_line3d(p->scene, ax, ay, az, dx, dy, dz, thickness, colour) ||
+		!wb_scene_add_line3d(p->scene, bx, by, bz, cx, cy, cz, thickness, colour) ||
+		!wb_scene_add_line3d(p->scene, bx, by, bz, dx, dy, dz, thickness, colour) ||
+		!wb_scene_add_line3d(p->scene, cx, cy, cz, dx, dy, dz, thickness, colour))
+		return 0;
+	
+	for (int i = p->scene->n_objects - 6; i < p->scene->n_objects; i++)
+	{
+		if (i >= 0)
+			wb_scene_set_object_jitter(p->scene, p->scene->objects[i].id, jitter_strength);
+	}
+	
+	id = wb_scene_add_point3d(p->scene, ax, ay, az, WB_DEFAULT_POINT_RADIUS, colour);
+	if (!id)
+		return 0;
+	snprintf(part_name, sizeof(part_name), "%s_a", name);
+	remember_name(p, part_name, id);
+	id = wb_scene_add_point3d(p->scene, bx, by, bz, WB_DEFAULT_POINT_RADIUS, colour);
+	if (!id)
+		return 0;
+	snprintf(part_name, sizeof(part_name), "%s_b", name);
+	remember_name(p, part_name, id);
+	id = wb_scene_add_point3d(p->scene, cx, cy, cz, WB_DEFAULT_POINT_RADIUS, colour);
+	if (!id)
+		return 0;
+	snprintf(part_name, sizeof(part_name), "%s_c", name);
+	remember_name(p, part_name, id);
+	id = wb_scene_add_point3d(p->scene, dx, dy, dz, WB_DEFAULT_POINT_RADIUS, colour);
+	if (!id)
+		return 0;
+	snprintf(part_name, sizeof(part_name), "%s_d", name);
+	remember_name(p, part_name, id);
+	
+	remember_name(p, name, p->scene->objects[p->scene->n_objects - 1].id);
+	return 1;
+}
+
+static int parse_tetrahedron3d_object(wb_spec_parser *p, char *line, int line_no)
+{
+	char name[64];
+	char colour_name[64] = "blue";
+	float ax = 0.0f, ay = 0.0f, az = 0.0f;
+	float bx = 0.0f, by = 0.0f, bz = 0.0f;
+	float cx = 0.0f, cy = 0.0f, cz = 0.0f;
+	float dx = 0.0f, dy = 0.0f, dz = 0.0f;
+	float thickness = WB_DEFAULT_LINE_THICKNESS;
+	float opacity = 0.10f;
+	float jitter_strength = WB_DEFAULT_OBJECT_JITTER_STRENGTH;
+	int matched = 0;
+	
+	matched = sscanf(line, "tetrahedron3d %63s points (%f,%f,%f) (%f,%f,%f) (%f,%f,%f) (%f,%f,%f) thickness %f colour %63s opacity %f",
+		name, &ax, &ay, &az, &bx, &by, &bz, &cx, &cy, &cz, &dx, &dy, &dz, &thickness, colour_name, &opacity);
+	if (matched < 13)
+		matched = sscanf(line, "tetrahedron3d %63s points (%f, %f, %f) (%f, %f, %f) (%f, %f, %f) (%f, %f, %f) thickness %f colour %63s opacity %f",
+			name, &ax, &ay, &az, &bx, &by, &bz, &cx, &cy, &cz, &dx, &dy, &dz, &thickness, colour_name, &opacity);
+	if (matched < 13)
+		matched = sscanf(line, "tetra3d %63s (%f,%f,%f) (%f,%f,%f) (%f,%f,%f) (%f,%f,%f) t %f c %63s a %f",
+			name, &ax, &ay, &az, &bx, &by, &bz, &cx, &cy, &cz, &dx, &dy, &dz, &thickness, colour_name, &opacity);
+	if (matched < 13)
+		matched = sscanf(line, "tetra3d %63s (%f, %f, %f) (%f, %f, %f) (%f, %f, %f) (%f, %f, %f) t %f c %63s a %f",
+			name, &ax, &ay, &az, &bx, &by, &bz, &cx, &cy, &cz, &dx, &dy, &dz, &thickness, colour_name, &opacity);
+	if (matched < 13)
+		return set_error(p, line_no, "expected tetrahedron3d/tetra3d name points (x,y,z) (x,y,z) (x,y,z) (x,y,z) thickness N colour name opacity A");
+	
+	if (opacity < WB_MIN_OPACITY)
+		opacity = WB_MIN_OPACITY;
+	if (opacity > WB_MAX_OPACITY)
+		opacity = WB_MAX_OPACITY;
+	if (!add_tetrahedron3d_objects(p, name, ax, ay, az, bx, by, bz, cx, cy, cz, dx, dy, dz, thickness, parse_colour(matched >= 15 ? colour_name : "blue"), matched >= 16 ? opacity : 0.10f, jitter_strength))
+		return set_error(p, line_no, "failed to create tetrahedron3d object");
+	if (parse_jitter_token(line, &jitter_strength))
+	{
+		for (int i = p->scene->n_objects - 10; i < p->scene->n_objects; i++)
+		{
+			if (i >= 0)
+				wb_scene_set_object_jitter(p->scene, p->scene->objects[i].id, jitter_strength);
+		}
+	}
+	return 1;
+}
+
 static int parse_point_object(wb_spec_parser *p, char *line, int line_no, int open)
 {
 	char name[64];
@@ -1301,6 +1409,8 @@ static int parse_spec_line(wb_spec_parser *p, char *line, int line_no)
 		return parse_point3d_object(p, s, line_no);
 	if (starts_with(s, "open_point3d "))
 		return parse_open_point3d_object(p, s, line_no);
+	if (starts_with(s, "tetrahedron3d ") || starts_with(s, "tetra3d "))
+		return parse_tetrahedron3d_object(p, s, line_no);
 	if (starts_with(s, "shade_triangle3d "))
 		return parse_shade_triangle3d_object(p, s, line_no);
 	if (starts_with(s, "triangle3d "))
