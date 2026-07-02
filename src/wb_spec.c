@@ -1236,6 +1236,74 @@ static int parse_tetrahedron3d_object(wb_spec_parser *p, char *line, int line_no
 	return 1;
 }
 
+static int add_axes3d_objects(wb_spec_parser *p, const char *name, float x, float y, float z, float length, float thickness, float jitter_strength)
+{
+	char part_name[64];
+	int id = 0;
+	
+	if (!p || !name || !*name || length <= 0.0f)
+		return 0;
+	
+	id = wb_scene_add_line3d(p->scene, x, y, z, x + length, y, z, thickness, parse_colour("red"));
+	if (!id)
+		return 0;
+	snprintf(part_name, sizeof(part_name), "%s_x", name);
+	remember_name(p, part_name, id);
+	wb_scene_set_object_jitter(p->scene, id, jitter_strength);
+	
+	id = wb_scene_add_line3d(p->scene, x, y, z, x, y + length, z, thickness, parse_colour("green"));
+	if (!id)
+		return 0;
+	snprintf(part_name, sizeof(part_name), "%s_y", name);
+	remember_name(p, part_name, id);
+	wb_scene_set_object_jitter(p->scene, id, jitter_strength);
+	
+	id = wb_scene_add_line3d(p->scene, x, y, z, x, y, z + length, thickness, parse_colour("blue"));
+	if (!id)
+		return 0;
+	snprintf(part_name, sizeof(part_name), "%s_z", name);
+	remember_name(p, part_name, id);
+	wb_scene_set_object_jitter(p->scene, id, jitter_strength);
+	
+	id = wb_scene_add_point3d(p->scene, x, y, z, WB_DEFAULT_POINT_RADIUS, parse_colour("black"));
+	if (!id)
+		return 0;
+	snprintf(part_name, sizeof(part_name), "%s_o", name);
+	remember_name(p, part_name, id);
+	remember_name(p, name, id);
+	return 1;
+}
+
+static int parse_axes3d_object(wb_spec_parser *p, char *line, int line_no)
+{
+	char name[64];
+	float x = 0.0f, y = 0.0f, z = 0.0f;
+	float length = 1.0f;
+	float thickness = WB_DEFAULT_LINE_THICKNESS;
+	float jitter_strength = WB_DEFAULT_OBJECT_JITTER_STRENGTH;
+	int matched = 0;
+	
+	matched = sscanf(line, "axes3d %63s at (%f,%f,%f) length %f thickness %f", name, &x, &y, &z, &length, &thickness);
+	if (matched < 4)
+		matched = sscanf(line, "axes3d %63s at (%f, %f, %f) length %f thickness %f", name, &x, &y, &z, &length, &thickness);
+	if (matched < 4)
+		matched = sscanf(line, "axes3d %63s origin (%f,%f,%f) length %f thickness %f", name, &x, &y, &z, &length, &thickness);
+	if (matched < 4)
+		matched = sscanf(line, "axes3d %63s origin (%f, %f, %f) length %f thickness %f", name, &x, &y, &z, &length, &thickness);
+	if (matched < 4)
+		matched = sscanf(line, "axes %63s (%f,%f,%f) len %f t %f", name, &x, &y, &z, &length, &thickness);
+	if (matched < 4)
+		matched = sscanf(line, "axes %63s (%f, %f, %f) len %f t %f", name, &x, &y, &z, &length, &thickness);
+	if (matched < 4)
+		return set_error(p, line_no, "expected axes3d/axes name at (x,y,z) length N thickness N");
+	
+	if (parse_jitter_token(line, &jitter_strength) == 0)
+		jitter_strength = WB_DEFAULT_OBJECT_JITTER_STRENGTH;
+	if (!add_axes3d_objects(p, name, x, y, z, matched >= 5 ? length : 1.0f, matched >= 6 ? thickness : WB_DEFAULT_LINE_THICKNESS, jitter_strength))
+		return set_error(p, line_no, "failed to create axes3d object");
+	return 1;
+}
+
 static int parse_point_object(wb_spec_parser *p, char *line, int line_no, int open)
 {
 	char name[64];
@@ -1409,6 +1477,8 @@ static int parse_spec_line(wb_spec_parser *p, char *line, int line_no)
 		return parse_point3d_object(p, s, line_no);
 	if (starts_with(s, "open_point3d "))
 		return parse_open_point3d_object(p, s, line_no);
+	if (starts_with(s, "axes3d ") || starts_with(s, "axes "))
+		return parse_axes3d_object(p, s, line_no);
 	if (starts_with(s, "tetrahedron3d ") || starts_with(s, "tetra3d "))
 		return parse_tetrahedron3d_object(p, s, line_no);
 	if (starts_with(s, "shade_triangle3d "))

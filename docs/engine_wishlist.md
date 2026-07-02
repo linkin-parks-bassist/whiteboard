@@ -344,6 +344,7 @@ High urgency:
 45. Done: Add first-pass render progress reporting. Long renders now emit a single-line updating stderr progress bar with overall percentage, current scene, per-scene frame count, total frame count, and elapsed time; richer terminal UI and ETA estimation can come later.
 46. Done: Add first scene transition support. The spec now supports top-level `transition fade Ns` and `transition crossfade Ns` declarations between scenes; multi-scene renders are emitted as one continuous video timeline with overlapped scene compositing instead of forced hard cuts.
 47. Done: Add a first tetrahedron convenience primitive for 3D authoring. The spec now supports `tetrahedron3d/tetra3d name ...` as a parser-level convenience that expands to shaded faces, wireframe edges, and vertex markers, which is enough to make rotating-polyhedron demos readable without manually spelling out every edge and face.
+48. Done: Add a first axes convenience primitive for 3D authoring. The spec now supports `axes3d/axes name ...` as a parser-level convenience that expands to coloured x/y/z guide lines plus an origin marker, which makes 3D demos easier to orient without repetitive boilerplate.
 
 ## Next Wave
 

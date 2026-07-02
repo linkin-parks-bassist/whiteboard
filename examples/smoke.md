@@ -32,6 +32,7 @@ scene "smoke" duration 0.25s
     draw map during 0.05s..0.25s
   layer model 3d opacity 1 jitter 1.1
     camera distance 5 scale 300 yaw 0.2 center (960,540)
+    axes demo_axes (-1.15,-0.85,-0.25) len 0.6 t 2 jitter 0.8
     point3d marker at (0.25,0.6,0.8) radius 8 colour blue jitter 1.0
     open_point3d target at (-0.45,0.9,1.0) radius 10 thickness 3 colour grey jitter 1.0
     tetra3d tet (-0.35,-0.65,-0.15) (0.35,-0.65,-0.15) (0.0,0.10,0.75) (0.0,0.85,-0.05) t 3 c blue a 0.08 jitter 0.9

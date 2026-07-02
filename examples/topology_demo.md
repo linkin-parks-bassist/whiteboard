@@ -41,6 +41,7 @@ scene "projected path" duration 6s
   background radial center #ffffff edge #eef1f6
   layer model 3d opacity 1 jitter 1.2
     camera distance 4.5 scale 430 center (960,560)
+    axes3d frame at (-1.35,-0.95,-0.35) length 0.75 thickness 2 jitter 0.7
     point3d apex at (0,1.1,1.4) radius 9 colour red jitter 1.0
     open_point3d source3 at (-1.1,-0.2,0) radius 10 thickness 3 colour grey jitter 0.9
     shade_triangle3d sheet_fill points (-1.1,-0.2,0) (0,1.1,1.4) (1.1,-0.2,0.2) colour green opacity 0.10
