@@ -518,10 +518,17 @@ static int parse_move(wb_spec_parser *p, char *line, int line_no)
 		sscanf(line, "move %63s (%f,%f) -> (%f,%f) %fs..%fs", name, &x1, &y1, &x2, &y2, &t0, &t1) == 7 ||
 		sscanf(line, "move %63s (%f, %f) -> (%f, %f) %fs..%fs", name, &x1, &y1, &x2, &y2, &t0, &t1) == 7)
 	{
+		wb_spec_group *group = find_group(p, name);
 		int id = find_name(p, name);
-		if (!id)
+		if (!id && !group)
 			return set_error(p, line_no, "move references unknown object");
-		wb_scene_move(p->scene, id, t0, t1, x1, y1, x2, y2);
+		if (group && group->n_ids > 0)
+		{
+			for (int i = 0; i < group->n_ids; i++)
+				wb_scene_move(p->scene, group->ids[i], t0, t1, x1, y1, x2, y2);
+		}
+		else
+			wb_scene_move(p->scene, id, t0, t1, x1, y1, x2, y2);
 		return 1;
 	}
 	

@@ -347,6 +347,7 @@ High urgency:
 48. Done: Add a first axes convenience primitive for 3D authoring. The spec now supports `axes3d/axes name ...` as a parser-level convenience that expands to coloured x/y/z guide lines plus an origin marker, which makes 3D demos easier to orient without repetitive boilerplate.
 49. Done: Add a first cube convenience primitive for 3D authoring. The spec now supports `cube3d/cube name ...` as a parser-level convenience that expands to triangulated translucent faces, wireframe edges, and vertex markers, which is enough for basic spatial reference geometry without hand-writing twelve edges and six faces.
 50. Done: Make first grouped 3D convenience objects behave like units for timing. Parser-level group tracking now lets `draw` and `fade` target convenience objects such as `tetrahedron3d`, `cube3d`, and `axes3d` as groups rather than only affecting whichever generated sub-object happened to keep the public name.
+51. Done: Extend grouped 3D convenience timing to movement. Parser-level group tracking now lets `move` target grouped convenience objects as units too, so `tetrahedron3d`, `cube3d`, and `axes3d` can be translated with one author-facing command instead of forcing motion to be specified sub-object by sub-object.
 
 ## Next Wave
 

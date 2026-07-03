@@ -11,6 +11,7 @@ scene "rotating tetrahedron" duration 5s
     cube3d backdrop center (1.55,0.05,0.25) size 0.7 thickness 2 colour grey opacity 0.04 jitter 0.7
     tetrahedron3d tet points (0.0,1.1,0.0) (-1.0,-0.6,-0.8) (1.0,-0.6,-0.8) (0.0,-0.2,1.1) thickness 3 colour blue opacity 0.09 jitter 1.0
     orbit_camera model from -0.7 to 5.1 during 0s..5s
+    move tet (0,0) -> (60,-20) 1.2s..4.2s
     draw tet during 0s..0.9s
     fade backdrop from 0 to 1 during 0.15s..1.0s
   layer labels 2d opacity 1 jitter 0.7
