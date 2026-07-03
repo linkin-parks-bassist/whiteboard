@@ -42,6 +42,8 @@ scene "smoke" duration 0.25s
     line3d edge from (-1,-0.5,0) to (1,0.8,1.5) thickness 3 colour green jitter 1.2
     curve3d arc through (-1,0.7,0) (0,1.3,1.4) (1,0.4,0.4) thickness 3 colour red jitter 1.1
     orbit_camera model from 0.2 to 0.8 during 0s..0.25s
+    fade demo_cube from 0 to 1 during 0.02s..0.20s
+    draw tet during 0s..0.25s
     draw face_fill during 0.02s..0.25s
     draw arc during 0s..0.25s
 

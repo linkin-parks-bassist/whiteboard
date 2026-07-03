@@ -9,6 +9,13 @@ typedef struct
 
 typedef struct
 {
+	char name[64];
+	int ids[64];
+	int n_ids;
+} wb_spec_group;
+
+typedef struct
+{
 	wb_scene *scene;
 	wb_scene **scenes;
 	float *durations;
@@ -16,8 +23,10 @@ typedef struct
 	int n_scenes;
 	int cap_scenes;
 	wb_spec_name names[256];
+	wb_spec_group groups[64];
 	wb_spec_name layers[64];
 	int n_names;
+	int n_groups;
 	int n_layers;
 	float duration;
 	int in_block;
@@ -183,6 +192,7 @@ static int start_new_scene(wb_spec_parser *p, float duration)
 	p->scene = scene;
 	p->duration = duration > 0.0f ? duration : (float)FRAMES_PER_SCENE / FPS;
 	p->n_names = 0;
+	p->n_groups = 0;
 	p->n_layers = 0;
 	return 1;
 }
@@ -252,6 +262,45 @@ static int find_name(wb_spec_parser *p, const char *name)
 			return p->names[i].id;
 	}
 	return 0;
+}
+
+static wb_spec_group *find_group(wb_spec_parser *p, const char *name)
+{
+	if (!p || !name)
+		return NULL;
+	
+	for (int i = 0; i < p->n_groups; i++)
+	{
+		if (strcmp(p->groups[i].name, name) == 0)
+			return &p->groups[i];
+	}
+	return NULL;
+}
+
+static void remember_group_member(wb_spec_parser *p, const char *group_name, int id)
+{
+	wb_spec_group *group;
+	
+	if (!p || !group_name || !*group_name || id <= 0)
+		return;
+	
+	group = find_group(p, group_name);
+	if (!group)
+	{
+		if (p->n_groups >= (int)(sizeof(p->groups) / sizeof(p->groups[0])))
+			return;
+		group = &p->groups[p->n_groups++];
+		memset(group, 0, sizeof(*group));
+		snprintf(group->name, sizeof(group->name), "%s", group_name);
+	}
+	
+	for (int i = 0; i < group->n_ids; i++)
+	{
+		if (group->ids[i] == id)
+			return;
+	}
+	if (group->n_ids < (int)(sizeof(group->ids) / sizeof(group->ids[0])))
+		group->ids[group->n_ids++] = id;
 }
 
 static void remember_layer(wb_spec_parser *p, const char *name, int id)
@@ -593,8 +642,9 @@ static int parse_fade(wb_spec_parser *p, char *line, int line_no)
 	if (sscanf(line, "fade %63s from %f to %f during %fs..%fs", name, &a0, &a1, &t0, &t1) == 5 ||
 		sscanf(line, "fade %63s %f -> %f %fs..%fs", name, &a0, &a1, &t0, &t1) == 5)
 	{
+		wb_spec_group *group = find_group(p, name);
 		int id = find_name(p, name);
-		if (!id)
+		if (!id && !group)
 			return set_error(p, line_no, "fade references unknown object");
 		if (a0 < WB_MIN_OPACITY)
 			a0 = WB_MIN_OPACITY;
@@ -604,7 +654,13 @@ static int parse_fade(wb_spec_parser *p, char *line, int line_no)
 			a1 = WB_MIN_OPACITY;
 		if (a1 > WB_MAX_OPACITY)
 			a1 = WB_MAX_OPACITY;
-		wb_scene_fade_object(p->scene, id, t0, t1, a0, a1);
+		if (group && group->n_ids > 0)
+		{
+			for (int i = 0; i < group->n_ids; i++)
+				wb_scene_fade_object(p->scene, group->ids[i], t0, t1, a0, a1);
+		}
+		else
+			wb_scene_fade_object(p->scene, id, t0, t1, a0, a1);
 		return 1;
 	}
 	
@@ -619,10 +675,17 @@ static int parse_draw(wb_spec_parser *p, char *line, int line_no)
 	if (sscanf(line, "draw %63s during %fs..%fs", name, &t0, &t1) == 3 ||
 		sscanf(line, "draw %63s %fs..%fs", name, &t0, &t1) == 3)
 	{
+		wb_spec_group *group = find_group(p, name);
 		int id = find_name(p, name);
-		if (!id)
+		if (!id && !group)
 			return set_error(p, line_no, "draw references unknown object");
-		wb_scene_draw_in(p->scene, id, t0, t1);
+		if (group && group->n_ids > 0)
+		{
+			for (int i = 0; i < group->n_ids; i++)
+				wb_scene_draw_in(p->scene, group->ids[i], t0, t1);
+		}
+		else
+			wb_scene_draw_in(p->scene, id, t0, t1);
 		return 1;
 	}
 	
@@ -1143,50 +1206,79 @@ static int add_tetrahedron3d_objects(wb_spec_parser *p, const char *name,
 	
 	if (opacity > 0.0f)
 	{
-		if (!wb_scene_add_shade_triangle3d(p->scene, ax, ay, az, bx, by, bz, cx, cy, cz, colour, opacity))
+		id = wb_scene_add_shade_triangle3d(p->scene, ax, ay, az, bx, by, bz, cx, cy, cz, colour, opacity);
+		if (!id)
 			return 0;
-		if (!wb_scene_add_shade_triangle3d(p->scene, ax, ay, az, bx, by, bz, dx, dy, dz, colour, opacity * 0.92f))
+		remember_group_member(p, name, id);
+		id = wb_scene_add_shade_triangle3d(p->scene, ax, ay, az, bx, by, bz, dx, dy, dz, colour, opacity * 0.92f);
+		if (!id)
 			return 0;
-		if (!wb_scene_add_shade_triangle3d(p->scene, ax, ay, az, cx, cy, cz, dx, dy, dz, colour, opacity * 0.84f))
+		remember_group_member(p, name, id);
+		id = wb_scene_add_shade_triangle3d(p->scene, ax, ay, az, cx, cy, cz, dx, dy, dz, colour, opacity * 0.84f);
+		if (!id)
 			return 0;
-		if (!wb_scene_add_shade_triangle3d(p->scene, bx, by, bz, cx, cy, cz, dx, dy, dz, colour, opacity * 0.76f))
+		remember_group_member(p, name, id);
+		id = wb_scene_add_shade_triangle3d(p->scene, bx, by, bz, cx, cy, cz, dx, dy, dz, colour, opacity * 0.76f);
+		if (!id)
 			return 0;
+		remember_group_member(p, name, id);
 	}
 	
-	if (!wb_scene_add_line3d(p->scene, ax, ay, az, bx, by, bz, thickness, colour) ||
-		!wb_scene_add_line3d(p->scene, ax, ay, az, cx, cy, cz, thickness, colour) ||
-		!wb_scene_add_line3d(p->scene, ax, ay, az, dx, dy, dz, thickness, colour) ||
-		!wb_scene_add_line3d(p->scene, bx, by, bz, cx, cy, cz, thickness, colour) ||
-		!wb_scene_add_line3d(p->scene, bx, by, bz, dx, dy, dz, thickness, colour) ||
-		!wb_scene_add_line3d(p->scene, cx, cy, cz, dx, dy, dz, thickness, colour))
+	id = wb_scene_add_line3d(p->scene, ax, ay, az, bx, by, bz, thickness, colour);
+	if (!id)
 		return 0;
-	
-	for (int i = p->scene->n_objects - 6; i < p->scene->n_objects; i++)
-	{
-		if (i >= 0)
-			wb_scene_set_object_jitter(p->scene, p->scene->objects[i].id, jitter_strength);
-	}
+	remember_group_member(p, name, id);
+	wb_scene_set_object_jitter(p->scene, id, jitter_strength);
+	id = wb_scene_add_line3d(p->scene, ax, ay, az, cx, cy, cz, thickness, colour);
+	if (!id)
+		return 0;
+	remember_group_member(p, name, id);
+	wb_scene_set_object_jitter(p->scene, id, jitter_strength);
+	id = wb_scene_add_line3d(p->scene, ax, ay, az, dx, dy, dz, thickness, colour);
+	if (!id)
+		return 0;
+	remember_group_member(p, name, id);
+	wb_scene_set_object_jitter(p->scene, id, jitter_strength);
+	id = wb_scene_add_line3d(p->scene, bx, by, bz, cx, cy, cz, thickness, colour);
+	if (!id)
+		return 0;
+	remember_group_member(p, name, id);
+	wb_scene_set_object_jitter(p->scene, id, jitter_strength);
+	id = wb_scene_add_line3d(p->scene, bx, by, bz, dx, dy, dz, thickness, colour);
+	if (!id)
+		return 0;
+	remember_group_member(p, name, id);
+	wb_scene_set_object_jitter(p->scene, id, jitter_strength);
+	id = wb_scene_add_line3d(p->scene, cx, cy, cz, dx, dy, dz, thickness, colour);
+	if (!id)
+		return 0;
+	remember_group_member(p, name, id);
+	wb_scene_set_object_jitter(p->scene, id, jitter_strength);
 	
 	id = wb_scene_add_point3d(p->scene, ax, ay, az, WB_DEFAULT_POINT_RADIUS, colour);
 	if (!id)
 		return 0;
 	snprintf(part_name, sizeof(part_name), "%s_a", name);
 	remember_name(p, part_name, id);
+	remember_group_member(p, name, id);
 	id = wb_scene_add_point3d(p->scene, bx, by, bz, WB_DEFAULT_POINT_RADIUS, colour);
 	if (!id)
 		return 0;
 	snprintf(part_name, sizeof(part_name), "%s_b", name);
 	remember_name(p, part_name, id);
+	remember_group_member(p, name, id);
 	id = wb_scene_add_point3d(p->scene, cx, cy, cz, WB_DEFAULT_POINT_RADIUS, colour);
 	if (!id)
 		return 0;
 	snprintf(part_name, sizeof(part_name), "%s_c", name);
 	remember_name(p, part_name, id);
+	remember_group_member(p, name, id);
 	id = wb_scene_add_point3d(p->scene, dx, dy, dz, WB_DEFAULT_POINT_RADIUS, colour);
 	if (!id)
 		return 0;
 	snprintf(part_name, sizeof(part_name), "%s_d", name);
 	remember_name(p, part_name, id);
+	remember_group_member(p, name, id);
 	
 	remember_name(p, name, p->scene->objects[p->scene->n_objects - 1].id);
 	return 1;
@@ -1249,6 +1341,7 @@ static int add_axes3d_objects(wb_spec_parser *p, const char *name, float x, floa
 		return 0;
 	snprintf(part_name, sizeof(part_name), "%s_x", name);
 	remember_name(p, part_name, id);
+	remember_group_member(p, name, id);
 	wb_scene_set_object_jitter(p->scene, id, jitter_strength);
 	
 	id = wb_scene_add_line3d(p->scene, x, y, z, x, y + length, z, thickness, parse_colour("green"));
@@ -1256,6 +1349,7 @@ static int add_axes3d_objects(wb_spec_parser *p, const char *name, float x, floa
 		return 0;
 	snprintf(part_name, sizeof(part_name), "%s_y", name);
 	remember_name(p, part_name, id);
+	remember_group_member(p, name, id);
 	wb_scene_set_object_jitter(p->scene, id, jitter_strength);
 	
 	id = wb_scene_add_line3d(p->scene, x, y, z, x, y, z + length, thickness, parse_colour("blue"));
@@ -1263,6 +1357,7 @@ static int add_axes3d_objects(wb_spec_parser *p, const char *name, float x, floa
 		return 0;
 	snprintf(part_name, sizeof(part_name), "%s_z", name);
 	remember_name(p, part_name, id);
+	remember_group_member(p, name, id);
 	wb_scene_set_object_jitter(p->scene, id, jitter_strength);
 	
 	id = wb_scene_add_point3d(p->scene, x, y, z, WB_DEFAULT_POINT_RADIUS, parse_colour("black"));
@@ -1270,6 +1365,7 @@ static int add_axes3d_objects(wb_spec_parser *p, const char *name, float x, floa
 		return 0;
 	snprintf(part_name, sizeof(part_name), "%s_o", name);
 	remember_name(p, part_name, id);
+	remember_group_member(p, name, id);
 	remember_name(p, name, id);
 	return 1;
 }
@@ -1347,6 +1443,7 @@ static int add_cube3d_objects(wb_spec_parser *p, const char *name, float cx, flo
 				v[face_tris[i][2]].x, v[face_tris[i][2]].y, v[face_tris[i][2]].z,
 				colour, face_opacity))
 				return 0;
+			remember_group_member(p, name, p->scene->objects[p->scene->n_objects - 1].id);
 		}
 	}
 	
@@ -1358,6 +1455,7 @@ static int add_cube3d_objects(wb_spec_parser *p, const char *name, float cx, flo
 			thickness, colour);
 		if (!id)
 			return 0;
+		remember_group_member(p, name, id);
 		wb_scene_set_object_jitter(p->scene, id, jitter_strength);
 	}
 	
@@ -1368,6 +1466,7 @@ static int add_cube3d_objects(wb_spec_parser *p, const char *name, float cx, flo
 			return 0;
 		snprintf(part_name, sizeof(part_name), "%s_v%d", name, i);
 		remember_name(p, part_name, id);
+		remember_group_member(p, name, id);
 	}
 	
 	remember_name(p, name, p->scene->objects[p->scene->n_objects - 1].id);
