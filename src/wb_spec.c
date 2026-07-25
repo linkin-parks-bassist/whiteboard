@@ -511,6 +511,63 @@ static void root_worldify_action(const wb_scene *scene, wb_scene_action *action)
 	}
 }
 
+static float active_patch_length_scale(const wb_spec_parser *p)
+{
+	float scale = 1.0f;
+
+	if (!p)
+		return scale;
+	for (int i = 0; i < p->n_patch_scopes; i++)
+	{
+		const wb_spec_patch_scope *scope = &p->patch_scopes[i];
+		if (scope->dimension != 2)
+			continue;
+		scale *= (fabsf(scope->scale.x) + fabsf(scope->scale.y)) * 0.5f;
+	}
+	return scale;
+}
+
+static void scale_2d_object_lengths(wb_scene_object *obj, float scale)
+{
+	if (!obj || scale == 1.0f)
+		return;
+
+	switch (obj->type)
+	{
+	case WB_OBJECT_MATH:
+	case WB_OBJECT_TEXT:
+		obj->size *= scale;
+		break;
+	case WB_OBJECT_CURVE:
+	case WB_OBJECT_LINE:
+	case WB_OBJECT_RAY:
+	case WB_OBJECT_TRIANGLE:
+	case WB_OBJECT_QUAD:
+	case WB_OBJECT_POLYGON:
+	case WB_OBJECT_BLOB:
+		obj->thickness *= scale;
+		break;
+	case WB_OBJECT_DOTTED_LINE:
+	case WB_OBJECT_DASHED_LINE:
+	case WB_OBJECT_ARROW:
+		obj->thickness *= scale;
+		obj->size *= scale;
+		break;
+	case WB_OBJECT_SHADE_DISC:
+	case WB_OBJECT_POINT:
+	case WB_OBJECT_OPEN_POINT:
+	case WB_OBJECT_CIRCLE:
+	case WB_OBJECT_ELLIPSE:
+		obj->radius *= scale;
+		obj->p0.x *= scale;
+		obj->p0.y *= scale;
+		obj->thickness *= scale;
+		break;
+	default:
+		break;
+	}
+}
+
 static wb_vec2 patch_local_to_parent(const wb_spec_patch_scope *scope, wb_vec2 p)
 {
 	float c;
@@ -6966,6 +7023,12 @@ pending_flushed:
 					root_worldify_object(p->scene, &p->scene->objects[i]);
 				for (int i = actions_before; i < p->scene->n_actions; i++)
 					root_worldify_action(p->scene, &p->scene->actions[i]);
+			}
+			else if (p->scene && p->n_patch_scopes > 0 && current_layer_type(p) == WB_LAYER_2D)
+			{
+				float length_scale = active_patch_length_scale(p);
+				for (int i = objects_before; i < p->scene->n_objects; i++)
+					scale_2d_object_lengths(&p->scene->objects[i], length_scale);
 			}
 			if (p->n_group_scopes > 0 && p->scene)
 			{
