@@ -54,6 +54,8 @@ It is not intended as a generic motion-graphics platform or a tutorial exercise 
 
 Coding agents are part of the workflow because they make this work more feasible. Their use does not change the standard: work in the repository should have a purpose, fit the architecture, preserve the visual language, and be verified in proportion to its risk.
 
+The durable design constraints for the project are collected in [Guiding Principles](design/GUIDING_PRINCIPLES.md).
+
 ## Visual target
 
 The engine should preserve the handmade whiteboard feel of the original videos as much as possible.
