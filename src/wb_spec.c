@@ -485,6 +485,32 @@ static void root_worldify_object(const wb_scene *scene, wb_scene_object *obj)
 	}
 }
 
+static void root_worldify_action(const wb_scene *scene, wb_scene_action *action)
+{
+	float scale;
+
+	if (!action)
+		return;
+	scale = root_world_pixel_scale(scene);
+	switch (action->type)
+	{
+	case WB_ACTION_MOVE:
+		action->from = root_world_to_pixel(scene, action->from);
+		action->to = root_world_to_pixel(scene, action->to);
+		break;
+	case WB_ACTION_TRANSLATE:
+		action->from = vec2(action->from.x * scale, -action->from.y * scale);
+		action->to = vec2(action->to.x * scale, -action->to.y * scale);
+		break;
+	case WB_ACTION_TRANSFORM:
+		action->q0 = vec3(root_world_to_pixel(scene, vec2(action->q0.x, action->q0.y)).x,
+			root_world_to_pixel(scene, vec2(action->q0.x, action->q0.y)).y, 0);
+		break;
+	default:
+		break;
+	}
+}
+
 static wb_vec2 patch_local_to_parent(const wb_spec_patch_scope *scope, wb_vec2 p)
 {
 	float c;
@@ -6806,6 +6832,7 @@ pending_flushed:
 
 	{
 		int objects_before = p->scene ? p->scene->n_objects : 0;
+		int actions_before = p->scene ? p->scene->n_actions : 0;
 		int ok = 0;
 		if (starts_with_word(s, "video"))
 			ok = parse_video(p, s, line_no);
@@ -6937,6 +6964,8 @@ pending_flushed:
 			{
 				for (int i = objects_before; i < p->scene->n_objects; i++)
 					root_worldify_object(p->scene, &p->scene->objects[i]);
+				for (int i = actions_before; i < p->scene->n_actions; i++)
+					root_worldify_action(p->scene, &p->scene->actions[i]);
 			}
 			if (p->n_group_scopes > 0 && p->scene)
 			{
