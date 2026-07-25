@@ -1,6 +1,7 @@
 Whiteboard
 obj
 __pycache__
+.agents/
 *.mp4
 *.ppm
 symbol_captures
