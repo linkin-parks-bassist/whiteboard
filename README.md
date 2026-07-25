@@ -10,7 +10,7 @@ The obvious next idea was to automate the workflow. I wanted something in the ge
 
 That also turned out to be a great deal of work, and the project stalled before it got very far.
 
-I came back to it through agentic engineering: using coding agents as capable collaborators for exploration, implementation, review, and iteration while retaining human ownership of the product, its standards, and its technical direction. Agentic engineering is not a shortcut around engineering here; it is the way this project can make sustained progress across rendering, parsing, authoring design, and visual craft.
+I came back to it because I still wanted to make the videos. Coding agents made it practical to build the tool I needed instead of choosing between an unsustainable manual workflow and abandoning the project. They are a means to that end: a pragmatic tool for expressing a personal artistic and mathematical vision, not the subject of the work.
 
 The result is deliberately opinionated: it is meant for math-heavy explanation videos, not generic motion graphics. The focus is on clarity, whiteboard-style linework, and a spec format that stays close to the way these videos are actually built.
 
@@ -46,13 +46,13 @@ The spec should eventually describe scenes, timing, text, math notation, planar 
 
 The target use case is maths-heavy video, including things like algebraic topology, where the author needs notation, diagrams, spaces, maps, arrows, quotient-y things, deformations, surfaces, and explanatory motion quickly.
 
-## Engineering approach
+## How it is being built
 
-Whiteboard is a viable engineering project with a focused product goal: make mathematical videos practical to author again.
+Whiteboard is being built to make mathematical videos practical to author again.
 
-It is not intended as a generic motion-graphics platform or a tutorial exercise in compilers, graphics, rendering, C, parsing, or animation systems. Those disciplines matter here because the tool depends on them, and they are treated accordingly: with clear interfaces, regression examples, deliberate architectural decisions, and a bias toward maintainable progress.
+It is not intended as a generic motion-graphics platform or a tutorial exercise in compilers, graphics, rendering, C, parsing, or animation systems. Those disciplines matter here because the tool depends on them, and the implementation should be clear, maintainable, and tested where it matters.
 
-The project uses agentic engineering to accelerate that work. Agents may produce, inspect, test, and refine substantial portions of the repository, but generated work is still held to ordinary engineering standards: it must have a purpose, fit the architecture, preserve the visual language, and be verified in proportion to its risk.
+Coding agents are part of the workflow because refusing a useful tool on ideological grounds would be impractical. Their use does not change the standard: work in the repository should have a purpose, fit the architecture, preserve the visual language, and be verified in proportion to its risk.
 
 ## Visual target
 
@@ -278,4 +278,4 @@ A small, well-scoped implementation is preferable to unnecessary abstraction, bu
 
 A perfect system that delays making videos is a failure.
 
-Agentic engineering is a force multiplier; human judgment, technical accountability, and the usefulness of the finished tool remain the standard.
+Use whichever tools make the work viable; keep the artistic direction, technical judgment, and finished videos at the centre.
