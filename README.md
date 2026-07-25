@@ -10,7 +10,7 @@ The obvious next idea was to automate the workflow. I wanted something in the ge
 
 That also turned out to be a great deal of work, and the project stalled before it got very far.
 
-I came back to it once I decided to give coding agents a real try. Almost everything in this repository, including most of the code and this README, is effectively AI-generated. At this point I have made peace with that. The goal is not purity; the goal is to make my videos again.
+I came back to it through agentic engineering: using coding agents as capable collaborators for exploration, implementation, review, and iteration while retaining human ownership of the product, its standards, and its technical direction. Agentic engineering is not a shortcut around engineering here; it is the way this project can make sustained progress across rendering, parsing, authoring design, and visual craft.
 
 The result is deliberately opinionated: it is meant for math-heavy explanation videos, not generic motion graphics. The focus is on clarity, whiteboard-style linework, and a spec format that stays close to the way these videos are actually built.
 
@@ -46,17 +46,13 @@ The spec should eventually describe scenes, timing, text, math notation, planar 
 
 The target use case is maths-heavy video, including things like algebraic topology, where the author needs notation, diagrams, spaces, maps, arrows, quotient-y things, deformations, surfaces, and explanatory motion quickly.
 
-## What this is not
+## Engineering approach
 
-This is not a coding project in the noble artisanal sense.
+Whiteboard is a viable engineering project with a focused product goal: make mathematical videos practical to author again.
 
-This is not here to demonstrate software engineering excellence.
+It is not intended as a generic motion-graphics platform or a tutorial exercise in compilers, graphics, rendering, C, parsing, or animation systems. Those disciplines matter here because the tool depends on them, and they are treated accordingly: with clear interfaces, regression examples, deliberate architectural decisions, and a bias toward maintainable progress.
 
-This is not an attempt to learn compiler construction, graphics programming, rendering architecture, C, parsing, animation systems, or anything else for its own sake.
-
-This is AI slop with a mission.
-
-The point is to make the tool exist with minimal fuss, because the real project is making videos. The code is allowed to be ugly, provisional, embarrassing, strange, and obviously vibe-coded, as long as it keeps moving toward the tool being useful.
+The project uses agentic engineering to accelerate that work. Agents may produce, inspect, test, and refine substantial portions of the repository, but generated work is still held to ordinary engineering standards: it must have a purpose, fit the architecture, preserve the visual language, and be verified in proportion to its risk.
 
 ## Visual target
 
@@ -272,14 +268,14 @@ Near-term priorities:
 
 ## Development philosophy
 
-This project should stay brutally pragmatic.
+This project should stay rigorously pragmatic.
 
 A feature is good if it helps make the videos easier to produce.
 
 A clever architecture is good only if it reduces future pain.
 
-A hacked-together implementation is acceptable if it gets the tool closer to being usable.
+A small, well-scoped implementation is preferable to unnecessary abstraction, but shortcuts must not silently create architectural debt or undermine the authoring model.
 
 A perfect system that delays making videos is a failure.
 
-Whiteboard is allowed to be AI-generated rubble as long as the rubble stacks into a bridge.
+Agentic engineering is a force multiplier; human judgment, technical accountability, and the usefulness of the finished tool remain the standard.
