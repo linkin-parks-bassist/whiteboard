@@ -14,16 +14,19 @@ I came back to it once I decided to give coding agents a real try. Almost everyt
 
 The result is deliberately opinionated: it is meant for math-heavy explanation videos, not generic motion graphics. The focus is on clarity, whiteboard-style linework, and a spec format that stays close to the way these videos are actually built.
 
-Example specs live in `examples/`, including a smoke test, a topology sketch, and a title-card demo.
+Example specs live in `examples/`, including a smoke test, a topology sketch, a title-card demo, and several patch-focused showcases such as `patch_showcase.md`, `advanced_patch_showcase.md`, and `patch_group_target_showcase.md`.
+
+Patch-specific notes and current semantics live in [docs/patch_reference.md](/mbnim/docs/patch_reference.md:1).
 
 For quick visual inspection without encoding a full video, render a still snapshot:
 
 ```text
 ./Whiteboard examples/title_card.md --snapshot
 ./Whiteboard examples/title_card.md --snapshot snaps/title.ppm --snapshot-time 0.14
+./Whiteboard examples/transition_smoke.md --snapshot --snapshot-video-time 0.90
 ```
 
-This writes a binary PPM image of the chosen scene/frame. If no path is given, Whiteboard derives one from the video output name.
+This writes a binary PPM image of the chosen frame. `--snapshot-time` is relative to one scene; `--snapshot-video-time` is relative to the final stitched video timeline, so it can capture crossfades and overlaps. If no path is given, Whiteboard derives one from the video output name.
 
 ## What this is
 
@@ -91,31 +94,71 @@ Possible directions include:
 - YAML/TOML plus embedded expressions
 - Lua as a scripting layer
 
-The important thing is that the author can write mathematical animation naturally and tersely.
+The important thing is that the author can write mathematical animation naturally, with breathing room, and without having to spell out every default.
 
 Math strings are parsed directly. Use `"$\alpha+\beta$"`, not doubled backslashes.
 
-A rough target might look like this:
+2D screen-space coordinates can be written either as normalized bracket pairs like `[0.50,0.42]` or more explicitly with units like `(0.50w,0.42h)`. There is also a geometry-space coordinate form `{x,y}`, which scales both axes by `min(width,height)` so squares and circles stay naturally proportioned. Scalar sizes can also use `w`, `h`, or `m`, where `m` means `min(width, height)`.
+
+Structured blocks can also carry scoped defaults. `defaults:` blocks support properties like `colour`, `thickness`, `opacity`, and `jitter`, and they now nest by indentation so inner groups can temporarily override outer styling and then fall back cleanly when that inner scope ends.
+
+There is also now a first pass at `patch:` blocks for local coordinate authoring. In 2D, a patch can translate, scale, rotate, and optionally reinterpret local `(r,theta)` pairs as polar coordinates before flattening its contents back into the current layer. In 3D, the path is still a modest parser-plus-render-time layer rather than a full scene graph, but patches can already translate, scale, and orient nested 3D primitives before they hit the existing renderer, and can now reinterpret local tuples as cartesian, cylindrical, or spherical coordinates before that flattening step.
+
+That patch pass now also has first local animation helpers: `move_patch`, `turn_patch`, and `scale_patch`. `move_patch` works for both 2D and first-pass 3D patches by compiling to render-time per-object translations for the patch's current members, and nested parent/child patch translations now compose additively instead of clobbering each other. `turn_patch` and `scale_patch` still drive the 2D affine path, and now also have a first 3D form that applies Euler-style `(yaw,pitch,roll)` rotation plus scalar or `(sx,sy,sz)` scaling around the patch origin before projection; the old scalar `turn_patch` form still means yaw-only rotation for compatibility. Nested parent/child patch transforms now compose in render order instead of only the last one winning. Polygonal, blob-like, curve, and math-stroke 2D primitives now also follow that same patch affine path rather than partially bypassing it, and grouped/generated 3D convenience objects such as `tetra3d`, `cube3d`, and `axes3d` animate correctly inside patches because their generated members stay attached to the patch’s group bookkeeping. Named patches also participate in the same group-targeting path as other grouped objects, so generic `draw`, `fade`, and world-space `move` commands can target a patch name directly in addition to the patch-local helpers, and grouped targets can now also take explicit-pivot world-space `turn name around (...)` and `scale name around (...)` transforms. Inline and structured-block forms both work for these helpers. It is still not a full animated patch scene graph, but it is enough to make nested diagrams feel much more usable.
+
+Every scene also starts with an implicit default layer, so ordinary single-layer specs do not need to say `layer:` at all. Scenes also default to the standard near-white radial gradient, so you only need `background:` when you want to restate or customize it. Explicit layers are still useful when you want ordering, blur, opacity, camera separation, or named layer actions.
+
+A rough target should feel more like this:
 
 ```text
-scene "quotient space intuition" duration 45s
+video:
+  output "quotient_space.mp4"
 
-background radial near-white -> light-grey
+scene "quotient space intuition":
+  45s
 
-layer board 2d:
-  text "$X / \sim$" at (0.2, 0.15) size 72
-  circle center (0, 0) radius 2 stroke blue
-  point p at (1, 0)
-  open_point q at (-1, 0)
-  arrow p -> q dotted
+  defaults:
+    colour blue
 
-layer model 3d:
-  camera orbit radius 6 at (0, 0, 0)
-  tetrahedron vertices [...]
-  surface param (u, v) -> (...)
+  math title "$X / \sim$":
+    (0.20w, 0.15h)
+    size 72
+
+  circ shell:
+    (0.50w, 0.52h)
+    radius 0.13m
+
+  pt p:
+    (0.62w, 0.52h)
+
+  opt q:
+    (0.38w, 0.52h)
+
+scene "fibre picture":
+  18s
+
+  camera:
+    distance 6
+    center (0.50w, 0.50h)
+
+  tetra3d fibre:
+    (0,0,1) (-1,-1,0) (1,-1,0) (0,1,0)
+    opacity 0.10
 ```
 
-Current parser direction includes scenes, ordered 2D/3D layer declarations, math, moves, lines, points, and open points.
+Current parser direction includes scenes, implicit or explicit layers, math, text, points, circles, segments, planar curves, freeform blobs, projected 3D wireframe loops, generic shaded 3D faces, sampled 3D surface patches, first-pass `mesh3d` convenience meshes, first-pass `blob3d` implicit-looking surfaces, first-pass `param3d` sampled parametric curves, first-pass `param_surface3d` sampled parametric surfaces, first-pass `volume3d` translucent shell volumes, perspective/orthographic camera blocks, grouped defaults, moves, fades, and transitions in a first pass at this more indented style.
+
+The parser now also has a first local-coordinate path via nested `patch` blocks with `at`, `scale`, `rotate`, and `coords cartesian|polar`. That is not yet a full scene-graph rewrite or a layer replacement; it is a practical first pass that composes nested local transforms and then hands ordinary flattened objects to the existing renderer.
+
+There is also now a real handwritten `text` object for ordinary labels/subtitles, so specs no longer have to abuse the math parser just to place plain words.
+
+Layers can now also carry a first-pass `glow` effect, which renders a blurred bloom copy behind the layer before compositing the sharp original.
+
+3D camera blocks now also support `look_at (x,y,z)` / `target (x,y,z)` as a first real world-space aim point. That lets a layer orbit or project around something other than the implicit origin without pretending the camera system is fully finished.
+
+`move_camera` can now animate that target too, via `target (x,y,z) -> (x,y,z)` on the camera move command, so tracking shots do not have to snap between static aim points.
+
+Backgrounds also support a first `paper` mode, which keeps the usual radial gradient base but adds a subtle deterministic paper/whiteboard texture overlay instead of a perfectly flat clean field.
 
 ## Intended features
 

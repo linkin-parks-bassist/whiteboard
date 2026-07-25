@@ -1,0 +1,11 @@
+ HOLD THE FOAM. Patches. oh context is almost up. okay do nothing else other than add the following to the plan. Okay imagine you wanted to graph a function. obvs I want
+  that you should just be able to do it with e.g., parametric curves. but what coordinates? and what if you want to move the graph around? problem! danger. okay, new
+  feature: one should be able to define *coordinate patches*. as objects within layers. These have their own coordinates within a layer, and their own local coordinate
+  system within. tbh, I should like to be able to change the *type* of the coordinate system - perhaps polar. tbh i would like to apply more-or-less arbitrary
+  transformations (inc time varying!) to coordinate patches, both the internal coordinate system, and location/orientation within the layer. A coordinate patch should be
+  able to contain any of the primitives in the language. even coordinate patches themselves. tbh ---- ooooooooo ----- maybe *layers* themselves should be replaces by
+  patches. both 2d and 3d patches. ? and their position in space is (x, y, z) and z determines the heigh of the layer - it's projected isometrically, just to give rendering
+  order. and 3d patches are just those with an internal 3d coordinate system, whose coordinate mapping is given by projection onto the screen. given the current
+  architecture, would this be an *enormous* refactor, or could we effectively rename layers and just add like an extra layer of function calls before rendering? altho I am
+  fr talking about like tree-like nesting so it might actually be a kind of a big deal... oh, NURBS might not enjoy arbitrary coordinate transformations. okay identify
+  those that respect NURBS and restrict to those. thoughts?

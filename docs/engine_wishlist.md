@@ -239,6 +239,7 @@ Needed:
 - A coordinate system that is easier to reason about than literal pixels.
 - Specs that are less tightly coupled to one render resolution.
 - A clear answer for how aspect-ratio changes should affect diagrams.
+- A way to define local mathematical coordinate frames that can be nested, moved, rotated, and reused without manually rewriting every primitive.
 
 The main options are:
 
@@ -254,6 +255,33 @@ Current recommendation:
 - Add a second geometry-friendly mode later for objects that should preserve shape more naturally.
 
 This keeps title cards and scene layout easy to author while leaving room for a better mathematical geometry space later.
+
+## Coordinate Patches
+
+Needed:
+
+- Local coordinate patches inside layers, so a graph, diagram, or 3D construction can be authored in its own coordinates and then placed as a unit.
+- Nesting, so a patch can contain primitives and other patches.
+- Patch-local transforms for translation, rotation, and scaling.
+- A first patch-local motion command so a named patch can be translated without manually moving every member object.
+- Eventually alternate internal coordinate systems such as polar coordinates.
+- A path toward time-varying patch transforms without immediately rewriting the whole renderer.
+
+Current rollout plan:
+
+- First pass: parser-level coordinate patches that flatten into the existing layer/object model.
+- Patch contents inherit the current layer and become ordinary objects after patch-local coordinates are resolved.
+- Nested patches compose their transforms before object creation.
+- Restrict the early implementation to transforms that behave well with the current hand-drawn/NURBS-ish geometry path: translation, rotation, scale, and simple coordinate-system remapping such as polar-to-cartesian.
+- Current dimensional split: 2D patches support `coords cartesian|polar`, while first-pass 3D patches support `coords cartesian|cylindrical|spherical` with translation, non-uniform scale, and first-pass Euler orientation before flattening.
+- First animation slice: support patch-local translation via `move_patch`, plus first rotation/scale animation via `turn_patch` and `scale_patch`, each compiling to render-time per-object transforms for the patch's current members.
+- Current animation split: `move_patch` now has both 2D and first-pass 3D forms, and first-pass 3D `turn_patch` / `scale_patch` now apply yaw-only or `(yaw,pitch,roll)` rotation plus scalar or `(sx,sy,sz)` scaling around the patch origin before projection; nested parent/child translations and transforms compose instead of the last patch action clobbering the earlier ones.
+- Current coverage is already broad enough to be useful: ordinary 2D primitives, text, math, polygons, blobs, curves, and grouped/generated 3D convenience objects such as `tetra3d`, `cube3d`, and `axes3d` all follow the patch path, with smoke examples documenting each tier.
+- Named patches also already behave like group targets for generic `draw`, `fade`, and world-space `move`, which makes them feel more like authoring units without yet requiring a persistent scene graph.
+- Do not replace layers immediately. Treat layers as compositor/render-order surfaces, and patches as authoring-space containers within layers.
+- Revisit “layers are special patches” only after the authoring model proves itself and after time-varying patch transforms exist.
+
+This keeps the implementation aligned with the current architecture while still moving toward the more ambitious nested-coordinate model from `IMPORTANT.txt`.
 
 ## Shading
 
@@ -272,6 +300,7 @@ Likely direction:
 - Layers contain objects.
 - Objects can be 2D or 3D.
 - 3D layers have camera/projection state.
+- Layers may later contain patch trees rather than only flat object lists, but the first implementation can flatten patches before rendering.
 - Render each layer to an intermediate buffer.
 - Apply layer effects.
 - Composite layers in order.
@@ -335,19 +364,36 @@ High urgency:
 36. Done: Add a projected 3D open-point primitive. The spec supports `open_point3d name at (x,y,z) radius R thickness T colour C`, projected through the current camera into the existing planar open-point renderer.
 37. Done: Add a projected 3D triangle outline primitive. The spec supports `triangle3d name points (x,y,z) (x,y,z) (x,y,z) thickness T colour C`, projected through the current camera into the existing planar hand-drawn triangle path.
 38. Done: Add a projected 3D shaded triangle primitive. The spec supports `shade_triangle3d name points (x,y,z) (x,y,z) (x,y,z) colour C opacity A`, projected through the current camera into the existing planar alpha-fill triangle path and compatible with draw-on opacity timing.
-39. Done: Add a first real concise-authoring pass for spec syntax. Math, camera, movement, draw, and fade commands now have shorter forms such as `@`, `s`, `c`, arrow-style motion, and terse timing syntax; a deeper DSL pass is still desirable later, but specs no longer have to read quite so much like boilerplate.
-40. Done: Add a first frame-relative coordinate mode for 2D layout. Specs can now use `[x,y]` outside quoted text/LaTeX to mean fractions of frame width/height, which makes broad placement much less resolution-bound even though a more geometry-aware coordinate system could still come later.
+39. Done: Add a first real concise-authoring pass for spec syntax. Math, camera, movement, draw, and fade commands now have shorter forms such as `@`, `s`, `c`, arrow-style motion, terse timing syntax, scoped `defaults:` blocks for common style properties, implicit default-layer authoring for ordinary single-layer scenes, shorter `scene "title" 2s` headers, and implicit default radial backgrounds. A deeper DSL pass is still desirable later, but specs no longer have to read quite so much like boilerplate.
+40. Done: Add first coordinate-system support for both layout-space and geometry-space 2D authoring. Specs can now use normalized bracket pairs like `[x,y]`, explicit unit forms like `(0.50w,0.42h)`, scalar sizes such as `0.08m`, and geometry-space coordinates like `{x,y}` that scale both axes by `min(width,height)`. That makes ordinary layout much less resolution-bound while also giving diagrams a cleaner shape-preserving mode.
 41. Done: Centralize engine/spec defaults. `wb_defaults.h` is now the obvious shared home for background, opacity, jitter, camera, sizing, and related default/range values, and parser/scene code has been pushed onto those shared constants instead of repeating the same magic numbers inline.
 42. Done: Add a first orbit-style camera helper for 3D layers. The spec supports `camera ... yaw A ...` for static orientation and `orbit_camera layer from A to A during Ts..Ts` for simple animated yaw around the scene, which is enough for rotating-polyhedron demos without pretending the camera system is finished.
 43. Done: Revisit default jitter behavior. Jitter is now off by default unless a spec explicitly enables it, but object/layer/camera motion automatically injects temporary jitter when no explicit override was set, then lets it settle back down afterward.
 44. Done: Land a first renderer-throughput pass. The hottest hand-drawn stroke and projected-curve paths now build their small NURBS on the stack instead of heap-allocating and freeing them every frame; broader profiling and deeper rasterization/blur work still remain.
-45. Done: Add first-pass render progress reporting. Long renders now emit a single-line updating stderr progress bar with overall percentage, current scene, per-scene frame count, total frame count, and elapsed time; richer terminal UI and ETA estimation can come later.
+45. Done: Add first-pass render progress reporting. Long renders now emit a single-line updating stderr progress bar with overall percentage, current scene, per-scene frame count, total frame count, elapsed time, and a simple ETA; richer terminal UI can come later.
 46. Done: Add first scene transition support. The spec now supports top-level `transition fade Ns` and `transition crossfade Ns` declarations between scenes; multi-scene renders are emitted as one continuous video timeline with overlapped scene compositing instead of forced hard cuts.
 47. Done: Add a first tetrahedron convenience primitive for 3D authoring. The spec now supports `tetrahedron3d/tetra3d name ...` as a parser-level convenience that expands to shaded faces, wireframe edges, and vertex markers, which is enough to make rotating-polyhedron demos readable without manually spelling out every edge and face.
 48. Done: Add a first axes convenience primitive for 3D authoring. The spec now supports `axes3d/axes name ...` as a parser-level convenience that expands to coloured x/y/z guide lines plus an origin marker, which makes 3D demos easier to orient without repetitive boilerplate.
 49. Done: Add a first cube convenience primitive for 3D authoring. The spec now supports `cube3d/cube name ...` as a parser-level convenience that expands to triangulated translucent faces, wireframe edges, and vertex markers, which is enough for basic spatial reference geometry without hand-writing twelve edges and six faces.
 50. Done: Make first grouped 3D convenience objects behave like units for timing. Parser-level group tracking now lets `draw` and `fade` target convenience objects such as `tetrahedron3d`, `cube3d`, and `axes3d` as groups rather than only affecting whichever generated sub-object happened to keep the public name.
 51. Done: Extend grouped 3D convenience timing to movement. Parser-level group tracking now lets `move` target grouped convenience objects as units too, so `tetrahedron3d`, `cube3d`, and `axes3d` can be translated with one author-facing command instead of forcing motion to be specified sub-object by sub-object.
+52. Done: Add a first real plain-text object. The spec now supports handwritten `text` objects for ordinary labels and subtitles, with positioning, sizing, colour, structured-block syntax, movement, draw timing, and fade timing, so plain words no longer have to be faked through the math parser.
+53. Done: Add a first layer-glow effect. Layers now support `glow N` plus optional `glow_opacity A`, rendered as a blurred bloom copy composited behind the sharp layer, which is enough for halo/highlight use cases without pretending to be a full lighting system.
+54. Done: Add a first planar curve primitive. The spec now supports `curve [name] through (x,y) (x,y) (x,y)` in both inline and structured-block forms, rendered through the same quadratic NURBS stroke path as projected 3D curves, which closes the obvious gap between 2D and `curve3d` authoring.
+55. Done: Add a first freeform blob region primitive. The spec now supports `blob` and `shade_blob` with 3 to 7 planar control points, rendered as smooth closed freeform regions rather than straight-edged polygons, which covers the missing blob/freeform authoring case from the 2D goals.
+56. Done: Add a first generic 3D wireframe-loop primitive. The spec now supports `wire3d`/`wireframe3d`/`polygon3d` with 3 or more 3D vertices, projected through the current camera into the existing hand-drawn polygon stroke path, which is a real reusable wireframe authoring tool beyond only cube/tetra convenience objects.
+57. Done: Add a first generic shaded 3D face primitive. The spec now supports `shade_poly3d`/`shade_polygon3d` with 3 or more 3D vertices, projected through the current camera into the existing planar alpha-fill polygon path, which is a reusable surface primitive beyond only shaded triangles and canned solids.
+58. Done: Add a first sampled 3D surface-patch primitive. The spec now supports `surface3d` with four corner points plus `u_steps`/`v_steps`, expanding into grouped shaded quads and wireframe guide curves, which is a real reusable surface primitive without pretending the engine already has full general parametric surfaces.
+59. Done: Add first orthographic projection support for 3D layers. Camera blocks now accept `projection perspective|orthographic`, and the 3D projection path switches accordingly, which closes one of the explicitly-mentioned missing camera modes without changing the rest of the 3D authoring model.
+60. Done: Add a first world-space look-at camera target. Camera blocks now support `look_at (x,y,z)` / `target (x,y,z)`, so a 3D layer can orbit or project around an arbitrary world-space target rather than only the implicit origin; existing 3D primitives pick it up automatically through the shared projection path.
+61. Done: Extend camera animation to world-space targets. `move_camera` now also accepts `target (x,y,z) -> (x,y,z)` / `look_at ... -> ...`, so tracking shots can interpolate their aim point over time instead of only animating distance/scale/yaw/screen-center.
+62. Done: Add a first generic mesh convenience primitive. The spec now supports `mesh3d` with explicit vertex lists plus triangle/quad face index lists, expanding into shaded 3D faces and deduplicated wire edges so authors can build actual polygon meshes without manually spelling every face and segment as separate objects.
+63. Done: Add a first subtle paper-texture background mode. The spec now supports `background paper`, rendered as the usual radial gradient plus a deterministic low-amplitude texture overlay, which addresses the “paper/whiteboard texture later” wishlist item without disturbing the default clean look.
+64. Done: Add a first implicit-looking 3D blob surface primitive. The spec now supports `blob3d`, which samples a wobbling ellipsoid into shaded quads plus wire loops, giving authors a reusable blob/implicit-looking surface primitive without pretending the engine already has a full implicit-surface solver.
+65. Done: Add a first sampled parametric-curve primitive. The spec now supports `param3d` / `parametric3d` with built-in families such as `helix`, `circle`, and `lissajous`, expanded into grouped projected 3D curve segments so authors can write actual parametric-curve demos without hand-sampling every segment.
+66. Done: Add a first sampled parametric-surface primitive. The spec now supports `param_surface3d` / `parametric_surface3d` with built-in families such as `torus`, `saddle`, and `wave`, expanded into shaded quads plus wire loops so authors can write real parametric-surface demos without manually meshing them first.
+67. Done: Add a first volume-like 3D primitive. The spec now supports `volume3d` / `ellipsoid3d`, rendered as nested translucent blob shells so authors can suggest shaded volumetric forms without needing a full volumetric renderer.
+68. In progress: Add first-pass coordinate patches. The current syntax is `patch name:` with patch-local `at/origin`, `scale`, and `rotate` properties; 2D patches also support `coords cartesian|polar`, while first-pass 3D patches now support `coords cartesian|cylindrical|spherical` plus `yaw` / `pitch` / `roll`. Nested contents flatten into the existing layer/object renderer for now, `move_patch` now provides local translation for both 2D and first-pass 3D patches, and `turn_patch` / `scale_patch` now also have first-pass 3D forms built as render-time Euler-orientation/scale transforms around the patch origin rather than a full scene-graph refactor. Parent/child patch animation now composes in both 2D and 3D, broader 2D primitive families follow the affine patch path, and grouped/generated 3D convenience objects stay attached to their patch bookkeeping; the remaining gap is turning this practical first pass into a less modest persistent model if that proves worth the architectural cost.
 
 ## Next Wave
 
@@ -355,11 +401,12 @@ The next batch of work should probably focus less on adding one more primitive a
 
 Recommended order:
 
-1. Coordinate system and defaults.
-2. Jitter behavior.
-3. Render speed and render UX.
-4. Scene transitions.
-5. DSL cleanup.
+1. Coordinate patches and local mathematical spaces.
+2. Coordinate system and defaults.
+3. Jitter behavior.
+4. Render speed and render UX.
+5. Scene transitions.
+6. DSL cleanup.
 
 Rationale:
 

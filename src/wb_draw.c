@@ -471,6 +471,51 @@ void draw_sausage(uint8_t *buf, wb_vec2 s, wb_vec2 d, float thickness, uint32_t 
 	}
 }
 
+void draw_sausage_with_alpha(uint8_t *buf, wb_vec2 s, wb_vec2 d, float thickness, uint32_t colour, float opacity)
+{
+	if (!buf || opacity <= 0.0f)
+		return;
+	if (opacity > 1.0f)
+		opacity = 1.0f;
+	
+	if (BASICALLY_EQUAL_VEC2(s, d))
+	{
+		draw_disc_with_alpha(buf, s.x, s.y, thickness, colour, opacity);
+		return;
+	}
+	
+	float dx = d.x - s.x;
+	float dy = d.y - s.y;
+	float len_sq = dx * dx + dy * dy;
+	float aa_thickness = thickness + 1.0f;
+	float thickness_sq = thickness * thickness;
+	float aa_thickness_sq = aa_thickness * aa_thickness;
+	int x_min = binary_max(0, floor_to_int(binary_min(s.x, d.x) - aa_thickness));
+	int x_max = binary_min(render_width - 1, ceil_to_int(binary_max(s.x, d.x) + aa_thickness));
+	int y_min = binary_max(0, floor_to_int(binary_min(s.y, d.y) - aa_thickness));
+	int y_max = binary_min(render_height - 1, ceil_to_int(binary_max(s.y, d.y) + aa_thickness));
+	
+	for (int y = y_min; y <= y_max; y++)
+	{
+		float py = y - s.y;
+		for (int x = x_min; x <= x_max; x++)
+		{
+			float px = x - s.x;
+			float t = (px * dx + py * dy) / len_sq;
+			t = clamp(t, 0.0f, 1.0f);
+			float qx = px - t * dx;
+			float qy = py - t * dy;
+			float dist_sq = qx * qx + qy * qy;
+			
+			if (dist_sq > aa_thickness_sq)
+				continue;
+			
+			float alpha = (dist_sq <= thickness_sq ? 1.0f : aa_thickness - sqrtf(dist_sq)) * opacity;
+			blend_pixel(buf, x, y, colour, alpha);
+		}
+	}
+}
+
 void draw_sequenced_sausage(uint8_t *buf, wb_vec2 s, wb_vec2 d, float thickness, uint32_t colour, int initial)
 {
 	if (!buf)
@@ -553,6 +598,25 @@ void draw_ppolyline_in_colour(uint8_t *buf, wb_plane_polyline *pl, uint32_t colo
 	pl->colour = saved_colour;
 }
 
+void draw_ppolyline_in_colour_with_alpha(uint8_t *buf, wb_plane_polyline *pl, uint32_t colour, float alpha)
+{
+	if (!buf || !pl || alpha <= 0.0f)
+		return;
+	
+	if (!pl->points || pl->n_points < 0)
+		return;
+	
+	wb_vec2 s = vec2(pl->points[0].x, pl->points[0].y);
+	wb_vec2 d;
+	
+	for (int i = 0; i < pl->n_points - 1; i++)
+	{
+		d = vec2(pl->points[i + 1].x, pl->points[i + 1].y);
+		draw_sausage_with_alpha(buf, s, d, pl->thickness, colour, alpha);
+		s = d;
+	}
+}
+
 void draw_plane_figure(uint8_t *buf, wb_plane_figure *fig)
 {
 	if (!buf || !fig)
@@ -599,6 +663,27 @@ void draw_plane_figure_in_colour(uint8_t *buf, wb_plane_figure *fig, uint32_t co
 	}
 }
 
+void draw_plane_figure_in_colour_with_alpha(uint8_t *buf, wb_plane_figure *fig, uint32_t colour, float alpha)
+{
+	if (!buf || !fig || alpha <= 0.0f)
+		return;
+	
+	wb_plane_polyline *pl;
+	
+	for (int i = 0; i < fig->n_curves; i++)
+	{
+		if (!fig->curves[i]->nx || !fig->curves[i]->ny)
+			continue;
+		
+		pl = nurbs_pcurve_to_ppolyline(fig->curves[i], N_SAMPLE_POINTS, wb_marker_thickness());
+		if (!pl)
+			continue;
+		
+		draw_ppolyline_in_colour_with_alpha(buf, pl, colour, alpha);
+		free_plane_polyline(pl);
+	}
+}
+
 // Returns the largest x-value drawn, for kerning purposes
 float draw_char(uint8_t *buf, char c, int x, int y, int height, uint32_t colour)
 {
@@ -639,5 +724,54 @@ void draw_string(uint8_t *buf, char *str, int x, int y, int height, uint32_t col
 			x += (max_x + LAZY_KERNING_PAD) * height;
 		
 		str++;
+	}
+}
+
+float draw_char_with_alpha(uint8_t *buf, char c, int x, int y, int height, uint32_t colour, float jitter_strength, float alpha)
+{
+	if (!buf || alpha <= 0.0f)
+		return BIG_NEGATIVE_FLOAT;
+	
+	wb_plane_figure *fig = clone_plane_figure(get_letter(c));
+	if (!fig)
+		return BIG_NEGATIVE_FLOAT;
+	
+	scale_plane_figure(fig, height);
+	translate_plane_figure(fig, x, y);
+	if (jitter_strength > 0.0f)
+		jitter_plane_figure(fig, 1.5f * jitter_strength);
+	
+	draw_plane_figure_in_colour_with_alpha(buf, fig, colour, alpha);
+	
+	float max_x = pfigure_get_max_x_value(fig);
+	free_plane_figure(fig);
+	return max_x;
+}
+
+void draw_string_with_alpha(uint8_t *buf, const char *str, int x, int y, int height, uint32_t colour, float jitter_strength, float alpha, float progress)
+{
+	if (!buf || !str || alpha <= 0.0f)
+		return;
+	
+	progress = clamp(progress, 0.0f, 1.0f);
+	if (progress <= 0.0f)
+		return;
+	
+	int len = (int)strlen(str);
+	if (len <= 0)
+		return;
+	
+	int visible = (int)ceilf(progress * (float)len);
+	if (visible < 1)
+		visible = 1;
+	if (visible > len)
+		visible = len;
+	
+	for (int i = 0; i < visible && str[i]; i++)
+	{
+		float max_x = pfigure_get_max_x_value(get_letter(str[i]));
+		draw_char_with_alpha(buf, str[i], x, y, height, colour, jitter_strength, alpha);
+		if (max_x > 0)
+			x += (max_x + LAZY_KERNING_PAD) * height;
 	}
 }

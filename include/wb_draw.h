@@ -42,13 +42,18 @@ void draw_nurbs_pcurve(uint8_t *buf, wb_nurbs_pcurve *curve);
 
 void draw_ppolyline(uint8_t *buf, wb_plane_polyline *pl);
 void draw_ppolyline_in_colour(uint8_t *buf, wb_plane_polyline *pl, uint32_t colour);
+void draw_ppolyline_in_colour_with_alpha(uint8_t *buf, wb_plane_polyline *pl, uint32_t colour, float alpha);
 
 void draw_plane_figure(uint8_t *buf, wb_plane_figure *fig);
 void draw_plane_figure_in_colour(uint8_t *buf, wb_plane_figure *fig, uint32_t colour);
+void draw_plane_figure_in_colour_with_alpha(uint8_t *buf, wb_plane_figure *fig, uint32_t colour, float alpha);
 
 float draw_char(uint8_t *buf, char c, int x, int y, int height, uint32_t colour);
 void draw_string(uint8_t *buf, char *str, int x, int y, int height, uint32_t colour);
+float draw_char_with_alpha(uint8_t *buf, char c, int x, int y, int height, uint32_t colour, float jitter_strength, float alpha);
+void draw_string_with_alpha(uint8_t *buf, const char *str, int x, int y, int height, uint32_t colour, float jitter_strength, float alpha, float progress);
 
 void draw_sausage(uint8_t *buf, wb_vec2 s, wb_vec2 d, float thickness, uint32_t colour);
+void draw_sausage_with_alpha(uint8_t *buf, wb_vec2 s, wb_vec2 d, float thickness, uint32_t colour, float alpha);
 
 #endif
