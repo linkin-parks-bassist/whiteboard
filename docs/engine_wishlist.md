@@ -283,6 +283,16 @@ Current rollout plan:
 
 This keeps the implementation aligned with the current architecture while still moving toward the more ambitious nested-coordinate model from `IMPORTANT.txt`.
 
+### Root Manifold Configuration
+
+The implicit root patch must remain configurable even though ordinary scenes use
+its centred mathematical default.  The scene model now owns a root viewport
+(centre plus vertical world half-extent); a future concise scene-level primitive
+should expose it without requiring simple scenes to mention it.  Its horizontal
+extent must continue to derive from the output aspect ratio so world-space
+circles stay circular and aspect-ratio changes reveal or hide horizontal world
+rather than stretching the diagram.
+
 ## Shading
 
 Needed:

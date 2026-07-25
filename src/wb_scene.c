@@ -23,6 +23,8 @@ wb_scene *new_scene()
 	result->background_type = WB_BACKGROUND_RADIAL;
 	result->background_center_colour = WB_DEFAULT_BACKGROUND_CENTER_COLOUR;
 	result->background_edge_colour = WB_DEFAULT_BACKGROUND_EDGE_COLOUR;
+	result->root_viewport.center = vec2(0, 0);
+	result->root_viewport.half_height = 1.0f;
 	init_camera(&result->camera);
 	wb_scene_add_layer(result, "default", WB_LAYER_2D, WB_DEFAULT_LAYER_OPACITY);
 	
@@ -145,6 +147,14 @@ void wb_scene_set_paper_background(wb_scene *scene, uint32_t center_colour, uint
 	scene->background_type = WB_BACKGROUND_PAPER;
 	scene->background_center_colour = center_colour;
 	scene->background_edge_colour = edge_colour;
+}
+
+void wb_scene_set_root_viewport(wb_scene *scene, float center_x, float center_y, float half_height)
+{
+	if (!scene || half_height <= 0.0f)
+		return;
+	scene->root_viewport.center = vec2(center_x, center_y);
+	scene->root_viewport.half_height = half_height;
 }
 
 static float hash01_2d(int x, int y, int seed)

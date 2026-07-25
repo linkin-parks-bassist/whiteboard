@@ -98,7 +98,7 @@ The important thing is that the author can write mathematical animation naturall
 
 Math strings are parsed directly. Use `"$\alpha+\beta$"`, not doubled backslashes.
 
-2D screen-space coordinates can be written either as normalized bracket pairs like `[0.50,0.42]` or more explicitly with units like `(0.50w,0.42h)`. There is also a geometry-space coordinate form `{x,y}`, which scales both axes by `min(width,height)` so squares and circles stay naturally proportioned. Scalar sizes can also use `w`, `h`, or `m`, where `m` means `min(width, height)`.
+2D scenes now have an implicit centred mathematical root patch.  By default its visible world is `y = [-1,1]` and `x = [-aspect,aspect]`, so `(0,0)` is the centre and one world unit has equal scale on both rendered axes.  Positions and visual sizes are written in world units: changing output aspect ratio reveals more or less horizontal world rather than stretching the diagram.  The root is scene-owned and intentionally configurable by future language primitives, but ordinary scenes never need to mention it.
 
 Structured blocks can also carry scoped defaults. `defaults:` blocks support properties like `colour`, `thickness`, `opacity`, and `jitter`, and they now nest by indentation so inner groups can temporarily override outer styling and then fall back cleanly when that inner scope ends.
 

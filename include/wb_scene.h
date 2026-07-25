@@ -18,6 +18,14 @@ typedef struct
 	wb_vec3 position;
 } wb_camera;
 
+/* The implicit top-level patch.  Its horizontal extent follows the render
+ * aspect ratio; half_height is the positive world-space y extent. */
+typedef struct
+{
+	wb_vec2 center;
+	float half_height;
+} wb_scene_viewport;
+
 void init_camera(wb_camera *camera);
 
 typedef struct
@@ -179,6 +187,7 @@ typedef struct
 	
 	float total_duration;
 	float current_time;
+	wb_scene_viewport root_viewport;
 	int background_type;
 	uint32_t background_center_colour;
 	uint32_t background_edge_colour;
@@ -205,6 +214,7 @@ wb_scene *new_scene();
 void free_scene(wb_scene *scene);
 void wb_scene_set_radial_background(wb_scene *scene, uint32_t center_colour, uint32_t edge_colour);
 void wb_scene_set_paper_background(wb_scene *scene, uint32_t center_colour, uint32_t edge_colour);
+void wb_scene_set_root_viewport(wb_scene *scene, float center_x, float center_y, float half_height);
 int wb_scene_add_layer(wb_scene *scene, const char *name, int type, float opacity);
 void wb_scene_set_layer_blur(wb_scene *scene, int layer_id, float blur_radius);
 void wb_scene_set_layer_glow(wb_scene *scene, int layer_id, float glow_radius, float glow_opacity);

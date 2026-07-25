@@ -32,6 +32,7 @@ typedef struct
 	wb_vec3 scale3;
 	float rotation;
 	wb_vec3 rotation3;
+	int root_manifold;
 } wb_spec_patch_scope;
 
 typedef struct
@@ -345,6 +346,143 @@ static int current_layer_type(const wb_spec_parser *p)
 			return p->scene->layers[i].type;
 	}
 	return WB_LAYER_2D;
+}
+
+/* The implicit root patch is a mathematical viewport.  Its vertical span is
+ * [-1, 1], while its horizontal span follows the output aspect ratio.  The
+ * renderer still consumes pixels, so flat root-patch objects are converted
+ * once, here, at the parser/scene boundary. */
+static float root_world_pixel_scale(const wb_scene *scene)
+{
+	float half_height = scene ? scene->root_viewport.half_height : 1.0f;
+	if (half_height <= 0.0f)
+		half_height = 1.0f;
+	return (float)HEIGHT * 0.5f / half_height;
+}
+
+static wb_vec2 root_world_to_pixel(const wb_scene *scene, wb_vec2 point)
+{
+	wb_vec2 center = scene ? scene->root_viewport.center : vec2(0, 0);
+	float scale = root_world_pixel_scale(scene);
+	return vec2((float)WIDTH * 0.5f + (point.x - center.x) * scale,
+		(float)HEIGHT * 0.5f - (point.y - center.y) * scale);
+}
+
+static float root_world_length_to_pixel(const wb_scene *scene, float length)
+{
+	return length * root_world_pixel_scale(scene);
+}
+
+static void root_worldify_stored_points(const wb_scene *scene, wb_scene_object *obj)
+{
+	wb_vec2 points[7];
+	int n;
+
+	if (!obj)
+		return;
+	n = (int)(obj->radius + 0.5f);
+	if (n < 3 || n > 7)
+		return;
+	points[0] = obj->p0;
+	points[1] = obj->p1;
+	points[2] = vec2(obj->q0.x, obj->q0.y);
+	points[3] = vec2(obj->q1.x, obj->q1.y);
+	points[4] = vec2(obj->q2.x, obj->q2.y);
+	points[5] = vec2(obj->x, obj->y);
+	points[6] = vec2(obj->q2.z, obj->size);
+	for (int i = 0; i < n; i++)
+		points[i] = root_world_to_pixel(scene, points[i]);
+	obj->p0 = points[0];
+	obj->p1 = points[1];
+	obj->q0.x = points[2].x;
+	obj->q0.y = points[2].y;
+	obj->q1.x = points[3].x;
+	obj->q1.y = points[3].y;
+	obj->q2.x = points[4].x;
+	obj->q2.y = points[4].y;
+	obj->x = points[5].x;
+	obj->y = points[5].y;
+	obj->q2.z = points[6].x;
+	obj->size = points[6].y;
+}
+
+static void root_worldify_object(const wb_scene *scene, wb_scene_object *obj)
+{
+	if (!obj)
+		return;
+
+	switch (obj->type)
+	{
+	case WB_OBJECT_MATH:
+	case WB_OBJECT_TEXT:
+		{
+			wb_vec2 p = root_world_to_pixel(scene, vec2(obj->x, obj->y));
+			obj->x = p.x;
+			obj->y = p.y;
+			obj->size = root_world_length_to_pixel(scene, obj->size);
+		}
+		break;
+	case WB_OBJECT_CURVE:
+	case WB_OBJECT_TRIANGLE:
+	case WB_OBJECT_SHADE_TRIANGLE:
+		obj->p0 = root_world_to_pixel(scene, obj->p0);
+		obj->p1 = root_world_to_pixel(scene, obj->p1);
+		{
+			wb_vec2 p = root_world_to_pixel(scene, vec2(obj->x, obj->y));
+			obj->x = p.x;
+			obj->y = p.y;
+		}
+		if (obj->type != WB_OBJECT_SHADE_TRIANGLE)
+			obj->thickness = root_world_length_to_pixel(scene, obj->thickness);
+		break;
+	case WB_OBJECT_LINE:
+	case WB_OBJECT_RAY:
+	case WB_OBJECT_DOTTED_LINE:
+	case WB_OBJECT_DASHED_LINE:
+	case WB_OBJECT_ARROW:
+		obj->p0 = root_world_to_pixel(scene, obj->p0);
+		obj->p1 = root_world_to_pixel(scene, obj->p1);
+		obj->thickness = root_world_length_to_pixel(scene, obj->thickness);
+		if (obj->type == WB_OBJECT_DOTTED_LINE || obj->type == WB_OBJECT_DASHED_LINE || obj->type == WB_OBJECT_ARROW)
+			obj->size = root_world_length_to_pixel(scene, obj->size);
+		break;
+	case WB_OBJECT_QUAD:
+		obj->p0 = root_world_to_pixel(scene, obj->p0);
+		obj->p1 = root_world_to_pixel(scene, obj->p1);
+		{
+			wb_vec2 p = root_world_to_pixel(scene, vec2(obj->q0.x, obj->q0.y));
+			obj->q0.x = p.x; obj->q0.y = p.y;
+			p = root_world_to_pixel(scene, vec2(obj->q1.x, obj->q1.y));
+			obj->q1.x = p.x; obj->q1.y = p.y;
+		}
+		obj->thickness = root_world_length_to_pixel(scene, obj->thickness);
+		break;
+	case WB_OBJECT_POLYGON:
+	case WB_OBJECT_SHADE_POLYGON:
+	case WB_OBJECT_BLOB:
+	case WB_OBJECT_SHADE_BLOB:
+		root_worldify_stored_points(scene, obj);
+		if (obj->type == WB_OBJECT_POLYGON || obj->type == WB_OBJECT_BLOB)
+			obj->thickness = root_world_length_to_pixel(scene, obj->thickness);
+		break;
+	case WB_OBJECT_SHADE_DISC:
+	case WB_OBJECT_POINT:
+	case WB_OBJECT_OPEN_POINT:
+	case WB_OBJECT_CIRCLE:
+	case WB_OBJECT_ELLIPSE:
+		{
+			wb_vec2 p = root_world_to_pixel(scene, vec2(obj->x, obj->y));
+			obj->x = p.x;
+			obj->y = p.y;
+			obj->radius = root_world_length_to_pixel(scene, obj->radius);
+			obj->p0.x = root_world_length_to_pixel(scene, obj->p0.x);
+			obj->p0.y = root_world_length_to_pixel(scene, obj->p0.y);
+			obj->thickness = root_world_length_to_pixel(scene, obj->thickness);
+		}
+		break;
+	default:
+		break;
+	}
 }
 
 static wb_vec2 patch_local_to_parent(const wb_spec_patch_scope *scope, wb_vec2 p)
@@ -1959,6 +2097,20 @@ static int parse_layer(wb_spec_parser *p, char *line, int line_no)
 	return 1;
 }
 
+/* `space` is the progressive-disclosure spelling for a camera-backed 3D
+ * patch.  The compositor still uses the existing surface implementation while
+ * retained patch traversal is completed. */
+static int parse_space(wb_spec_parser *p, char *line, int line_no)
+{
+	char name[64] = "";
+	char expanded[256];
+
+	if (sscanf(line, "space %63s", name) != 1)
+		return set_error(p, line_no, "expected space name");
+	snprintf(expanded, sizeof(expanded), "layer %s 3d", name);
+	return parse_layer(p, expanded, line_no);
+}
+
 static int parse_patch(wb_spec_parser *p, char *line, int line_no)
 {
 	char name[64] = "";
@@ -2101,6 +2253,14 @@ static int parse_patch(wb_spec_parser *p, char *line, int line_no)
 	scope.scale3 = have_scale ? vec3(sx, sy, sz) : vec3(1, 1, 1);
 	scope.rotation = rotation;
 	scope.rotation3 = vec3(yaw, pitch, roll);
+	scope.root_manifold = scope.dimension == 2 && p->n_patch_scopes == 0;
+	if (scope.root_manifold)
+	{
+		scope.origin = root_world_to_pixel(p->scene, have_origin ? vec2(ox, oy) : vec2(0, 0));
+		scope.scale = vec2((have_scale ? sx : 1.0f) * root_world_pixel_scale(p->scene),
+			-(have_scale ? sy : 1.0f) * root_world_pixel_scale(p->scene));
+		scope.rotation = -rotation;
+	}
 	if (scope.dimension == 3)
 	{
 		scope.rotation = 0.0f;
@@ -2162,7 +2322,7 @@ static int parse_patch_property(wb_spec_parser *p, const char *line, int line_no
 				sscanf(line, "@ (%f, %f)", &ox, &oy) == 2;
 		if (!matched)
 			return set_error(p, line_no, scope->dimension == 3 ? "expected patch at/origin (@) (x,y,z)" : "expected patch at/origin (@) (x,y)");
-		scope->origin = vec2(ox, oy);
+		scope->origin = scope->root_manifold ? root_world_to_pixel(p->scene, vec2(ox, oy)) : vec2(ox, oy);
 		scope->origin3 = vec3(ox, oy, oz);
 		if (scope->name[0])
 			remember_patch_def(p, scope->name);
@@ -2177,7 +2337,7 @@ static int parse_patch_property(wb_spec_parser *p, const char *line, int line_no
 			 sscanf(line, "s (%f, %f, %f)", &sx, &sy, &sz) == 3))
 		{
 			scope->scale3 = vec3(sx, sy, sz);
-			scope->scale = vec2(sx, sy);
+			scope->scale = scope->root_manifold ? vec2(sx * root_world_pixel_scale(p->scene), -sy * root_world_pixel_scale(p->scene)) : vec2(sx, sy);
 			if (scope->name[0])
 				remember_patch_def(p, scope->name);
 			return 1;
@@ -2187,14 +2347,14 @@ static int parse_patch_property(wb_spec_parser *p, const char *line, int line_no
 			sscanf(line, "s (%f,%f)", &sx, &sy) == 2 ||
 			sscanf(line, "s (%f, %f)", &sx, &sy) == 2)
 		{
-			scope->scale = vec2(sx, sy);
+			scope->scale = scope->root_manifold ? vec2(sx * root_world_pixel_scale(p->scene), -sy * root_world_pixel_scale(p->scene)) : vec2(sx, sy);
 			if (scope->name[0])
 				remember_patch_def(p, scope->name);
 			return 1;
 		}
 		if (sscanf(line, "scale %f", &sx) == 1 || sscanf(line, "s %f", &sx) == 1)
 		{
-			scope->scale = vec2(sx, sx);
+			scope->scale = scope->root_manifold ? vec2(sx * root_world_pixel_scale(p->scene), -sx * root_world_pixel_scale(p->scene)) : vec2(sx, sx);
 			scope->scale3 = vec3(sx, sx, sx);
 			if (scope->name[0])
 				remember_patch_def(p, scope->name);
@@ -2259,7 +2419,7 @@ static int parse_patch_property(wb_spec_parser *p, const char *line, int line_no
 			sscanf(line, "rotation %f", &rotation) == 1 ||
 			sscanf(line, "angle %f", &rotation) == 1)
 		{
-			scope->rotation = rotation;
+			scope->rotation = scope->root_manifold ? -rotation : rotation;
 			if (scope->name[0])
 				remember_patch_def(p, scope->name);
 			return 1;
@@ -6601,6 +6761,8 @@ pending_flushed:
 				p->pending_block_indent = raw_indent;
 				return 1;
 			}
+			if (starts_with_word(s, "space"))
+				return parse_space(p, s, line_no);
 			if (pending_block_type_for_line(s) != WB_PENDING_BLOCK_NONE)
 			{
 				snprintf(p->pending_line, sizeof(p->pending_line), "%s", s);
@@ -6657,6 +6819,8 @@ pending_flushed:
 				return set_error(p, line_no, "failed to create default scene");
 			if (starts_with_word(s, "layer"))
 				ok = parse_layer(p, s, line_no);
+			else if (starts_with_word(s, "space"))
+				ok = parse_space(p, s, line_no);
 			else if (starts_with_word(s, "camera") || strcmp(s, "cam") == 0 || starts_with(s, "cam "))
 				ok = parse_camera(p, s, line_no);
 			else if (starts_with_word(s, "background"))
@@ -6766,6 +6930,14 @@ pending_flushed:
 		}
 		if (ok)
 		{
+			/* Flat scene content belongs to the implicit root manifold.  Explicit
+			 * patches retain their own local coordinates and are flattened by the
+			 * existing patch path. */
+			if (p->scene && p->n_patch_scopes == 0 && current_layer_type(p) == WB_LAYER_2D)
+			{
+				for (int i = objects_before; i < p->scene->n_objects; i++)
+					root_worldify_object(p->scene, &p->scene->objects[i]);
+			}
 			if (p->n_group_scopes > 0 && p->scene)
 			{
 				for (int i = objects_before; i < p->scene->n_objects; i++)
