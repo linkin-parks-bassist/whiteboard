@@ -687,24 +687,31 @@ void draw_plane_figure_in_colour_with_alpha(uint8_t *buf, wb_plane_figure *fig, 
 // Returns the largest x-value drawn, for kerning purposes
 float draw_char(uint8_t *buf, char c, int x, int y, int height, uint32_t colour)
 {
-	if (!buf)
+	const wb_symbol_variant *variant;
+	wb_plane_figure *fig;
+
+	if (!buf || c == ' ')
 		return BIG_NEGATIVE_FLOAT;
-	
-	wb_plane_figure *fig = clone_plane_figure(get_letter(c));
-	
+
+	variant = wb_get_symbol_variant((unsigned char)c, 0);
+	if (!variant || !variant->figure)
+		return BIG_NEGATIVE_FLOAT;
+
+	fig = clone_plane_figure(variant->figure);
+
 	if (!fig)
 		return BIG_NEGATIVE_FLOAT;
-	
+
 	scale_plane_figure(fig, height);
 	translate_plane_figure(fig, x, y);
 	jitter_plane_figure(fig, 1.5);
-	
+
 	draw_plane_figure_in_colour(buf, fig, colour);
-	
-	float max_x = pfigure_get_max_x_value(fig);
-	
+
+	float max_x = variant->advance;
+
 	free_plane_figure(fig);
-	
+
 	return max_x;
 }
 
@@ -716,7 +723,8 @@ void draw_string(uint8_t *buf, char *str, int x, int y, int height, uint32_t col
 	float max_x;
 	while (*str)
 	{
-		max_x = pfigure_get_max_x_value(get_letter(*str));
+		const wb_symbol_variant *variant = wb_get_symbol_variant((unsigned char)*str, 0);
+		max_x = (*str == ' ') ? 0.35f : (variant ? variant->advance : 0.0f);
 		
 		draw_char(buf, *str, x, y, height, colour);
 		
@@ -729,10 +737,17 @@ void draw_string(uint8_t *buf, char *str, int x, int y, int height, uint32_t col
 
 float draw_char_with_alpha(uint8_t *buf, char c, int x, int y, int height, uint32_t colour, float jitter_strength, float alpha)
 {
-	if (!buf || alpha <= 0.0f)
+	const wb_symbol_variant *variant;
+	wb_plane_figure *fig;
+
+	if (!buf || alpha <= 0.0f || c == ' ')
 		return BIG_NEGATIVE_FLOAT;
-	
-	wb_plane_figure *fig = clone_plane_figure(get_letter(c));
+
+	variant = wb_get_symbol_variant((unsigned char)c, 0);
+	if (!variant || !variant->figure)
+		return BIG_NEGATIVE_FLOAT;
+
+	fig = clone_plane_figure(variant->figure);
 	if (!fig)
 		return BIG_NEGATIVE_FLOAT;
 	
@@ -743,7 +758,7 @@ float draw_char_with_alpha(uint8_t *buf, char c, int x, int y, int height, uint3
 	
 	draw_plane_figure_in_colour_with_alpha(buf, fig, colour, alpha);
 	
-	float max_x = pfigure_get_max_x_value(fig);
+	float max_x = variant->advance;
 	free_plane_figure(fig);
 	return max_x;
 }
@@ -769,7 +784,8 @@ void draw_string_with_alpha(uint8_t *buf, const char *str, int x, int y, int hei
 	
 	for (int i = 0; i < visible && str[i]; i++)
 	{
-		float max_x = pfigure_get_max_x_value(get_letter(str[i]));
+		const wb_symbol_variant *variant = wb_get_symbol_variant((unsigned char)str[i], 0);
+		float max_x = (str[i] == ' ') ? 0.35f : (variant ? variant->advance : 0.0f);
 		draw_char_with_alpha(buf, str[i], x, y, height, colour, jitter_strength, alpha);
 		if (max_x > 0)
 			x += (max_x + LAZY_KERNING_PAD) * height;
