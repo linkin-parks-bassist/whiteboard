@@ -10,7 +10,7 @@ The obvious next idea was to automate the workflow. I wanted something in the ge
 
 That also turned out to be a great deal of work, and the project stalled before it got very far.
 
-I came back to it because I still wanted to make the videos. Coding agents made it practical to build the tool I needed instead of choosing between an unsustainable manual workflow and abandoning the project. They are a means to that end: a pragmatic tool for expressing a personal artistic and mathematical vision, not the subject of the work.
+I came back to it because I still wanted to make the videos. Coding agents made it practical to build the tool I needed instead of choosing between an unsustainable manual workflow and abandoning the project. They are a useful part of the process: contemporary technology put to work in service of a personal artistic and mathematical vision, not the subject of the work.
 
 The result is deliberately opinionated: it is meant for math-heavy explanation videos, not generic motion graphics. The focus is on clarity, whiteboard-style linework, and a spec format that stays close to the way these videos are actually built.
 
@@ -52,7 +52,7 @@ Whiteboard is being built to make mathematical videos practical to author again.
 
 It is not intended as a generic motion-graphics platform or a tutorial exercise in compilers, graphics, rendering, C, parsing, or animation systems. Those disciplines matter here because the tool depends on them, and the implementation should be clear, maintainable, and tested where it matters.
 
-Coding agents are part of the workflow because refusing a useful tool on ideological grounds would be impractical. Their use does not change the standard: work in the repository should have a purpose, fit the architecture, preserve the visual language, and be verified in proportion to its risk.
+Coding agents are part of the workflow because they make this work more feasible. Their use does not change the standard: work in the repository should have a purpose, fit the architecture, preserve the visual language, and be verified in proportion to its risk.
 
 ## Visual target
 
@@ -278,4 +278,4 @@ A small, well-scoped implementation is preferable to unnecessary abstraction, bu
 
 A perfect system that delays making videos is a failure.
 
-Use whichever tools make the work viable; keep the artistic direction, technical judgment, and finished videos at the centre.
+Use the tools that make the work viable, then get on with making the videos. Keep the artistic direction, technical judgment, and finished videos at the centre.
