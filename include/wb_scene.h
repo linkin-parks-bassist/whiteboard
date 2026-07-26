@@ -59,11 +59,37 @@ typedef struct
 	wb_vec2 render_offset;
 } wb_scene_layer;
 
+/* Retained authoring-space node.  Layers remain a transitional compositor
+ * implementation detail until recursive patch rendering replaces them. */
+typedef struct
+{
+	int id;
+	int parent_id;
+	char name[64];
+	int dimension;
+	int coord_type;
+	int z_index;
+	wb_vec2 origin;
+	wb_vec2 scale;
+	float rotation;
+	wb_vec3 origin3;
+	wb_vec3 scale3;
+	wb_vec3 rotation3;
+	float opacity;
+	float blur_radius;
+	float glow_radius;
+	float glow_opacity;
+	float jitter_strength;
+	int jitter_explicit;
+	int layer_id;
+} wb_scene_patch;
+
 typedef struct
 {
 	int id;
 	int type;
 	int layer_id;
+	int patch_id;
 	wb_math_formula *math;
 	char *text;
 	wb_vec3 *points3d;
@@ -112,6 +138,7 @@ typedef struct
 {
 	int object_id;
 	int layer_id;
+	int patch_id;
 	int type;
 	float start_time;
 	float end_time;
@@ -177,6 +204,11 @@ typedef struct
 	int n_layers;
 	int cap_layers;
 	int current_layer_id;
+	wb_scene_patch *patches;
+	int n_patches;
+	int cap_patches;
+	int root_patch_id;
+	int current_patch_id;
 	wb_scene_object *objects;
 	int n_objects;
 	int cap_objects;
@@ -184,6 +216,7 @@ typedef struct
 	int n_actions;
 	int cap_actions;
 	int next_object_id;
+	int next_patch_id;
 	
 	float total_duration;
 	float current_time;
@@ -216,6 +249,10 @@ void wb_scene_set_radial_background(wb_scene *scene, uint32_t center_colour, uin
 void wb_scene_set_paper_background(wb_scene *scene, uint32_t center_colour, uint32_t edge_colour);
 void wb_scene_set_root_viewport(wb_scene *scene, float center_x, float center_y, float half_height);
 int wb_scene_add_layer(wb_scene *scene, const char *name, int type, float opacity);
+int wb_scene_add_patch(wb_scene *scene, const char *name, int parent_id, int dimension, int coord_type, int layer_id);
+void wb_scene_set_current_patch(wb_scene *scene, int patch_id);
+wb_scene_patch *wb_scene_find_patch(wb_scene *scene, int patch_id);
+void wb_scene_set_patch_transform(wb_scene *scene, int patch_id, wb_vec2 origin, wb_vec2 scale, float rotation, wb_vec3 origin3, wb_vec3 scale3, wb_vec3 rotation3);
 void wb_scene_set_layer_blur(wb_scene *scene, int layer_id, float blur_radius);
 void wb_scene_set_layer_glow(wb_scene *scene, int layer_id, float glow_radius, float glow_opacity);
 void wb_scene_set_layer_jitter(wb_scene *scene, int layer_id, float jitter_strength);

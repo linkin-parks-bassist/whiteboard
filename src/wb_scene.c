@@ -27,6 +27,8 @@ wb_scene *new_scene()
 	result->root_viewport.half_height = 1.0f;
 	init_camera(&result->camera);
 	wb_scene_add_layer(result, "default", WB_LAYER_2D, WB_DEFAULT_LAYER_OPACITY);
+	result->root_patch_id = wb_scene_add_patch(result, "root", 0, WB_LAYER_2D, 0, result->current_layer_id);
+	result->current_patch_id = result->root_patch_id;
 	
 	return result;
 }
@@ -45,6 +47,7 @@ void free_scene(wb_scene *scene)
 	}
 	
 	free(scene->layers);
+	free(scene->patches);
 	free(scene->objects);
 	free(scene->actions);
 	free(scene->render_scratch_alpha);
@@ -370,6 +373,70 @@ static wb_scene_layer *find_layer(wb_scene *scene, int layer_id)
 	}
 	
 	return NULL;
+}
+
+wb_scene_patch *wb_scene_find_patch(wb_scene *scene, int patch_id)
+{
+	if (!scene || patch_id <= 0)
+		return NULL;
+	for (int i = 0; i < scene->n_patches; i++)
+	{
+		if (scene->patches[i].id == patch_id)
+			return &scene->patches[i];
+	}
+	return NULL;
+}
+
+int wb_scene_add_patch(wb_scene *scene, const char *name, int parent_id, int dimension, int coord_type, int layer_id)
+{
+	wb_scene_patch *patch;
+
+	if (!scene)
+		return 0;
+	if (parent_id > 0 && !wb_scene_find_patch(scene, parent_id))
+		return 0;
+	if (scene->n_patches >= scene->cap_patches)
+	{
+		int new_cap = scene->cap_patches ? scene->cap_patches * 2 : 8;
+		wb_scene_patch *patches = realloc(scene->patches, sizeof(wb_scene_patch) * new_cap);
+		if (!patches)
+			return 0;
+		scene->patches = patches;
+		scene->cap_patches = new_cap;
+	}
+
+	patch = &scene->patches[scene->n_patches++];
+	memset(patch, 0, sizeof(*patch));
+	patch->id = ++scene->next_patch_id;
+	patch->parent_id = parent_id;
+	snprintf(patch->name, sizeof(patch->name), "%s", (name && *name) ? name : "patch");
+	patch->dimension = dimension == WB_LAYER_3D ? WB_LAYER_3D : WB_LAYER_2D;
+	patch->coord_type = coord_type;
+	patch->scale = vec2(1, 1);
+	patch->scale3 = vec3(1, 1, 1);
+	patch->opacity = 1.0f;
+	patch->glow_opacity = WB_DEFAULT_LAYER_GLOW_OPACITY;
+	patch->layer_id = layer_id;
+	return patch->id;
+}
+
+void wb_scene_set_current_patch(wb_scene *scene, int patch_id)
+{
+	if (scene && wb_scene_find_patch(scene, patch_id))
+		scene->current_patch_id = patch_id;
+}
+
+void wb_scene_set_patch_transform(wb_scene *scene, int patch_id, wb_vec2 origin, wb_vec2 scale, float rotation, wb_vec3 origin3, wb_vec3 scale3, wb_vec3 rotation3)
+{
+	wb_scene_patch *patch = wb_scene_find_patch(scene, patch_id);
+	if (!patch)
+		return;
+	patch->origin = origin;
+	patch->scale = scale;
+	patch->rotation = rotation;
+	patch->origin3 = origin3;
+	patch->scale3 = scale3;
+	patch->rotation3 = rotation3;
 }
 
 void wb_scene_set_object_jitter(wb_scene *scene, int object_id, float jitter_strength)

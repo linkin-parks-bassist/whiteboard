@@ -33,6 +33,8 @@ typedef struct
 	float rotation;
 	wb_vec3 rotation3;
 	int root_manifold;
+	int patch_id;
+	int previous_layer_id;
 } wb_spec_patch_scope;
 
 typedef struct
@@ -156,6 +158,8 @@ enum
 };
 
 static void remember_layer(wb_spec_parser *p, const char *name, int id);
+static void sync_retained_patch_scope(wb_spec_parser *p, const wb_spec_patch_scope *scope);
+static int parse_patch(wb_spec_parser *p, char *line, int line_no);
 
 static char *trim_left(char *s)
 {
@@ -1658,6 +1662,8 @@ static void remember_patch_def(wb_spec_parser *p, const char *name)
 	
 	if (!p || !name || !*name)
 		return;
+	if (p->n_patch_scopes > 0 && strcmp(p->patch_scopes[p->n_patch_scopes - 1].name, name) == 0)
+		sync_retained_patch_scope(p, &p->patch_scopes[p->n_patch_scopes - 1]);
 	for (int i = 0; i < p->n_patch_defs; i++)
 	{
 		if (strcmp(p->patch_defs[i].name, name) == 0)
@@ -1703,10 +1709,28 @@ static void pop_finished_group_scopes(wb_spec_parser *p, int raw_indent)
 
 static void pop_finished_patch_scopes(wb_spec_parser *p, int raw_indent)
 {
+	int restored_layer_id = 0;
+
 	if (!p)
 		return;
 	while (p->n_patch_scopes > 0 && raw_indent <= p->patch_scopes[p->n_patch_scopes - 1].indent)
+	{
+		restored_layer_id = p->patch_scopes[p->n_patch_scopes - 1].previous_layer_id;
 		p->n_patch_scopes--;
+	}
+	if (p->scene)
+	{
+		int patch_id = p->n_patch_scopes > 0 ? p->patch_scopes[p->n_patch_scopes - 1].patch_id : p->scene->root_patch_id;
+		wb_scene_set_current_patch(p->scene, patch_id);
+		if (p->n_patch_scopes > 0)
+		{
+			wb_scene_patch *patch = wb_scene_find_patch(p->scene, patch_id);
+			if (patch)
+				wb_scene_set_current_layer(p->scene, patch->layer_id);
+		}
+		else if (restored_layer_id > 0)
+			wb_scene_set_current_layer(p->scene, restored_layer_id);
+	}
 }
 
 static void remember_layer(wb_spec_parser *p, const char *name, int id)
@@ -2187,11 +2211,29 @@ static int parse_space(wb_spec_parser *p, char *line, int line_no)
 {
 	char name[64] = "";
 	char expanded[256];
+	int parent_layer_id;
 
 	if (sscanf(line, "space %63s", name) != 1)
 		return set_error(p, line_no, "expected space name");
+	parent_layer_id = p && p->scene ? p->scene->current_layer_id : 0;
 	snprintf(expanded, sizeof(expanded), "layer %s 3d", name);
-	return parse_layer(p, expanded, line_no);
+	if (!parse_layer(p, expanded, line_no))
+		return 0;
+	snprintf(expanded, sizeof(expanded), "patch %s", name);
+	if (!parse_patch(p, expanded, line_no))
+		return 0;
+	if (p->n_patch_scopes > 0)
+		p->patch_scopes[p->n_patch_scopes - 1].previous_layer_id = parent_layer_id;
+	return 1;
+}
+
+static void sync_retained_patch_scope(wb_spec_parser *p, const wb_spec_patch_scope *scope)
+{
+	if (!p || !p->scene || !scope || scope->patch_id <= 0)
+		return;
+	wb_scene_set_patch_transform(p->scene, scope->patch_id,
+		scope->origin, scope->scale, scope->rotation,
+		scope->origin3, scope->scale3, scope->rotation3);
 }
 
 static int parse_patch(wb_spec_parser *p, char *line, int line_no)
@@ -2354,7 +2396,15 @@ static int parse_patch(wb_spec_parser *p, char *line, int line_no)
 		else
 			scope.coord_type = WB_PATCH_COORD_CARTESIAN;
 	}
+	scope.patch_id = wb_scene_add_patch(p->scene, scope.name,
+		p->scene->current_patch_id, scope.dimension, scope.coord_type,
+		p->scene->current_layer_id);
+	if (!scope.patch_id)
+		return set_error(p, line_no, "failed to create patch");
+	scope.previous_layer_id = p->scene->current_layer_id;
+	sync_retained_patch_scope(p, &scope);
 	p->patch_scopes[p->n_patch_scopes++] = scope;
+	wb_scene_set_current_patch(p->scene, scope.patch_id);
 	if (name[0])
 		remember_patch_def(p, name);
 	
@@ -7014,6 +7064,27 @@ pending_flushed:
 		}
 		if (ok)
 		{
+			if (p->scene)
+			{
+				for (int i = objects_before; i < p->scene->n_objects; i++)
+					p->scene->objects[i].patch_id = p->scene->current_patch_id;
+				for (int i = actions_before; i < p->scene->n_actions; i++)
+				{
+					wb_scene_action *action = &p->scene->actions[i];
+					action->patch_id = p->scene->current_patch_id;
+					if (action->object_id > 0)
+					{
+						for (int j = 0; j < p->scene->n_objects; j++)
+						{
+							if (p->scene->objects[j].id == action->object_id)
+							{
+								action->patch_id = p->scene->objects[j].patch_id;
+								break;
+							}
+						}
+					}
+				}
+			}
 			/* Flat scene content belongs to the implicit root manifold.  Explicit
 			 * patches retain their own local coordinates and are flattened by the
 			 * existing patch path. */
