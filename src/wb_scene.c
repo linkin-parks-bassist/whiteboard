@@ -409,6 +409,7 @@ int wb_scene_add_patch(wb_scene *scene, const char *name, int parent_id, int dim
 	memset(patch, 0, sizeof(*patch));
 	patch->id = ++scene->next_patch_id;
 	patch->parent_id = parent_id;
+	patch->draw_order = ++scene->next_draw_order;
 	snprintf(patch->name, sizeof(patch->name), "%s", (name && *name) ? name : "patch");
 	patch->dimension = dimension == WB_LAYER_3D ? WB_LAYER_3D : WB_LAYER_2D;
 	patch->coord_type = coord_type;
@@ -2315,6 +2316,74 @@ static void draw_scene_object(wb_scene_object *obj, wb_scene_layer *layer, int f
 	}
 }
 
+/* Patches now own the painter order of their direct content.  Layers are
+ * still the temporary compositing backend, so this traversal renders only
+ * content assigned to the requested layer while preserving the patch tree's
+ * source order. */
+static int object_draw_order(const wb_scene *scene, int index)
+{
+	if (scene->objects[index].draw_order > 0)
+		return scene->objects[index].draw_order;
+	return scene->next_draw_order + index + 1;
+}
+
+static int patch_draw_order(const wb_scene *scene, int index)
+{
+	if (scene->patches[index].draw_order > 0)
+		return scene->patches[index].draw_order;
+	return scene->next_draw_order + scene->n_objects + index + 1;
+}
+
+static void draw_patch_layer_contents(wb_scene *scene, int patch_id,
+		wb_scene_layer *layer, int frame, uint8_t *buf, int depth)
+{
+	int previous_order = -1;
+
+	if (!scene || !layer || depth > scene->n_patches ||
+		!wb_scene_find_patch(scene, patch_id))
+		return;
+
+	for (;;)
+	{
+		int next_order = 0x7fffffff;
+		int next_object = -1;
+		int next_patch = -1;
+
+		for (int i = 0; i < scene->n_objects; i++)
+		{
+			int order = object_draw_order(scene, i);
+			if (scene->objects[i].patch_id == patch_id &&
+				scene->objects[i].layer_id == layer->id &&
+				order > previous_order && order < next_order)
+			{
+				next_order = order;
+				next_object = i;
+				next_patch = -1;
+			}
+		}
+		for (int i = 0; i < scene->n_patches; i++)
+		{
+			int order = patch_draw_order(scene, i);
+			if (scene->patches[i].parent_id == patch_id &&
+				order > previous_order && order < next_order)
+			{
+				next_order = order;
+				next_object = -1;
+				next_patch = i;
+			}
+		}
+		if (next_object < 0 && next_patch < 0)
+			break;
+
+		previous_order = next_order;
+		if (next_object >= 0)
+			draw_scene_object(&scene->objects[next_object], layer, frame, buf);
+		else
+			draw_patch_layer_contents(scene, scene->patches[next_patch].id,
+				layer, frame, buf, depth + 1);
+	}
+}
+
 static void clear_layer_buffer(uint8_t *buf)
 {
 	if (!buf)
@@ -2770,11 +2839,8 @@ void wb_scene_render(wb_scene *scene, float time, int frame, uint8_t *buf)
 		clear_alpha_buffer(layer_alpha);
 		set_draw_alpha_buffer(layer_alpha);
 		
-		for (int i = 0; i < scene->n_objects; i++)
-		{
-			if (scene->objects[i].layer_id == layer->id)
-				draw_scene_object(&scene->objects[i], layer, frame, layer_buf);
-		}
+		draw_patch_layer_contents(scene, scene->root_patch_id, layer,
+			frame, layer_buf, 0);
 		
 		set_draw_alpha_buffer(NULL);
 		if (layer->glow_radius > 0.0f && layer->glow_opacity > 0.0f)

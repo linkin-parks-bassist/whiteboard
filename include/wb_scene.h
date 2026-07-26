@@ -69,6 +69,7 @@ typedef struct
 	int dimension;
 	int coord_type;
 	int z_index;
+	int draw_order;
 	wb_vec2 origin;
 	wb_vec2 scale;
 	float rotation;
@@ -90,6 +91,7 @@ typedef struct
 	int type;
 	int layer_id;
 	int patch_id;
+	int draw_order;
 	wb_math_formula *math;
 	char *text;
 	wb_vec3 *points3d;
@@ -217,6 +219,7 @@ typedef struct
 	int cap_actions;
 	int next_object_id;
 	int next_patch_id;
+	int next_draw_order;
 	
 	float total_duration;
 	float current_time;

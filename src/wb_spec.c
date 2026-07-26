@@ -7067,7 +7067,10 @@ pending_flushed:
 			if (p->scene)
 			{
 				for (int i = objects_before; i < p->scene->n_objects; i++)
+				{
 					p->scene->objects[i].patch_id = p->scene->current_patch_id;
+					p->scene->objects[i].draw_order = ++p->scene->next_draw_order;
+				}
 				for (int i = actions_before; i < p->scene->n_actions; i++)
 				{
 					wb_scene_action *action = &p->scene->actions[i];
