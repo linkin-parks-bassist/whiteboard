@@ -2091,6 +2091,11 @@ static int parse_background(wb_spec_parser *p, char *line, int line_no)
 
 static int parse_layer(wb_spec_parser *p, char *line, int line_no)
 {
+	(void)line;
+	return set_error(p, line_no, "layers have been replaced by patches; use patch for 2d or space for 3d");
+	/* Legacy implementation retained below temporarily while its runtime
+	 * helpers are removed in the next Manifold pass. */
+	#if 0
 	char name[64] = "";
 	char type_name[32] = "2d";
 	char opacity_word[32];
@@ -2204,6 +2209,7 @@ static int parse_layer(wb_spec_parser *p, char *line, int line_no)
 	
 	remember_layer(p, name, id);
 	return 1;
+	#endif
 }
 
 /* `space` is the progressive-disclosure spelling for a camera-backed 3D
@@ -2909,6 +2915,9 @@ static int parse_move(wb_spec_parser *p, char *line, int line_no)
 
 static int parse_move_layer(wb_spec_parser *p, char *line, int line_no)
 {
+	(void)line;
+	return set_error(p, line_no, "move_layer has been replaced by move_patch");
+	#if 0
 	char name[64];
 	float x1 = 0.0f, y1 = 0.0f, x2 = 0.0f, y2 = 0.0f, t0 = 0.0f, t1 = 0.0f;
 	
@@ -2925,6 +2934,7 @@ static int parse_move_layer(wb_spec_parser *p, char *line, int line_no)
 	}
 	
 	return set_error(p, line_no, "expected move_layer name from (x,y) to (x,y) during Ts..Ts");
+	#endif
 }
 
 static int parse_move_patch(wb_spec_parser *p, char *line, int line_no)
@@ -3328,6 +3338,9 @@ static int parse_orbit_camera(wb_spec_parser *p, char *line, int line_no)
 
 static int parse_fade_layer(wb_spec_parser *p, char *line, int line_no)
 {
+	(void)line;
+	return set_error(p, line_no, "fade_layer has been replaced by fade patch_name");
+	#if 0
 	char name[64];
 	float a0 = WB_DEFAULT_LAYER_OPACITY, a1 = WB_DEFAULT_LAYER_OPACITY, t0 = 0.0f, t1 = 0.0f;
 	
@@ -3350,6 +3363,7 @@ static int parse_fade_layer(wb_spec_parser *p, char *line, int line_no)
 	}
 	
 	return set_error(p, line_no, "expected fade_layer layer from A to A during Ts..Ts");
+	#endif
 }
 
 static int parse_fade(wb_spec_parser *p, char *line, int line_no)
