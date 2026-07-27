@@ -1501,6 +1501,24 @@ void wb_scene_translate_patch3d(wb_scene *scene, int patch_id, float start_time,
 	scene->total_duration = binary_max(scene->total_duration, end_time);
 }
 
+void wb_scene_transform_patch(wb_scene *scene, int patch_id, float start_time, float end_time, wb_vec2 pivot, wb_vec2 scale1, float rotation1, wb_vec2 scale2, float rotation2)
+{
+	wb_scene_action *action;
+	if (!scene || !wb_scene_find_patch(scene, patch_id)) return;
+	action = append_action(scene);
+	if (!action) return;
+	action->patch_id = patch_id;
+	action->type = WB_ACTION_PATCH_TRANSFORM;
+	action->start_time = start_time;
+	action->end_time = end_time;
+	action->q0 = vec3(pivot.x, pivot.y, 0);
+	action->from = scale1;
+	action->to = scale2;
+	action->aux0 = rotation1;
+	action->aux1 = rotation2;
+	scene->total_duration = binary_max(scene->total_duration, end_time);
+}
+
 void wb_scene_fade_object(wb_scene *scene, int object_id, float start_time, float end_time, float opacity1, float opacity2)
 {
 	wb_scene_action *action = append_action(scene);
@@ -2126,6 +2144,7 @@ static wb_vec3 transform_object_point3d_seq(wb_vec3 p, const wb_scene_object *ob
 
 static void draw_scene_object(wb_scene *scene, wb_scene_object *obj, wb_scene_layer *layer, int frame, uint8_t *buf)
 {
+	wb_scene_object rendered;
 	wb_scene_patch *patch;
 	wb_vec2 layer_offset;
 	wb_vec2 object_offset;
@@ -2135,6 +2154,16 @@ static void draw_scene_object(wb_scene *scene, wb_scene_object *obj, wb_scene_la
 	if (!obj || obj->draw_progress <= 0.0f)
 		return;
 	patch = wb_scene_find_patch(scene, obj->patch_id);
+	rendered = *obj;
+	for (wb_scene_patch *ancestor = patch; ancestor; ancestor = wb_scene_find_patch(scene, ancestor->parent_id))
+		for (int i = 0; i < ancestor->n_render_transforms && rendered.n_render_patch_transforms < 8; i++)
+		{
+			int index = rendered.n_render_patch_transforms++;
+			rendered.render_patch_transforms[index].pivot = ancestor->render_transforms[i].pivot;
+			rendered.render_patch_transforms[index].scale = ancestor->render_transforms[i].scale;
+			rendered.render_patch_transforms[index].rotation = ancestor->render_transforms[i].rotation;
+		}
+	obj = &rendered;
 	
 	layer_offset = layer ? layer->render_offset : vec2(0, 0);
 	object_offset = obj->render_translation;
@@ -2768,6 +2797,7 @@ void wb_scene_render(wb_scene *scene, float time, int frame, uint8_t *buf)
 			scene->patches[i].jitter_strength : WB_DEFAULT_LAYER_JITTER_STRENGTH;
 		scene->patches[i].render_translation = vec2(0, 0);
 		scene->patches[i].render_translation3d = vec3(0, 0, 0);
+		scene->patches[i].n_render_transforms = 0;
 	}
 	
 	for (int i = 0; i < scene->n_actions; i++)
@@ -2972,6 +3002,16 @@ void wb_scene_render(wb_scene *scene, float time, int frame, uint8_t *buf)
 			patch->render_translation3d.x += action->q0.x + (action->q1.x - action->q0.x) * a;
 			patch->render_translation3d.y += action->q0.y + (action->q1.y - action->q0.y) * a;
 			patch->render_translation3d.z += action->q0.z + (action->q1.z - action->q0.z) * a;
+		}
+		else if (action->type == WB_ACTION_PATCH_TRANSFORM)
+		{
+			wb_scene_patch *patch = wb_scene_find_patch(scene, action->patch_id);
+			float a;
+			if (!patch || patch->n_render_transforms >= 8) continue;
+			a = action_alpha(action, time);
+			patch->render_transforms[patch->n_render_transforms].pivot = vec2(action->q0.x, action->q0.y);
+			patch->render_transforms[patch->n_render_transforms].scale = vec2(action->from.x + (action->to.x - action->from.x) * a, action->from.y + (action->to.y - action->from.y) * a);
+			patch->render_transforms[patch->n_render_transforms++].rotation = action->aux0 + (action->aux1 - action->aux0) * a;
 		}
 		else if (action->type == WB_ACTION_FADE)
 		{

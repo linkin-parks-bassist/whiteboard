@@ -3171,8 +3171,8 @@ static int parse_turn_patch(wb_spec_parser *p, char *line, int line_no)
 		return 1;
 	}
 	pivot = apply_patch_scope_chain_to_point(patch->scopes, patch->n_scopes, vec2(0, 0));
-	for (int i = 0; i < group->n_ids; i++)
-		wb_scene_transform(p->scene, group->ids[i], t0, t1, pivot.x, pivot.y, 1.0f, 1.0f, a0, 1.0f, 1.0f, a1);
+	wb_scene_transform_patch(p->scene, patch->scopes[patch->n_scopes - 1].patch_id,
+		t0, t1, pivot, vec2(1, 1), a0, vec2(1, 1), a1);
 	return 1;
 }
 
@@ -3238,8 +3238,8 @@ static int parse_scale_patch(wb_spec_parser *p, char *line, int line_no)
 	else if (matched != 7)
 		return set_error(p, line_no, "expected scale_patch name from (sx,sy) to (sx,sy) during Ts..Ts");
 	pivot = apply_patch_scope_chain_to_point(patch->scopes, patch->n_scopes, vec2(0, 0));
-	for (int i = 0; i < group->n_ids; i++)
-		wb_scene_transform(p->scene, group->ids[i], t0, t1, pivot.x, pivot.y, sx0, sy0, 0.0f, sx1, sy1, 0.0f);
+	wb_scene_transform_patch(p->scene, patch->scopes[patch->n_scopes - 1].patch_id,
+		t0, t1, pivot, vec2(sx0, sy0), 0.0f, vec2(sx1, sy1), 0.0f);
 	return 1;
 }
 
