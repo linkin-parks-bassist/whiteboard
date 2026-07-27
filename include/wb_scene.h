@@ -224,10 +224,10 @@ typedef struct
 {
 	wb_plane_figure_pll *pfigs;
 	wb_space_figure_pll *sfigs;
-	wb_render_context *layers;
-	int n_layers;
-	int cap_layers;
-	int current_layer_id;
+	wb_render_context *render_contexts;
+	int n_render_contexts;
+	int cap_render_contexts;
+	int current_render_context_id;
 	wb_scene_patch *patches;
 	int n_patches;
 	int cap_patches;

@@ -345,10 +345,10 @@ static int current_layer_type(const wb_spec_parser *p)
 		return p->patch_scopes[p->n_patch_scopes - 1].dimension == 3 ? WB_LAYER_3D : WB_LAYER_2D;
 	if (!p || !p->scene)
 		return WB_LAYER_2D;
-	for (int i = 0; i < p->scene->n_layers; i++)
+	for (int i = 0; i < p->scene->n_render_contexts; i++)
 	{
-		if (p->scene->layers[i].id == p->scene->current_layer_id)
-			return p->scene->layers[i].type;
+		if (p->scene->render_contexts[i].id == p->scene->current_render_context_id)
+			return p->scene->render_contexts[i].type;
 	}
 	return WB_LAYER_2D;
 }
@@ -1427,7 +1427,7 @@ static int start_new_scene(wb_spec_parser *p, float duration)
 	p->n_patch_scopes = 0;
 	p->n_patch_defs = 0;
 	clear_active_defaults(p);
-	remember_layer(p, "default", scene->current_layer_id);
+	remember_layer(p, "default", scene->current_render_context_id);
 	return 1;
 }
 
@@ -1599,10 +1599,10 @@ static int scene_layer_type_by_id(const wb_scene *scene, int layer_id)
 {
 	if (!scene)
 		return WB_LAYER_2D;
-	for (int i = 0; i < scene->n_layers; i++)
+	for (int i = 0; i < scene->n_render_contexts; i++)
 	{
-		if (scene->layers[i].id == layer_id)
-			return scene->layers[i].type;
+		if (scene->render_contexts[i].id == layer_id)
+			return scene->render_contexts[i].type;
 	}
 	return WB_LAYER_2D;
 }
@@ -2195,8 +2195,8 @@ static int parse_layer(wb_spec_parser *p, char *line, int line_no)
 		opacity = WB_MIN_OPACITY;
 	if (opacity > WB_MAX_OPACITY)
 		opacity = WB_MAX_OPACITY;
-	p->scene->layers[p->scene->n_layers - 1].opacity = opacity;
-	p->scene->layers[p->scene->n_layers - 1].render_opacity = opacity;
+	p->scene->render_contexts[p->scene->n_render_contexts - 1].opacity = opacity;
+	p->scene->render_contexts[p->scene->n_render_contexts - 1].render_opacity = opacity;
 	if (parse_jitter_token(line, &jitter_strength))
 		wb_scene_set_layer_jitter(p->scene, id, jitter_strength);
 	
