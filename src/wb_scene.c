@@ -2777,7 +2777,6 @@ static void render_patch_layer_contents(wb_scene *scene, int patch_id,
 		{
 			int order = object_draw_order(scene, i);
 			if (scene->objects[i].patch_id == patch_id &&
-				scene->objects[i].layer_id == layer->id &&
 				order > previous_order && order < next_order)
 			{
 				next_order = order;
@@ -3176,7 +3175,10 @@ void wb_scene_render(wb_scene *scene, float time, int frame, uint8_t *buf)
 	scratch_alpha = scene->render_scratch_alpha;
 	glow_alpha = scene->render_glow_alpha;
 	
-	for (int layer_i = 0; layer_i < scene->n_layers; layer_i++)
+	/* Layers no longer partition painter traversal.  The retained root patch is
+	 * rendered once; the default layer is only a temporary draw-context shell
+	 * for old primitive helpers while the layer type is removed. */
+	for (int layer_i = 0; layer_i < 1 && scene->n_layers > 0; layer_i++)
 	{
 		wb_scene_layer *layer = &scene->layers[layer_i];
 		wb_scene_patch *root_patch = wb_scene_find_patch(scene, scene->root_patch_id);
