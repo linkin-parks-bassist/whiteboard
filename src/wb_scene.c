@@ -428,6 +428,12 @@ int wb_scene_add_patch(wb_scene *scene, const char *name, int parent_id, int dim
 	patch->camera_projection = WB_DEFAULT_LAYER_CAMERA_PROJECTION;
 	patch->camera_center = vec2(WB_DEFAULT_LAYER_CAMERA_CENTER_X, WB_DEFAULT_LAYER_CAMERA_CENTER_Y);
 	patch->camera_target = vec3(0, 0, 0);
+	patch->render_camera_distance = patch->camera_distance;
+	patch->render_camera_scale = patch->camera_scale;
+	patch->render_camera_yaw = patch->camera_yaw;
+	patch->render_camera_projection = patch->camera_projection;
+	patch->render_camera_center = patch->camera_center;
+	patch->render_camera_target = patch->camera_target;
 	patch->layer_id = layer_id;
 	return patch->id;
 }
@@ -1556,6 +1562,36 @@ void wb_scene_set_patch_camera(wb_scene *scene, int patch_id, float distance, fl
 	patch->camera_center = center;
 	patch->camera_target_explicit = target_explicit;
 	patch->camera_target = target;
+	patch->render_camera_distance = patch->camera_distance;
+	patch->render_camera_scale = patch->camera_scale;
+	patch->render_camera_yaw = patch->camera_yaw;
+	patch->render_camera_projection = patch->camera_projection;
+	patch->render_camera_center = patch->camera_center;
+	patch->render_camera_target_explicit = patch->camera_target_explicit;
+	patch->render_camera_target = patch->camera_target;
+}
+
+void wb_scene_move_patch_camera(wb_scene *scene, int patch_id, float start_time, float end_time, float distance1, float scale1, float yaw1, wb_vec2 center1, int target1_explicit, wb_vec3 target1, float distance2, float scale2, float yaw2, wb_vec2 center2, int target2_explicit, wb_vec3 target2)
+{
+	wb_scene_action *action;
+	if (!scene || !wb_scene_find_patch(scene, patch_id)) return;
+	action = append_action(scene); if (!action) return;
+	action->patch_id = patch_id; action->type = WB_ACTION_PATCH_CAMERA_MOVE;
+	action->start_time = start_time; action->end_time = end_time;
+	action->from = center1; action->to = center2; action->from_z = distance1; action->to_z = distance2;
+	action->aux0 = scale1; action->aux1 = scale2; action->aux2 = yaw1; action->aux3 = yaw2;
+	action->q0 = target1; action->q1 = target2; action->flags = (target1_explicit ? 1 : 0) | (target2_explicit ? 2 : 0);
+	scene->total_duration = binary_max(scene->total_duration, end_time);
+}
+
+void wb_scene_orbit_patch_camera(wb_scene *scene, int patch_id, float start_time, float end_time, float yaw1, float yaw2)
+{
+	wb_scene_action *action;
+	if (!scene || !wb_scene_find_patch(scene, patch_id)) return;
+	action = append_action(scene); if (!action) return;
+	action->patch_id = patch_id; action->type = WB_ACTION_PATCH_CAMERA_ORBIT;
+	action->start_time = start_time; action->end_time = end_time; action->aux2 = yaw1; action->aux3 = yaw2;
+	scene->total_duration = binary_max(scene->total_duration, end_time);
 }
 
 void wb_scene_fade_object(wb_scene *scene, int object_id, float start_time, float end_time, float opacity1, float opacity2)
@@ -2199,13 +2235,13 @@ static void draw_scene_object(wb_scene *scene, wb_scene_object *obj, wb_scene_la
 		if (ancestor->dimension == WB_LAYER_3D)
 		{
 			patch_camera = *layer;
-			patch_camera.render_camera_distance = ancestor->camera_distance;
-			patch_camera.render_camera_scale = ancestor->camera_scale;
-			patch_camera.render_camera_yaw = ancestor->camera_yaw;
-			patch_camera.render_camera_projection = ancestor->camera_projection;
-			patch_camera.render_camera_center = ancestor->camera_center;
-			patch_camera.render_camera_target_explicit = ancestor->camera_target_explicit;
-			patch_camera.render_camera_target = ancestor->camera_target;
+			patch_camera.render_camera_distance = ancestor->render_camera_distance;
+			patch_camera.render_camera_scale = ancestor->render_camera_scale;
+			patch_camera.render_camera_yaw = ancestor->render_camera_yaw;
+			patch_camera.render_camera_projection = ancestor->render_camera_projection;
+			patch_camera.render_camera_center = ancestor->render_camera_center;
+			patch_camera.render_camera_target_explicit = ancestor->render_camera_target_explicit;
+			patch_camera.render_camera_target = ancestor->render_camera_target;
 			layer = &patch_camera;
 			break;
 		}
@@ -2864,6 +2900,13 @@ void wb_scene_render(wb_scene *scene, float time, int frame, uint8_t *buf)
 		scene->patches[i].render_translation3d = vec3(0, 0, 0);
 		scene->patches[i].n_render_transforms = 0;
 		scene->patches[i].n_render_transforms3d = 0;
+		scene->patches[i].render_camera_distance = scene->patches[i].camera_distance;
+		scene->patches[i].render_camera_scale = scene->patches[i].camera_scale;
+		scene->patches[i].render_camera_yaw = scene->patches[i].camera_yaw;
+		scene->patches[i].render_camera_projection = scene->patches[i].camera_projection;
+		scene->patches[i].render_camera_center = scene->patches[i].camera_center;
+		scene->patches[i].render_camera_target_explicit = scene->patches[i].camera_target_explicit;
+		scene->patches[i].render_camera_target = scene->patches[i].camera_target;
 	}
 	
 	for (int i = 0; i < scene->n_actions; i++)
@@ -3090,6 +3133,24 @@ void wb_scene_render(wb_scene *scene, float time, int frame, uint8_t *buf)
 			patch->render_transforms3d[index].pivot = action->q0;
 			patch->render_transforms3d[index].scale = vec3(action->from.x + (action->to.x - action->from.x) * a, action->from.y + (action->to.y - action->from.y) * a, action->from_z + (action->to_z - action->from_z) * a);
 			patch->render_transforms3d[index].rotation = vec3(action->q1.x + (action->q2.x - action->q1.x) * a, action->q1.y + (action->q2.y - action->q1.y) * a, action->q1.z + (action->q2.z - action->q1.z) * a);
+		}
+		else if (action->type == WB_ACTION_PATCH_CAMERA_MOVE)
+		{
+			wb_scene_patch *patch = wb_scene_find_patch(scene, action->patch_id);
+			float a;
+			if (!patch) continue;
+			a = action_alpha(action, time);
+			patch->render_camera_distance = action->from_z + (action->to_z - action->from_z) * a;
+			patch->render_camera_scale = action->aux0 + (action->aux1 - action->aux0) * a;
+			patch->render_camera_yaw = action->aux2 + (action->aux3 - action->aux2) * a;
+			patch->render_camera_center = vec2(action->from.x + (action->to.x - action->from.x) * a, action->from.y + (action->to.y - action->from.y) * a);
+			patch->render_camera_target_explicit = (action->flags & 1) || (action->flags & 2);
+			patch->render_camera_target = vec3(action->q0.x + (action->q1.x - action->q0.x) * a, action->q0.y + (action->q1.y - action->q0.y) * a, action->q0.z + (action->q1.z - action->q0.z) * a);
+		}
+		else if (action->type == WB_ACTION_PATCH_CAMERA_ORBIT)
+		{
+			wb_scene_patch *patch = wb_scene_find_patch(scene, action->patch_id);
+			if (patch) patch->render_camera_yaw = action->aux2 + (action->aux3 - action->aux2) * action_alpha(action, time);
 		}
 		else if (action->type == WB_ACTION_FADE)
 		{

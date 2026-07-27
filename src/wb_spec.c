@@ -3297,6 +3297,11 @@ static int parse_move_camera(wb_spec_parser *p, char *line, int line_no)
 				target1_explicit = target2_explicit = 1;
 		}
 		wb_scene_move_camera(p->scene, id, t0, t1, d1, s1, y1, cx1, cy1, target1_explicit, tx1, ty1, tz1, d2, s2, y2, cx2, cy2, target2_explicit, tx2, ty2, tz2);
+		{
+			wb_spec_patch_def *patch = find_patch_def(p, name);
+			if (patch && patch->n_scopes > 0)
+				wb_scene_move_patch_camera(p->scene, patch->scopes[patch->n_scopes - 1].patch_id, t0, t1, d1, s1, y1, vec2(cx1, cy1), target1_explicit, vec3(tx1, ty1, tz1), d2, s2, y2, vec2(cx2, cy2), target2_explicit, vec3(tx2, ty2, tz2));
+		}
 		return 1;
 	}
 	
@@ -3315,6 +3320,11 @@ static int parse_orbit_camera(wb_spec_parser *p, char *line, int line_no)
 		if (!id)
 			return set_error(p, line_no, "orbit_camera references unknown layer");
 		wb_scene_orbit_camera(p->scene, id, t0, t1, y0, y1);
+		{
+			wb_spec_patch_def *patch = find_patch_def(p, name);
+			if (patch && patch->n_scopes > 0)
+				wb_scene_orbit_patch_camera(p->scene, patch->scopes[patch->n_scopes - 1].patch_id, t0, t1, y0, y1);
+		}
 		return 1;
 	}
 	

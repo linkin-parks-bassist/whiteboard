@@ -97,6 +97,13 @@ typedef struct
 	wb_vec2 camera_center;
 	int camera_target_explicit;
 	wb_vec3 camera_target;
+	float render_camera_distance;
+	float render_camera_scale;
+	float render_camera_yaw;
+	int render_camera_projection;
+	wb_vec2 render_camera_center;
+	int render_camera_target_explicit;
+	wb_vec3 render_camera_target;
 	int layer_id;
 } wb_scene_patch;
 
@@ -217,6 +224,8 @@ typedef struct
 #define WB_ACTION_PATCH_TRANSLATE3D 14
 #define WB_ACTION_PATCH_TRANSFORM 15
 #define WB_ACTION_PATCH_TRANSFORM3D 16
+#define WB_ACTION_PATCH_CAMERA_MOVE 17
+#define WB_ACTION_PATCH_CAMERA_ORBIT 18
 
 typedef struct
 {
@@ -293,6 +302,8 @@ void wb_scene_translate_patch3d(wb_scene *scene, int patch_id, float start_time,
 void wb_scene_transform_patch(wb_scene *scene, int patch_id, float start_time, float end_time, wb_vec2 pivot, wb_vec2 scale1, float rotation1, wb_vec2 scale2, float rotation2);
 void wb_scene_transform_patch3d(wb_scene *scene, int patch_id, float start_time, float end_time, wb_vec3 pivot, wb_vec3 scale1, wb_vec3 rotation1, wb_vec3 scale2, wb_vec3 rotation2);
 void wb_scene_set_patch_camera(wb_scene *scene, int patch_id, float distance, float scale, float yaw, int projection, wb_vec2 center, int target_explicit, wb_vec3 target);
+void wb_scene_move_patch_camera(wb_scene *scene, int patch_id, float start_time, float end_time, float distance1, float scale1, float yaw1, wb_vec2 center1, int target1_explicit, wb_vec3 target1, float distance2, float scale2, float yaw2, wb_vec2 center2, int target2_explicit, wb_vec3 target2);
+void wb_scene_orbit_patch_camera(wb_scene *scene, int patch_id, float start_time, float end_time, float yaw1, float yaw2);
 void wb_scene_fade_object(wb_scene *scene, int object_id, float start_time, float end_time, float opacity1, float opacity2);
 void wb_scene_translate3d(wb_scene *scene, int object_id, float start_time, float end_time, float x1, float y1, float z1, float x2, float y2, float z2);
 void wb_scene_transform3d(wb_scene *scene, int object_id, float start_time, float end_time, float pivot_x, float pivot_y, float pivot_z, float scale_x1, float scale_y1, float scale_z1, float yaw1, float pitch1, float roll1, float scale_x2, float scale_y2, float scale_z2, float yaw2, float pitch2, float roll2);
