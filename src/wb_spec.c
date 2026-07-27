@@ -1615,7 +1615,10 @@ static int scene_object_is_3d(const wb_scene *scene, int object_id)
 	for (int i = 0; i < scene->n_objects; i++)
 	{
 		if (scene->objects[i].id == object_id)
-			return scene_layer_type_by_id(scene, scene->objects[i].layer_id) == WB_LAYER_3D;
+		{
+			wb_scene_patch *patch = wb_scene_find_patch((wb_scene *)scene, scene->objects[i].patch_id);
+			return patch && patch->dimension == WB_LAYER_3D;
+		}
 	}
 	return 0;
 }

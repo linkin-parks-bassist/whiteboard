@@ -521,7 +521,6 @@ int wb_scene_add_math(wb_scene *scene, const char *src, float x, float y, float 
 	memset(obj, 0, sizeof(*obj));
 	obj->id = scene->next_object_id++;
 	obj->type = WB_OBJECT_MATH;
-	obj->layer_id = scene->current_layer_id;
 	obj->math = wb_math_parse(src);
 	obj->x = x;
 	obj->y = y;
@@ -554,7 +553,6 @@ int wb_scene_add_text(wb_scene *scene, const char *src, float x, float y, float 
 	memset(obj, 0, sizeof(*obj));
 	obj->id = scene->next_object_id++;
 	obj->type = WB_OBJECT_TEXT;
-	obj->layer_id = scene->current_layer_id;
 	obj->text = src ? strdup(src) : NULL;
 	obj->x = x;
 	obj->y = y;
@@ -586,7 +584,6 @@ int wb_scene_add_curve(wb_scene *scene, float x0, float y0, float x1, float y1, 
 	memset(obj, 0, sizeof(*obj));
 	obj->id = scene->next_object_id++;
 	obj->type = WB_OBJECT_CURVE;
-	obj->layer_id = scene->current_layer_id;
 	obj->p0 = vec2(x0, y0);
 	obj->p1 = vec2(x1, y1);
 	obj->x = x2;
@@ -615,7 +612,6 @@ int wb_scene_add_line(wb_scene *scene, float x0, float y0, float x1, float y1, f
 	memset(obj, 0, sizeof(*obj));
 	obj->id = scene->next_object_id++;
 	obj->type = WB_OBJECT_LINE;
-	obj->layer_id = scene->current_layer_id;
 	obj->p0 = vec2(x0, y0);
 	obj->p1 = vec2(x1, y1);
 	obj->thickness = thickness;
@@ -639,7 +635,6 @@ int wb_scene_add_ray(wb_scene *scene, float x0, float y0, float x1, float y1, fl
 	memset(obj, 0, sizeof(*obj));
 	obj->id = scene->next_object_id++;
 	obj->type = WB_OBJECT_RAY;
-	obj->layer_id = scene->current_layer_id;
 	obj->p0 = vec2(x0, y0);
 	obj->p1 = vec2(x1, y1);
 	obj->thickness = thickness;
@@ -662,7 +657,6 @@ int wb_scene_add_dotted_line(wb_scene *scene, float x0, float y0, float x1, floa
 	memset(obj, 0, sizeof(*obj));
 	obj->id = scene->next_object_id++;
 	obj->type = WB_OBJECT_DOTTED_LINE;
-	obj->layer_id = scene->current_layer_id;
 	obj->p0 = vec2(x0, y0);
 	obj->p1 = vec2(x1, y1);
 	obj->thickness = thickness;
@@ -686,7 +680,6 @@ int wb_scene_add_dashed_line(wb_scene *scene, float x0, float y0, float x1, floa
 	memset(obj, 0, sizeof(*obj));
 	obj->id = scene->next_object_id++;
 	obj->type = WB_OBJECT_DASHED_LINE;
-	obj->layer_id = scene->current_layer_id;
 	obj->p0 = vec2(x0, y0);
 	obj->p1 = vec2(x1, y1);
 	obj->thickness = thickness;
@@ -710,7 +703,6 @@ int wb_scene_add_arrow(wb_scene *scene, float x0, float y0, float x1, float y1, 
 	memset(obj, 0, sizeof(*obj));
 	obj->id = scene->next_object_id++;
 	obj->type = WB_OBJECT_ARROW;
-	obj->layer_id = scene->current_layer_id;
 	obj->p0 = vec2(x0, y0);
 	obj->p1 = vec2(x1, y1);
 	obj->thickness = thickness;
@@ -734,7 +726,6 @@ int wb_scene_add_triangle(wb_scene *scene, float x0, float y0, float x1, float y
 	memset(obj, 0, sizeof(*obj));
 	obj->id = scene->next_object_id++;
 	obj->type = WB_OBJECT_TRIANGLE;
-	obj->layer_id = scene->current_layer_id;
 	obj->p0 = vec2(x0, y0);
 	obj->p1 = vec2(x1, y1);
 	obj->x = x2;
@@ -759,7 +750,6 @@ int wb_scene_add_shade_triangle(wb_scene *scene, float x0, float y0, float x1, f
 	memset(obj, 0, sizeof(*obj));
 	obj->id = scene->next_object_id++;
 	obj->type = WB_OBJECT_SHADE_TRIANGLE;
-	obj->layer_id = scene->current_layer_id;
 	obj->p0 = vec2(x0, y0);
 	obj->p1 = vec2(x1, y1);
 	obj->x = x2;
@@ -785,7 +775,6 @@ int wb_scene_add_quad(wb_scene *scene, float x0, float y0, float x1, float y1, f
 	memset(obj, 0, sizeof(*obj));
 	obj->id = scene->next_object_id++;
 	obj->type = WB_OBJECT_QUAD;
-	obj->layer_id = scene->current_layer_id;
 	obj->p0 = vec2(x0, y0);
 	obj->p1 = vec2(x1, y1);
 	obj->q0 = vec3(x2, y2, 0);
@@ -810,7 +799,6 @@ int wb_scene_add_polygon(wb_scene *scene, const wb_vec2 *points, int n_points, f
 	memset(obj, 0, sizeof(*obj));
 	obj->id = scene->next_object_id++;
 	obj->type = WB_OBJECT_POLYGON;
-	obj->layer_id = scene->current_layer_id;
 	obj->p0 = points[0];
 	obj->p1 = points[1];
 	obj->q0 = vec3(points[2].x, points[2].y, 0);
@@ -855,7 +843,6 @@ int wb_scene_add_shade_polygon(wb_scene *scene, const wb_vec2 *points, int n_poi
 	memset(obj, 0, sizeof(*obj));
 	obj->id = scene->next_object_id++;
 	obj->type = WB_OBJECT_SHADE_POLYGON;
-	obj->layer_id = scene->current_layer_id;
 	obj->p0 = points[0];
 	obj->p1 = points[1];
 	obj->q0 = vec3(points[2].x, points[2].y, 0);
@@ -902,7 +889,6 @@ int wb_scene_add_blob(wb_scene *scene, const wb_vec2 *points, int n_points, floa
 	memset(obj, 0, sizeof(*obj));
 	obj->id = scene->next_object_id++;
 	obj->type = WB_OBJECT_BLOB;
-	obj->layer_id = scene->current_layer_id;
 	obj->p0 = points[0];
 	obj->p1 = points[1];
 	obj->q0 = vec3(points[2].x, points[2].y, 0);
@@ -947,7 +933,6 @@ int wb_scene_add_shade_blob(wb_scene *scene, const wb_vec2 *points, int n_points
 	memset(obj, 0, sizeof(*obj));
 	obj->id = scene->next_object_id++;
 	obj->type = WB_OBJECT_SHADE_BLOB;
-	obj->layer_id = scene->current_layer_id;
 	obj->p0 = points[0];
 	obj->p1 = points[1];
 	obj->q0 = vec3(points[2].x, points[2].y, 0);
@@ -993,7 +978,6 @@ int wb_scene_add_point3d(wb_scene *scene, float x, float y, float z, float radiu
 	memset(obj, 0, sizeof(*obj));
 	obj->id = scene->next_object_id++;
 	obj->type = WB_OBJECT_POINT3D;
-	obj->layer_id = scene->current_layer_id;
 	obj->q0 = vec3(x, y, z);
 	obj->radius = radius;
 	obj->colour = colour;
@@ -1015,7 +999,6 @@ int wb_scene_add_open_point3d(wb_scene *scene, float x, float y, float z, float 
 	memset(obj, 0, sizeof(*obj));
 	obj->id = scene->next_object_id++;
 	obj->type = WB_OBJECT_OPEN_POINT3D;
-	obj->layer_id = scene->current_layer_id;
 	obj->q0 = vec3(x, y, z);
 	obj->radius = radius;
 	obj->thickness = thickness;
@@ -1038,7 +1021,6 @@ int wb_scene_add_triangle3d(wb_scene *scene, float x0, float y0, float z0, float
 	memset(obj, 0, sizeof(*obj));
 	obj->id = scene->next_object_id++;
 	obj->type = WB_OBJECT_TRIANGLE3D;
-	obj->layer_id = scene->current_layer_id;
 	obj->q0 = vec3(x0, y0, z0);
 	obj->q1 = vec3(x1, y1, z1);
 	obj->q2 = vec3(x2, y2, z2);
@@ -1062,7 +1044,6 @@ int wb_scene_add_shade_triangle3d(wb_scene *scene, float x0, float y0, float z0,
 	memset(obj, 0, sizeof(*obj));
 	obj->id = scene->next_object_id++;
 	obj->type = WB_OBJECT_SHADE_TRIANGLE3D;
-	obj->layer_id = scene->current_layer_id;
 	obj->q0 = vec3(x0, y0, z0);
 	obj->q1 = vec3(x1, y1, z1);
 	obj->q2 = vec3(x2, y2, z2);
@@ -1087,7 +1068,6 @@ int wb_scene_add_line3d(wb_scene *scene, float x0, float y0, float z0, float x1,
 	memset(obj, 0, sizeof(*obj));
 	obj->id = scene->next_object_id++;
 	obj->type = WB_OBJECT_LINE3D;
-	obj->layer_id = scene->current_layer_id;
 	obj->q0 = vec3(x0, y0, z0);
 	obj->q1 = vec3(x1, y1, z1);
 	obj->thickness = thickness;
@@ -1110,7 +1090,6 @@ int wb_scene_add_curve3d(wb_scene *scene, float x0, float y0, float z0, float x1
 	memset(obj, 0, sizeof(*obj));
 	obj->id = scene->next_object_id++;
 	obj->type = WB_OBJECT_CURVE3D;
-	obj->layer_id = scene->current_layer_id;
 	obj->q0 = vec3(x0, y0, z0);
 	obj->q1 = vec3(x1, y1, z1);
 	obj->q2 = vec3(x2, y2, z2);
@@ -1134,7 +1113,6 @@ int wb_scene_add_wire3d(wb_scene *scene, const wb_vec3 *points, int n_points, fl
 	memset(obj, 0, sizeof(*obj));
 	obj->id = scene->next_object_id++;
 	obj->type = WB_OBJECT_WIRE3D;
-	obj->layer_id = scene->current_layer_id;
 	obj->points3d = malloc(sizeof(wb_vec3) * n_points);
 	if (!obj->points3d)
 		return 0;
@@ -1160,7 +1138,6 @@ int wb_scene_add_shade_poly3d(wb_scene *scene, const wb_vec3 *points, int n_poin
 	memset(obj, 0, sizeof(*obj));
 	obj->id = scene->next_object_id++;
 	obj->type = WB_OBJECT_SHADE_POLY3D;
-	obj->layer_id = scene->current_layer_id;
 	obj->points3d = malloc(sizeof(wb_vec3) * n_points);
 	if (!obj->points3d)
 		return 0;
@@ -1187,7 +1164,6 @@ int wb_scene_add_point(wb_scene *scene, float x, float y, float radius, uint32_t
 	memset(obj, 0, sizeof(*obj));
 	obj->id = scene->next_object_id++;
 	obj->type = WB_OBJECT_POINT;
-	obj->layer_id = scene->current_layer_id;
 	obj->x = x;
 	obj->y = y;
 	obj->radius = radius;
@@ -1210,7 +1186,6 @@ int wb_scene_add_open_point(wb_scene *scene, float x, float y, float radius, flo
 	memset(obj, 0, sizeof(*obj));
 	obj->id = scene->next_object_id++;
 	obj->type = WB_OBJECT_OPEN_POINT;
-	obj->layer_id = scene->current_layer_id;
 	obj->x = x;
 	obj->y = y;
 	obj->radius = radius;
@@ -1234,7 +1209,6 @@ int wb_scene_add_circle(wb_scene *scene, float x, float y, float radius, float t
 	memset(obj, 0, sizeof(*obj));
 	obj->id = scene->next_object_id++;
 	obj->type = WB_OBJECT_CIRCLE;
-	obj->layer_id = scene->current_layer_id;
 	obj->x = x;
 	obj->y = y;
 	obj->radius = radius;
@@ -1258,7 +1232,6 @@ int wb_scene_add_ellipse(wb_scene *scene, float x, float y, float radius_x, floa
 	memset(obj, 0, sizeof(*obj));
 	obj->id = scene->next_object_id++;
 	obj->type = WB_OBJECT_ELLIPSE;
-	obj->layer_id = scene->current_layer_id;
 	obj->x = x;
 	obj->y = y;
 	obj->p0 = vec2(radius_x, radius_y);
@@ -1282,7 +1255,6 @@ int wb_scene_add_shade_disc(wb_scene *scene, float x, float y, float radius, uin
 	memset(obj, 0, sizeof(*obj));
 	obj->id = scene->next_object_id++;
 	obj->type = WB_OBJECT_SHADE_DISC;
-	obj->layer_id = scene->current_layer_id;
 	obj->x = x;
 	obj->y = y;
 	obj->radius = radius;

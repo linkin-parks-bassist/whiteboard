@@ -111,7 +111,6 @@ typedef struct
 {
 	int id;
 	int type;
-	int layer_id;
 	int patch_id;
 	int draw_order;
 	wb_math_formula *math;
