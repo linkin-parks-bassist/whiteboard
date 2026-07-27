@@ -420,6 +420,8 @@ int wb_scene_add_patch(wb_scene *scene, const char *name, int parent_id, int dim
 	patch->glow_opacity = WB_DEFAULT_LAYER_GLOW_OPACITY;
 	patch->jitter_strength = WB_DEFAULT_LAYER_JITTER_STRENGTH;
 	patch->render_jitter_strength = patch->jitter_strength;
+	patch->render_translation = vec2(0, 0);
+	patch->render_translation3d = vec3(0, 0, 0);
 	patch->layer_id = layer_id;
 	return patch->id;
 }
@@ -1465,6 +1467,40 @@ void wb_scene_fade_patch(wb_scene *scene, int patch_id, float start_time, float 
 	scene->total_duration = binary_max(scene->total_duration, end_time);
 }
 
+void wb_scene_translate_patch(wb_scene *scene, int patch_id, float start_time, float end_time, wb_vec2 from, wb_vec2 to)
+{
+	wb_scene_action *action;
+	if (!scene || !wb_scene_find_patch(scene, patch_id))
+		return;
+	action = append_action(scene);
+	if (!action)
+		return;
+	action->patch_id = patch_id;
+	action->type = WB_ACTION_PATCH_TRANSLATE;
+	action->start_time = start_time;
+	action->end_time = end_time;
+	action->from = from;
+	action->to = to;
+	scene->total_duration = binary_max(scene->total_duration, end_time);
+}
+
+void wb_scene_translate_patch3d(wb_scene *scene, int patch_id, float start_time, float end_time, wb_vec3 from, wb_vec3 to)
+{
+	wb_scene_action *action;
+	if (!scene || !wb_scene_find_patch(scene, patch_id))
+		return;
+	action = append_action(scene);
+	if (!action)
+		return;
+	action->patch_id = patch_id;
+	action->type = WB_ACTION_PATCH_TRANSLATE3D;
+	action->start_time = start_time;
+	action->end_time = end_time;
+	action->q0 = from;
+	action->q1 = to;
+	scene->total_duration = binary_max(scene->total_duration, end_time);
+}
+
 void wb_scene_fade_object(wb_scene *scene, int object_id, float start_time, float end_time, float opacity1, float opacity2)
 {
 	wb_scene_action *action = append_action(scene);
@@ -2103,6 +2139,14 @@ static void draw_scene_object(wb_scene *scene, wb_scene_object *obj, wb_scene_la
 	layer_offset = layer ? layer->render_offset : vec2(0, 0);
 	object_offset = obj->render_translation;
 	object_offset3d = obj->render_translation3d;
+	for (wb_scene_patch *ancestor = patch; ancestor; ancestor = wb_scene_find_patch(scene, ancestor->parent_id))
+	{
+		object_offset.x += ancestor->render_translation.x;
+		object_offset.y += ancestor->render_translation.y;
+		object_offset3d.x += ancestor->render_translation3d.x;
+		object_offset3d.y += ancestor->render_translation3d.y;
+		object_offset3d.z += ancestor->render_translation3d.z;
+	}
 	if (obj->jitter_explicit)
 		jitter_strength = obj->render_jitter_strength;
 	else if (patch && patch->jitter_explicit)
@@ -2722,6 +2766,8 @@ void wb_scene_render(wb_scene *scene, float time, int frame, uint8_t *buf)
 		scene->patches[i].render_opacity = scene->patches[i].opacity;
 		scene->patches[i].render_jitter_strength = scene->patches[i].jitter_explicit ?
 			scene->patches[i].jitter_strength : WB_DEFAULT_LAYER_JITTER_STRENGTH;
+		scene->patches[i].render_translation = vec2(0, 0);
+		scene->patches[i].render_translation3d = vec3(0, 0, 0);
 	}
 	
 	for (int i = 0; i < scene->n_actions; i++)
@@ -2906,6 +2952,26 @@ void wb_scene_render(wb_scene *scene, float time, int frame, uint8_t *buf)
 				continue;
 			a = action_alpha(action, time);
 			patch->render_opacity = action->from_z + (action->to_z - action->from_z) * a;
+		}
+		else if (action->type == WB_ACTION_PATCH_TRANSLATE)
+		{
+			wb_scene_patch *patch = wb_scene_find_patch(scene, action->patch_id);
+			float a;
+			if (!patch)
+				continue;
+			a = action_alpha(action, time);
+			patch->render_translation.x += action->from.x + (action->to.x - action->from.x) * a;
+			patch->render_translation.y += action->from.y + (action->to.y - action->from.y) * a;
+		}
+		else if (action->type == WB_ACTION_PATCH_TRANSLATE3D)
+		{
+			wb_scene_patch *patch = wb_scene_find_patch(scene, action->patch_id);
+			float a;
+			if (!patch)
+				continue;
+			patch->render_translation3d.x += action->q0.x + (action->q1.x - action->q0.x) * a;
+			patch->render_translation3d.y += action->q0.y + (action->q1.y - action->q0.y) * a;
+			patch->render_translation3d.z += action->q0.z + (action->q1.z - action->q0.z) * a;
 		}
 		else if (action->type == WB_ACTION_FADE)
 		{

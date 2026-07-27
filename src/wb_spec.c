@@ -2972,8 +2972,9 @@ static int parse_move_patch(wb_spec_parser *p, char *line, int line_no)
 		to_world3 = apply_patch_scope_chain_to_point3d(patch->scopes, patch->n_scopes, vec3(x2, y2, z2));
 		delta_from3 = vec3_diff(from_world3, origin_world3);
 		delta_to3 = vec3_diff(to_world3, origin_world3);
-		for (int i = 0; i < group->n_ids; i++)
-			wb_scene_translate3d(p->scene, group->ids[i], t0, t1, delta_from3.x, delta_from3.y, delta_from3.z, delta_to3.x, delta_to3.y, delta_to3.z);
+		wb_scene_translate_patch3d(p->scene,
+			patch->scopes[patch->n_scopes - 1].patch_id, t0, t1,
+			delta_from3, delta_to3);
 		return 1;
 	}
 	
@@ -2988,8 +2989,9 @@ static int parse_move_patch(wb_spec_parser *p, char *line, int line_no)
 	to_world = apply_patch_scope_chain_to_point(patch->scopes, patch->n_scopes, vec2(x2, y2));
 	delta_from = vec2_diff(from_world, origin_world);
 	delta_to = vec2_diff(to_world, origin_world);
-	for (int i = 0; i < group->n_ids; i++)
-		wb_scene_translate(p->scene, group->ids[i], t0, t1, delta_from.x, delta_from.y, delta_to.x, delta_to.y);
+	wb_scene_translate_patch(p->scene,
+		patch->scopes[patch->n_scopes - 1].patch_id, t0, t1,
+		delta_from, delta_to);
 	return 1;
 }
 

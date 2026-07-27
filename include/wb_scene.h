@@ -84,6 +84,8 @@ typedef struct
 	float jitter_strength;
 	int jitter_explicit;
 	float render_jitter_strength;
+	wb_vec2 render_translation;
+	wb_vec3 render_translation3d;
 	int layer_id;
 } wb_scene_patch;
 
@@ -200,6 +202,8 @@ typedef struct
 #define WB_ACTION_TRANSLATE3D 10
 #define WB_ACTION_TRANSFORM3D 11
 #define WB_ACTION_PATCH_FADE 12
+#define WB_ACTION_PATCH_TRANSLATE 13
+#define WB_ACTION_PATCH_TRANSLATE3D 14
 
 typedef struct
 {
@@ -271,6 +275,8 @@ void wb_scene_move_camera(wb_scene *scene, int layer_id, float start_time, float
 void wb_scene_orbit_camera(wb_scene *scene, int layer_id, float start_time, float end_time, float yaw1, float yaw2);
 void wb_scene_fade_layer(wb_scene *scene, int layer_id, float start_time, float end_time, float opacity1, float opacity2);
 void wb_scene_fade_patch(wb_scene *scene, int patch_id, float start_time, float end_time, float opacity1, float opacity2);
+void wb_scene_translate_patch(wb_scene *scene, int patch_id, float start_time, float end_time, wb_vec2 from, wb_vec2 to);
+void wb_scene_translate_patch3d(wb_scene *scene, int patch_id, float start_time, float end_time, wb_vec3 from, wb_vec3 to);
 void wb_scene_fade_object(wb_scene *scene, int object_id, float start_time, float end_time, float opacity1, float opacity2);
 void wb_scene_translate3d(wb_scene *scene, int object_id, float start_time, float end_time, float x1, float y1, float z1, float x2, float y2, float z2);
 void wb_scene_transform3d(wb_scene *scene, int object_id, float start_time, float end_time, float pivot_x, float pivot_y, float pivot_z, float scale_x1, float scale_y1, float scale_z1, float yaw1, float pitch1, float roll1, float scale_x2, float scale_y2, float scale_z2, float yaw2, float pitch2, float roll2);
