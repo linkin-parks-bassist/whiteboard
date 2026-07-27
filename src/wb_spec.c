@@ -3349,8 +3349,14 @@ static int parse_fade(wb_spec_parser *p, char *line, int line_no)
 	if (sscanf(line, "fade %63s from %f to %f during %fs..%fs", name, &a0, &a1, &t0, &t1) == 5 ||
 		sscanf(line, "fade %63s %f -> %f %fs..%fs", name, &a0, &a1, &t0, &t1) == 5)
 	{
+		wb_spec_patch_def *patch = find_patch_def(p, name);
 		wb_spec_group *group = find_group(p, name);
 		int id = find_name(p, name);
+		if (patch && patch->n_scopes > 0)
+		{
+			wb_scene_fade_patch(p->scene, patch->scopes[patch->n_scopes - 1].patch_id, t0, t1, a0, a1);
+			return 1;
+		}
 		if (!id && !group)
 			return set_error(p, line_no, "fade references unknown object");
 		if (a0 < WB_MIN_OPACITY)
@@ -3375,8 +3381,14 @@ static int parse_fade(wb_spec_parser *p, char *line, int line_no)
 		(sscanf(strstr(line, " to ") ? strstr(line, " to ") : "", " to %f", &a1) == 1) &&
 		(sscanf(strstr(line, " during ") ? strstr(line, " during ") : "", " during %fs..%fs", &t0, &t1) == 2))
 	{
+		wb_spec_patch_def *patch = find_patch_def(p, name);
 		wb_spec_group *group = find_group(p, name);
 		int id = find_name(p, name);
+		if (patch && patch->n_scopes > 0)
+		{
+			wb_scene_fade_patch(p->scene, patch->scopes[patch->n_scopes - 1].patch_id, t0, t1, a0, a1);
+			return 1;
+		}
 		if (!id && !group)
 			return set_error(p, line_no, "fade references unknown object");
 		if (a0 < WB_MIN_OPACITY) a0 = WB_MIN_OPACITY;

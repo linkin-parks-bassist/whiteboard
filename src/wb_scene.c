@@ -1448,6 +1448,23 @@ void wb_scene_fade_layer(wb_scene *scene, int layer_id, float start_time, float 
 	scene->total_duration = binary_max(scene->total_duration, end_time);
 }
 
+void wb_scene_fade_patch(wb_scene *scene, int patch_id, float start_time, float end_time, float opacity1, float opacity2)
+{
+	wb_scene_action *action;
+	if (!scene || !wb_scene_find_patch(scene, patch_id))
+		return;
+	action = append_action(scene);
+	if (!action)
+		return;
+	action->patch_id = patch_id;
+	action->type = WB_ACTION_PATCH_FADE;
+	action->start_time = start_time;
+	action->end_time = end_time;
+	action->from_z = opacity1;
+	action->to_z = opacity2;
+	scene->total_duration = binary_max(scene->total_duration, end_time);
+}
+
 void wb_scene_fade_object(wb_scene *scene, int object_id, float start_time, float end_time, float opacity1, float opacity2)
 {
 	wb_scene_action *action = append_action(scene);
@@ -2880,6 +2897,15 @@ void wb_scene_render(wb_scene *scene, float time, int frame, uint8_t *buf)
 			
 			float a = action_alpha(action, time);
 			layer->render_opacity = action->from_z + (action->to_z - action->from_z) * a;
+		}
+		else if (action->type == WB_ACTION_PATCH_FADE)
+		{
+			wb_scene_patch *patch = wb_scene_find_patch(scene, action->patch_id);
+			float a;
+			if (!patch)
+				continue;
+			a = action_alpha(action, time);
+			patch->render_opacity = action->from_z + (action->to_z - action->from_z) * a;
 		}
 		else if (action->type == WB_ACTION_FADE)
 		{

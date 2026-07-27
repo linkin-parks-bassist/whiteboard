@@ -13,3 +13,4 @@ scene "patch effects smoke" 1s:
       at (0, 0)
       size 0.07
       colour #2e5f7e
+  fade halo from 0.20 to 0.75 during 0s..1s
