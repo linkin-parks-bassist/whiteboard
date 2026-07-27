@@ -2246,6 +2246,12 @@ static int parse_patch(wb_spec_parser *p, char *line, int line_no)
 	float sz = 1.0f;
 	float rotation = 0.0f;
 	float yaw = 0.0f, pitch = 0.0f, roll = 0.0f;
+	float opacity = 1.0f;
+	float blur_radius = 0.0f;
+	float glow_radius = 0.0f;
+	float glow_opacity = WB_DEFAULT_LAYER_GLOW_OPACITY;
+	float jitter_strength = WB_DEFAULT_LAYER_JITTER_STRENGTH;
+	int jitter_explicit = 0;
 	int have_origin = 0;
 	int have_scale = 0;
 	int layer_type;
@@ -2366,6 +2372,17 @@ static int parse_patch(wb_spec_parser *p, char *line, int line_no)
 		sscanf(strstr(line, " coord "), " coord %31s", coord_name);
 	else if (strstr(line, " type "))
 		sscanf(strstr(line, " type "), " type %31s", coord_name);
+	if (strstr(line, " opacity "))
+		sscanf(strstr(line, " opacity "), " opacity %f", &opacity);
+	else if (strstr(line, " o "))
+		sscanf(strstr(line, " o "), " o %f", &opacity);
+	if (strstr(line, " blur "))
+		sscanf(strstr(line, " blur "), " blur %f", &blur_radius);
+	if (strstr(line, " glow "))
+		sscanf(strstr(line, " glow "), " glow %f", &glow_radius);
+	if (strstr(line, " glow_opacity "))
+		sscanf(strstr(line, " glow_opacity "), " glow_opacity %f", &glow_opacity);
+	jitter_explicit = parse_jitter_token(line, &jitter_strength);
 	
 	memset(&scope, 0, sizeof(scope));
 	snprintf(scope.name, sizeof(scope.name), "%s", name);
@@ -2401,6 +2418,20 @@ static int parse_patch(wb_spec_parser *p, char *line, int line_no)
 		p->scene->current_layer_id);
 	if (!scope.patch_id)
 		return set_error(p, line_no, "failed to create patch");
+	{
+		wb_scene_patch *patch = wb_scene_find_patch(p->scene, scope.patch_id);
+		if (patch)
+		{
+			patch->opacity = binary_max(WB_MIN_OPACITY, binary_min(WB_MAX_OPACITY, opacity));
+			patch->render_opacity = patch->opacity;
+			patch->blur_radius = binary_max(0.0f, binary_min(WB_MAX_LAYER_BLUR_RADIUS, blur_radius));
+			patch->glow_radius = binary_max(0.0f, binary_min(WB_MAX_LAYER_BLUR_RADIUS, glow_radius));
+			patch->glow_opacity = binary_max(WB_MIN_OPACITY, binary_min(WB_MAX_OPACITY, glow_opacity));
+			patch->jitter_strength = binary_max(WB_MIN_JITTER_STRENGTH, jitter_strength);
+			patch->jitter_explicit = jitter_explicit;
+			patch->render_jitter_strength = patch->jitter_strength;
+		}
+	}
 	scope.previous_layer_id = p->scene->current_layer_id;
 	sync_retained_patch_scope(p, &scope);
 	p->patch_scopes[p->n_patch_scopes++] = scope;

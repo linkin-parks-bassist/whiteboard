@@ -416,7 +416,10 @@ int wb_scene_add_patch(wb_scene *scene, const char *name, int parent_id, int dim
 	patch->scale = vec2(1, 1);
 	patch->scale3 = vec3(1, 1, 1);
 	patch->opacity = 1.0f;
+	patch->render_opacity = patch->opacity;
 	patch->glow_opacity = WB_DEFAULT_LAYER_GLOW_OPACITY;
+	patch->jitter_strength = WB_DEFAULT_LAYER_JITTER_STRENGTH;
+	patch->render_jitter_strength = patch->jitter_strength;
 	patch->layer_id = layer_id;
 	return patch->id;
 }
@@ -2068,8 +2071,9 @@ static wb_vec3 transform_object_point3d_seq(wb_vec3 p, const wb_scene_object *ob
 	return p;
 }
 
-static void draw_scene_object(wb_scene_object *obj, wb_scene_layer *layer, int frame, uint8_t *buf)
+static void draw_scene_object(wb_scene *scene, wb_scene_object *obj, wb_scene_layer *layer, int frame, uint8_t *buf)
 {
+	wb_scene_patch *patch;
 	wb_vec2 layer_offset;
 	wb_vec2 object_offset;
 	wb_vec3 object_offset3d;
@@ -2077,12 +2081,15 @@ static void draw_scene_object(wb_scene_object *obj, wb_scene_layer *layer, int f
 	
 	if (!obj || obj->draw_progress <= 0.0f)
 		return;
+	patch = wb_scene_find_patch(scene, obj->patch_id);
 	
 	layer_offset = layer ? layer->render_offset : vec2(0, 0);
 	object_offset = obj->render_translation;
 	object_offset3d = obj->render_translation3d;
 	if (obj->jitter_explicit)
 		jitter_strength = obj->render_jitter_strength;
+	else if (patch && patch->jitter_explicit)
+		jitter_strength = patch->render_jitter_strength;
 	else if (layer && layer->jitter_explicit)
 		jitter_strength = layer->render_jitter_strength;
 	else
@@ -2334,55 +2341,10 @@ static int patch_draw_order(const wb_scene *scene, int index)
 	return scene->next_draw_order + scene->n_objects + index + 1;
 }
 
-static void draw_patch_layer_contents(wb_scene *scene, int patch_id,
-		wb_scene_layer *layer, int frame, uint8_t *buf, int depth)
-{
-	int previous_order = -1;
-
-	if (!scene || !layer || depth > scene->n_patches ||
-		!wb_scene_find_patch(scene, patch_id))
-		return;
-
-	for (;;)
-	{
-		int next_order = 0x7fffffff;
-		int next_object = -1;
-		int next_patch = -1;
-
-		for (int i = 0; i < scene->n_objects; i++)
-		{
-			int order = object_draw_order(scene, i);
-			if (scene->objects[i].patch_id == patch_id &&
-				scene->objects[i].layer_id == layer->id &&
-				order > previous_order && order < next_order)
-			{
-				next_order = order;
-				next_object = i;
-				next_patch = -1;
-			}
-		}
-		for (int i = 0; i < scene->n_patches; i++)
-		{
-			int order = patch_draw_order(scene, i);
-			if (scene->patches[i].parent_id == patch_id &&
-				order > previous_order && order < next_order)
-			{
-				next_order = order;
-				next_object = -1;
-				next_patch = i;
-			}
-		}
-		if (next_object < 0 && next_patch < 0)
-			break;
-
-		previous_order = next_order;
-		if (next_object >= 0)
-			draw_scene_object(&scene->objects[next_object], layer, frame, buf);
-		else
-			draw_patch_layer_contents(scene, scene->patches[next_patch].id,
-				layer, frame, buf, depth + 1);
-	}
-}
+static void composite_patch_buffer(uint8_t *dst, uint8_t *dst_alpha,
+		uint8_t *src, const uint8_t *src_alpha, float opacity);
+static void render_patch_layer_contents(wb_scene *scene, int patch_id,
+		wb_scene_layer *layer, int frame, uint8_t *buf, uint8_t *alpha, int depth);
 
 static void clear_layer_buffer(uint8_t *buf)
 {
@@ -2582,6 +2544,111 @@ static void blur_layer_buffer(uint8_t *buf, uint8_t *scratch, float radius)
 	}
 }
 
+static void composite_patch_buffer(uint8_t *dst, uint8_t *dst_alpha,
+		uint8_t *src, const uint8_t *src_alpha, float opacity)
+{
+	if (!dst || !dst_alpha || !src || !src_alpha)
+		return;
+	for (int i = 0; i < WIDTH * HEIGHT; i++)
+	{
+		int pixel = i * 3;
+		float a = ((float)src_alpha[i] / 255.0f) * opacity;
+		float dst_a = (float)dst_alpha[i] / 255.0f;
+		float out_a;
+		if (a <= 0.0f)
+			continue;
+		if (a > 1.0f)
+			a = 1.0f;
+		out_a = a + dst_a * (1.0f - a);
+		dst[pixel + 0] = (uint8_t)(dst[pixel + 0] * (1.0f - a) + src[pixel + 0] * a);
+		dst[pixel + 1] = (uint8_t)(dst[pixel + 1] * (1.0f - a) + src[pixel + 1] * a);
+		dst[pixel + 2] = (uint8_t)(dst[pixel + 2] * (1.0f - a) + src[pixel + 2] * a);
+		dst_alpha[i] = (uint8_t)(out_a * 255.0f);
+	}
+}
+
+static void render_patch_layer_contents(wb_scene *scene, int patch_id,
+		wb_scene_layer *layer, int frame, uint8_t *buf, uint8_t *alpha, int depth)
+{
+	int previous_order = -1;
+
+	if (!scene || !layer || !buf || !alpha || depth > scene->n_patches ||
+		!wb_scene_find_patch(scene, patch_id))
+		return;
+
+	for (;;)
+	{
+		int next_order = 0x7fffffff;
+		int next_object = -1;
+		int next_patch = -1;
+
+		for (int i = 0; i < scene->n_objects; i++)
+		{
+			int order = object_draw_order(scene, i);
+			if (scene->objects[i].patch_id == patch_id &&
+				scene->objects[i].layer_id == layer->id &&
+				order > previous_order && order < next_order)
+			{
+				next_order = order;
+				next_object = i;
+				next_patch = -1;
+			}
+		}
+		for (int i = 0; i < scene->n_patches; i++)
+		{
+			int order = patch_draw_order(scene, i);
+			if (scene->patches[i].parent_id == patch_id &&
+				order > previous_order && order < next_order)
+			{
+				next_order = order;
+				next_object = -1;
+				next_patch = i;
+			}
+		}
+		if (next_object < 0 && next_patch < 0)
+			break;
+
+		previous_order = next_order;
+		if (next_object >= 0)
+		{
+			set_draw_alpha_buffer(alpha);
+			draw_scene_object(scene, &scene->objects[next_object], layer, frame, buf);
+		}
+		else
+		{
+			wb_scene_patch *patch = &scene->patches[next_patch];
+			uint8_t *child_buf = calloc(WIDTH * HEIGHT, 3);
+			uint8_t *child_alpha = calloc(WIDTH * HEIGHT, 1);
+			if (!child_buf || !child_alpha)
+			{
+				free(child_buf);
+				free(child_alpha);
+				continue;
+			}
+			render_patch_layer_contents(scene, patch->id, layer, frame,
+				child_buf, child_alpha, depth + 1);
+			if (patch->glow_radius > 0.0f && patch->glow_opacity > 0.0f)
+			{
+				memcpy(scene->render_glow_buf, child_buf, WIDTH * HEIGHT * 3);
+				memcpy(scene->render_glow_alpha, child_alpha, WIDTH * HEIGHT);
+				blur_layer_buffer(scene->render_glow_buf, scene->render_scratch_buf, patch->glow_radius);
+				blur_alpha_buffer(scene->render_glow_alpha, scene->render_scratch_alpha, patch->glow_radius);
+				composite_patch_buffer(buf, alpha, scene->render_glow_buf,
+					scene->render_glow_alpha, patch->render_opacity * patch->glow_opacity);
+			}
+			if (patch->blur_radius > 0.0f)
+			{
+				blur_layer_buffer(child_buf, scene->render_scratch_buf, patch->blur_radius);
+				blur_alpha_buffer(child_alpha, scene->render_scratch_alpha, patch->blur_radius);
+			}
+			composite_patch_buffer(buf, alpha, child_buf, child_alpha, patch->render_opacity);
+			free(child_buf);
+			free(child_alpha);
+		}
+	}
+	set_draw_alpha_buffer(alpha);
+}
+
 void wb_scene_render(wb_scene *scene, float time, int frame, uint8_t *buf)
 {
 	uint8_t *layer_buf;
@@ -2632,6 +2699,12 @@ void wb_scene_render(wb_scene *scene, float time, int frame, uint8_t *buf)
 		scene->layers[i].render_camera_center = scene->layers[i].camera_center;
 		scene->layers[i].render_camera_target_explicit = scene->layers[i].camera_target_explicit;
 		scene->layers[i].render_camera_target = scene->layers[i].camera_target;
+	}
+	for (int i = 0; i < scene->n_patches; i++)
+	{
+		scene->patches[i].render_opacity = scene->patches[i].opacity;
+		scene->patches[i].render_jitter_strength = scene->patches[i].jitter_explicit ?
+			scene->patches[i].jitter_strength : WB_DEFAULT_LAYER_JITTER_STRENGTH;
 	}
 	
 	for (int i = 0; i < scene->n_actions; i++)
@@ -2835,14 +2908,29 @@ void wb_scene_render(wb_scene *scene, float time, int frame, uint8_t *buf)
 	for (int layer_i = 0; layer_i < scene->n_layers; layer_i++)
 	{
 		wb_scene_layer *layer = &scene->layers[layer_i];
+		wb_scene_patch *root_patch = wb_scene_find_patch(scene, scene->root_patch_id);
 		clear_layer_buffer(layer_buf);
 		clear_alpha_buffer(layer_alpha);
 		set_draw_alpha_buffer(layer_alpha);
 		
-		draw_patch_layer_contents(scene, scene->root_patch_id, layer,
-			frame, layer_buf, 0);
+		render_patch_layer_contents(scene, scene->root_patch_id, layer,
+			frame, layer_buf, layer_alpha, 0);
 		
 		set_draw_alpha_buffer(NULL);
+		if (root_patch && root_patch->glow_radius > 0.0f && root_patch->glow_opacity > 0.0f)
+		{
+			memcpy(glow_buf, layer_buf, WIDTH * HEIGHT * 3);
+			memcpy(glow_alpha, layer_alpha, WIDTH * HEIGHT);
+			blur_layer_buffer(glow_buf, scratch_buf, root_patch->glow_radius);
+			blur_alpha_buffer(glow_alpha, scratch_alpha, root_patch->glow_radius);
+			composite_layer_buffer(buf, glow_buf, glow_alpha,
+				root_patch->render_opacity * root_patch->glow_opacity);
+		}
+		if (root_patch && root_patch->blur_radius > 0.0f)
+		{
+			blur_layer_buffer(layer_buf, scratch_buf, root_patch->blur_radius);
+			blur_alpha_buffer(layer_alpha, scratch_alpha, root_patch->blur_radius);
+		}
 		if (layer->glow_radius > 0.0f && layer->glow_opacity > 0.0f)
 		{
 			memcpy(glow_buf, layer_buf, WIDTH * HEIGHT * 3);
@@ -2856,6 +2944,7 @@ void wb_scene_render(wb_scene *scene, float time, int frame, uint8_t *buf)
 			blur_layer_buffer(layer_buf, scratch_buf, layer->blur_radius);
 			blur_alpha_buffer(layer_alpha, scratch_alpha, layer->blur_radius);
 		}
-		composite_layer_buffer(buf, layer_buf, layer_alpha, layer->render_opacity);
+		composite_layer_buffer(buf, layer_buf, layer_alpha,
+			layer->render_opacity * (root_patch ? root_patch->render_opacity : 1.0f));
 	}
 }

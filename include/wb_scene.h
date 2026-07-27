@@ -77,11 +77,13 @@ typedef struct
 	wb_vec3 scale3;
 	wb_vec3 rotation3;
 	float opacity;
+	float render_opacity;
 	float blur_radius;
 	float glow_radius;
 	float glow_opacity;
 	float jitter_strength;
 	int jitter_explicit;
+	float render_jitter_strength;
 	int layer_id;
 } wb_scene_patch;
 
