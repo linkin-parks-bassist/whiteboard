@@ -342,6 +342,8 @@ static int starts_with_word(const char *s, const char *word)
 
 static int current_layer_type(const wb_spec_parser *p)
 {
+	if (p && p->n_patch_scopes > 0)
+		return p->patch_scopes[p->n_patch_scopes - 1].dimension == 3 ? WB_LAYER_3D : WB_LAYER_2D;
 	if (!p || !p->scene)
 		return WB_LAYER_2D;
 	for (int i = 0; i < p->scene->n_layers; i++)
@@ -2211,20 +2213,11 @@ static int parse_space(wb_spec_parser *p, char *line, int line_no)
 {
 	char name[64] = "";
 	char expanded[256];
-	int parent_layer_id;
 
 	if (sscanf(line, "space %63s", name) != 1)
 		return set_error(p, line_no, "expected space name");
-	parent_layer_id = p && p->scene ? p->scene->current_layer_id : 0;
-	snprintf(expanded, sizeof(expanded), "layer %s 3d", name);
-	if (!parse_layer(p, expanded, line_no))
-		return 0;
-	snprintf(expanded, sizeof(expanded), "patch %s", name);
-	if (!parse_patch(p, expanded, line_no))
-		return 0;
-	if (p->n_patch_scopes > 0)
-		p->patch_scopes[p->n_patch_scopes - 1].previous_layer_id = parent_layer_id;
-	return 1;
+	snprintf(expanded, sizeof(expanded), "patch %s 3d", name);
+	return parse_patch(p, expanded, line_no);
 }
 
 static void sync_retained_patch_scope(wb_spec_parser *p, const wb_spec_patch_scope *scope)
@@ -2259,7 +2252,7 @@ static int parse_patch(wb_spec_parser *p, char *line, int line_no)
 	
 	if (!p || !p->scene)
 		return set_error(p, line_no, "patch must appear inside a scene");
-	layer_type = current_layer_type(p);
+	layer_type = strstr(line, " 3d") ? WB_LAYER_3D : current_layer_type(p);
 	if (layer_type != WB_LAYER_2D && layer_type != WB_LAYER_3D)
 		return set_error(p, line_no, "patch must appear inside a 2d or 3d layer");
 	if (p->n_patch_scopes >= (int)(sizeof(p->patch_scopes) / sizeof(p->patch_scopes[0])))
