@@ -2646,21 +2646,15 @@ static int parse_camera(wb_spec_parser *p, char *line, int line_no)
 		matched = sscanf(line, "cam d %f s %f @ (%f, %f)", &distance, &scale, &cx, &cy);
 	if (matched == 5 || matched == 4)
 	{
-		wb_scene_set_layer_camera(p->scene, p->scene->current_layer_id, distance, scale, matched == 5 ? yaw : 0.0f, projection, cx, cy);
 		if (strstr(line, " look_at ") &&
-			(sscanf(strstr(line, " look_at "), " look_at (%f,%f,%f)", &tx, &ty, &tz) == 3 ||
-			 sscanf(strstr(line, " look_at "), " look_at (%f, %f, %f)", &tx, &ty, &tz) == 3))
-			wb_scene_set_layer_camera_target(p->scene, p->scene->current_layer_id, 1, tx, ty, tz);
-		else if (strstr(line, " target ") &&
-			(sscanf(strstr(line, " target "), " target (%f,%f,%f)", &tx, &ty, &tz) == 3 ||
-			 sscanf(strstr(line, " target "), " target (%f, %f, %f)", &tx, &ty, &tz) == 3))
-			wb_scene_set_layer_camera_target(p->scene, p->scene->current_layer_id, 1, tx, ty, tz);
+			(sscanf(strstr(line, " look_at "), " look_at (%f,%f,%f)", &tx, &ty, &tz) != 3 &&
+			 sscanf(strstr(line, " look_at "), " look_at (%f, %f, %f)", &tx, &ty, &tz) != 3))
+			return set_error(p, line_no, "expected look_at (x,y,z)");
 		wb_scene_set_patch_camera(p->scene, p->scene->current_patch_id, distance, scale, matched == 5 ? yaw : 0.0f, projection, vec2(cx, cy), strstr(line, " look_at ") || strstr(line, " target "), vec3(tx, ty, tz));
 		return 1;
 	}
 	if (strcmp(line, "camera") == 0 || strcmp(line, "cam") == 0)
 	{
-		wb_scene_set_layer_camera(p->scene, p->scene->current_layer_id, distance, scale, yaw, projection, cx, cy);
 		wb_scene_set_patch_camera(p->scene, p->scene->current_patch_id, distance, scale, yaw, projection, vec2(cx, cy), 0, vec3(0, 0, 0));
 		return 1;
 	}
@@ -2721,10 +2715,7 @@ static int parse_camera(wb_spec_parser *p, char *line, int line_no)
 		projection = WB_CAMERA_PROJECTION_PERSPECTIVE;
 	if (saw_any)
 	{
-		wb_scene_set_layer_camera(p->scene, p->scene->current_layer_id, distance, scale, yaw, projection, cx, cy);
 		wb_scene_set_patch_camera(p->scene, p->scene->current_patch_id, distance, scale, yaw, projection, vec2(cx, cy), target_explicit, vec3(tx, ty, tz));
-		if (strstr(line, " look_at ") || strstr(line, " target "))
-			wb_scene_set_layer_camera_target(p->scene, p->scene->current_layer_id, target_explicit, tx, ty, tz);
 		return 1;
 	}
 	
