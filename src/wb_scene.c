@@ -1519,6 +1519,26 @@ void wb_scene_transform_patch(wb_scene *scene, int patch_id, float start_time, f
 	scene->total_duration = binary_max(scene->total_duration, end_time);
 }
 
+void wb_scene_transform_patch3d(wb_scene *scene, int patch_id, float start_time, float end_time, wb_vec3 pivot, wb_vec3 scale1, wb_vec3 rotation1, wb_vec3 scale2, wb_vec3 rotation2)
+{
+	wb_scene_action *action;
+	if (!scene || !wb_scene_find_patch(scene, patch_id)) return;
+	action = append_action(scene);
+	if (!action) return;
+	action->patch_id = patch_id;
+	action->type = WB_ACTION_PATCH_TRANSFORM3D;
+	action->start_time = start_time;
+	action->end_time = end_time;
+	action->q0 = pivot;
+	action->from = vec2(scale1.x, scale1.y);
+	action->from_z = scale1.z;
+	action->to = vec2(scale2.x, scale2.y);
+	action->to_z = scale2.z;
+	action->q1 = rotation1;
+	action->q2 = rotation2;
+	scene->total_duration = binary_max(scene->total_duration, end_time);
+}
+
 void wb_scene_fade_object(wb_scene *scene, int object_id, float start_time, float end_time, float opacity1, float opacity2)
 {
 	wb_scene_action *action = append_action(scene);
@@ -2156,6 +2176,7 @@ static void draw_scene_object(wb_scene *scene, wb_scene_object *obj, wb_scene_la
 	patch = wb_scene_find_patch(scene, obj->patch_id);
 	rendered = *obj;
 	for (wb_scene_patch *ancestor = patch; ancestor; ancestor = wb_scene_find_patch(scene, ancestor->parent_id))
+	{
 		for (int i = 0; i < ancestor->n_render_transforms && rendered.n_render_patch_transforms < 8; i++)
 		{
 			int index = rendered.n_render_patch_transforms++;
@@ -2163,6 +2184,14 @@ static void draw_scene_object(wb_scene *scene, wb_scene_object *obj, wb_scene_la
 			rendered.render_patch_transforms[index].scale = ancestor->render_transforms[i].scale;
 			rendered.render_patch_transforms[index].rotation = ancestor->render_transforms[i].rotation;
 		}
+		for (int i = 0; i < ancestor->n_render_transforms3d && rendered.n_render_patch_transforms3d < 8; i++)
+		{
+			int index = rendered.n_render_patch_transforms3d++;
+			rendered.render_patch_transforms3d[index].pivot = ancestor->render_transforms3d[i].pivot;
+			rendered.render_patch_transforms3d[index].scale = ancestor->render_transforms3d[i].scale;
+			rendered.render_patch_transforms3d[index].rotation = ancestor->render_transforms3d[i].rotation;
+		}
+	}
 	obj = &rendered;
 	
 	layer_offset = layer ? layer->render_offset : vec2(0, 0);
@@ -2798,6 +2827,7 @@ void wb_scene_render(wb_scene *scene, float time, int frame, uint8_t *buf)
 		scene->patches[i].render_translation = vec2(0, 0);
 		scene->patches[i].render_translation3d = vec3(0, 0, 0);
 		scene->patches[i].n_render_transforms = 0;
+		scene->patches[i].n_render_transforms3d = 0;
 	}
 	
 	for (int i = 0; i < scene->n_actions; i++)
@@ -3012,6 +3042,18 @@ void wb_scene_render(wb_scene *scene, float time, int frame, uint8_t *buf)
 			patch->render_transforms[patch->n_render_transforms].pivot = vec2(action->q0.x, action->q0.y);
 			patch->render_transforms[patch->n_render_transforms].scale = vec2(action->from.x + (action->to.x - action->from.x) * a, action->from.y + (action->to.y - action->from.y) * a);
 			patch->render_transforms[patch->n_render_transforms++].rotation = action->aux0 + (action->aux1 - action->aux0) * a;
+		}
+		else if (action->type == WB_ACTION_PATCH_TRANSFORM3D)
+		{
+			wb_scene_patch *patch = wb_scene_find_patch(scene, action->patch_id);
+			float a;
+			int index;
+			if (!patch || patch->n_render_transforms3d >= 8) continue;
+			a = action_alpha(action, time);
+			index = patch->n_render_transforms3d++;
+			patch->render_transforms3d[index].pivot = action->q0;
+			patch->render_transforms3d[index].scale = vec3(action->from.x + (action->to.x - action->from.x) * a, action->from.y + (action->to.y - action->from.y) * a, action->from_z + (action->to_z - action->from_z) * a);
+			patch->render_transforms3d[index].rotation = vec3(action->q1.x + (action->q2.x - action->q1.x) * a, action->q1.y + (action->q2.y - action->q1.y) * a, action->q1.z + (action->q2.z - action->q1.z) * a);
 		}
 		else if (action->type == WB_ACTION_FADE)
 		{

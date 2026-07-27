@@ -3166,8 +3166,9 @@ static int parse_turn_patch(wb_spec_parser *p, char *line, int line_no)
 	if (dimension == 3)
 	{
 		pivot3 = apply_patch_scope_chain_to_point3d(patch->scopes, patch->n_scopes, vec3(0, 0, 0));
-		for (int i = 0; i < group->n_ids; i++)
-			wb_scene_transform3d(p->scene, group->ids[i], t0, t1, pivot3.x, pivot3.y, pivot3.z, 1.0f, 1.0f, 1.0f, vector_mode ? y0 : a0, vector_mode ? p0 : 0.0f, vector_mode ? r0 : 0.0f, 1.0f, 1.0f, 1.0f, vector_mode ? y1 : a1, vector_mode ? p1 : 0.0f, vector_mode ? r1 : 0.0f);
+		wb_scene_transform_patch3d(p->scene, patch->scopes[patch->n_scopes - 1].patch_id,
+			t0, t1, pivot3, vec3(1, 1, 1), vec3(vector_mode ? y0 : a0, vector_mode ? p0 : 0.0f, vector_mode ? r0 : 0.0f),
+			vec3(1, 1, 1), vec3(vector_mode ? y1 : a1, vector_mode ? p1 : 0.0f, vector_mode ? r1 : 0.0f));
 		return 1;
 	}
 	pivot = apply_patch_scope_chain_to_point(patch->scopes, patch->n_scopes, vec2(0, 0));
@@ -3219,8 +3220,8 @@ static int parse_scale_patch(wb_spec_parser *p, char *line, int line_no)
 		else if (matched != 9)
 			return set_error(p, line_no, "expected scale_patch name from (sx,sy,sz) to (sx,sy,sz) during Ts..Ts");
 		pivot3 = apply_patch_scope_chain_to_point3d(patch->scopes, patch->n_scopes, vec3(0, 0, 0));
-		for (int i = 0; i < group->n_ids; i++)
-			wb_scene_transform3d(p->scene, group->ids[i], t0, t1, pivot3.x, pivot3.y, pivot3.z, sx0, sy0, sz0, 0.0f, 0.0f, 0.0f, sx1, sy1, sz1, 0.0f, 0.0f, 0.0f);
+		wb_scene_transform_patch3d(p->scene, patch->scopes[patch->n_scopes - 1].patch_id,
+			t0, t1, pivot3, vec3(sx0, sy0, sz0), vec3(0, 0, 0), vec3(sx1, sy1, sz1), vec3(0, 0, 0));
 		return 1;
 	}
 	matched = sscanf(line, "scale_patch %63s from (%f,%f) to (%f,%f) during %fs..%fs", name, &sx0, &sy0, &sx1, &sy1, &t0, &t1);
