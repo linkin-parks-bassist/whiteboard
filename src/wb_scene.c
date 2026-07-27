@@ -1,6 +1,6 @@
 #include "whiteboard.h"
 
-static wb_scene_layer *find_layer(wb_scene *scene, int layer_id);
+static wb_render_context *find_layer(wb_scene *scene, int layer_id);
 static int ensure_render_buffers(wb_scene *scene);
 
 void init_camera(wb_camera *camera)
@@ -194,7 +194,7 @@ static void apply_paper_texture(uint8_t *buf)
 
 int wb_scene_add_layer(wb_scene *scene, const char *name, int type, float opacity)
 {
-	wb_scene_layer *layer;
+	wb_render_context *layer;
 	
 	if (!scene)
 		return 0;
@@ -202,7 +202,7 @@ int wb_scene_add_layer(wb_scene *scene, const char *name, int type, float opacit
 	if (scene->n_layers >= scene->cap_layers)
 	{
 		int new_cap = scene->cap_layers ? scene->cap_layers * 2 : 4;
-		wb_scene_layer *layers = realloc(scene->layers, sizeof(wb_scene_layer) * new_cap);
+		wb_render_context *layers = realloc(scene->layers, sizeof(wb_render_context) * new_cap);
 		
 		if (!layers)
 			return 0;
@@ -248,7 +248,7 @@ int wb_scene_add_layer(wb_scene *scene, const char *name, int type, float opacit
 
 void wb_scene_set_layer_blur(wb_scene *scene, int layer_id, float blur_radius)
 {
-	wb_scene_layer *layer = find_layer(scene, layer_id);
+	wb_render_context *layer = find_layer(scene, layer_id);
 	
 	if (!layer)
 		return;
@@ -263,7 +263,7 @@ void wb_scene_set_layer_blur(wb_scene *scene, int layer_id, float blur_radius)
 
 void wb_scene_set_layer_glow(wb_scene *scene, int layer_id, float glow_radius, float glow_opacity)
 {
-	wb_scene_layer *layer = find_layer(scene, layer_id);
+	wb_render_context *layer = find_layer(scene, layer_id);
 	
 	if (!layer)
 		return;
@@ -283,7 +283,7 @@ void wb_scene_set_layer_glow(wb_scene *scene, int layer_id, float glow_radius, f
 
 void wb_scene_set_layer_jitter(wb_scene *scene, int layer_id, float jitter_strength)
 {
-	wb_scene_layer *layer = find_layer(scene, layer_id);
+	wb_render_context *layer = find_layer(scene, layer_id);
 	
 	if (!layer)
 		return;
@@ -297,7 +297,7 @@ void wb_scene_set_layer_jitter(wb_scene *scene, int layer_id, float jitter_stren
 
 void wb_scene_set_layer_camera(wb_scene *scene, int layer_id, float distance, float scale, float yaw, int projection, float center_x, float center_y)
 {
-	wb_scene_layer *layer = find_layer(scene, layer_id);
+	wb_render_context *layer = find_layer(scene, layer_id);
 	
 	if (!layer)
 		return;
@@ -321,7 +321,7 @@ void wb_scene_set_layer_camera(wb_scene *scene, int layer_id, float distance, fl
 
 void wb_scene_set_layer_camera_target(wb_scene *scene, int layer_id, int explicit_target, float x, float y, float z)
 {
-	wb_scene_layer *layer = find_layer(scene, layer_id);
+	wb_render_context *layer = find_layer(scene, layer_id);
 	
 	if (!layer)
 		return;
@@ -361,7 +361,7 @@ static wb_scene_object *find_object(wb_scene *scene, int object_id)
 	return NULL;
 }
 
-static wb_scene_layer *find_layer(wb_scene *scene, int layer_id)
+static wb_render_context *find_layer(wb_scene *scene, int layer_id)
 {
 	if (!scene)
 		return NULL;
@@ -1966,7 +1966,7 @@ static void draw_hand_ellipse(uint8_t *buf, float x, float y, float radius_x, fl
 	free_nurbs_pcurve(curve);
 }
 
-static int project_3d_point(wb_vec3 p, wb_scene_layer *layer, wb_vec2 *out)
+static int project_3d_point(wb_vec3 p, wb_render_context *layer, wb_vec2 *out)
 {
 	float camera_distance = layer ? layer->render_camera_distance : WB_DEFAULT_LAYER_CAMERA_DISTANCE;
 	float scale = layer ? layer->render_camera_scale : WB_DEFAULT_LAYER_CAMERA_SCALE;
@@ -1998,7 +1998,7 @@ static int project_3d_point(wb_vec3 p, wb_scene_layer *layer, wb_vec2 *out)
 	return 1;
 }
 
-static int build_projected_curve3d(wb_stack_quad_curve *storage, wb_vec3 q0, wb_vec3 q1, wb_vec3 q2, wb_scene_layer *layer)
+static int build_projected_curve3d(wb_stack_quad_curve *storage, wb_vec3 q0, wb_vec3 q1, wb_vec3 q2, wb_render_context *layer)
 {
 	wb_vec2 p0;
 	wb_vec2 p1;
@@ -2111,10 +2111,10 @@ static wb_vec3 transform_object_point3d_seq(wb_vec3 p, const wb_scene_object *ob
 	return p;
 }
 
-static void draw_scene_object(wb_scene *scene, wb_scene_object *obj, wb_scene_layer *layer, int frame, uint8_t *buf)
+static void draw_scene_object(wb_scene *scene, wb_scene_object *obj, wb_render_context *layer, int frame, uint8_t *buf)
 {
 	wb_scene_object rendered;
-	wb_scene_layer patch_camera;
+	wb_render_context patch_camera;
 	wb_scene_patch *patch;
 	wb_vec2 layer_offset;
 	wb_vec2 object_offset;
@@ -2429,7 +2429,7 @@ static int patch_draw_order(const wb_scene *scene, int index)
 static void composite_patch_buffer(uint8_t *dst, uint8_t *dst_alpha,
 		uint8_t *src, const uint8_t *src_alpha, float opacity);
 static void render_patch_layer_contents(wb_scene *scene, int patch_id,
-		wb_scene_layer *layer, int frame, uint8_t *buf, uint8_t *alpha, int depth);
+		wb_render_context *layer, int frame, uint8_t *buf, uint8_t *alpha, int depth);
 
 static void clear_layer_buffer(uint8_t *buf)
 {
@@ -2653,7 +2653,7 @@ static void composite_patch_buffer(uint8_t *dst, uint8_t *dst_alpha,
 }
 
 static void render_patch_layer_contents(wb_scene *scene, int patch_id,
-		wb_scene_layer *layer, int frame, uint8_t *buf, uint8_t *alpha, int depth)
+		wb_render_context *layer, int frame, uint8_t *buf, uint8_t *alpha, int depth)
 {
 	int previous_order = -1;
 
@@ -3007,7 +3007,7 @@ void wb_scene_render(wb_scene *scene, float time, int frame, uint8_t *buf)
 	 * for old primitive helpers while the layer type is removed. */
 	for (int layer_i = 0; layer_i < 1 && scene->n_layers > 0; layer_i++)
 	{
-		wb_scene_layer *layer = &scene->layers[layer_i];
+		wb_render_context *layer = &scene->layers[layer_i];
 		wb_scene_patch *root_patch = wb_scene_find_patch(scene, scene->root_patch_id);
 		clear_layer_buffer(layer_buf);
 		clear_alpha_buffer(layer_alpha);

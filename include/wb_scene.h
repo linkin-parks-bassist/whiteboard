@@ -57,7 +57,7 @@ typedef struct
 	wb_vec3 render_camera_target;
 	wb_vec2 offset;
 	wb_vec2 render_offset;
-} wb_scene_layer;
+} wb_render_context;
 
 /* Retained authoring-space node.  Layers remain a transitional compositor
  * implementation detail until recursive patch rendering replaces them. */
@@ -224,7 +224,7 @@ typedef struct
 {
 	wb_plane_figure_pll *pfigs;
 	wb_space_figure_pll *sfigs;
-	wb_scene_layer *layers;
+	wb_render_context *layers;
 	int n_layers;
 	int cap_layers;
 	int current_layer_id;
