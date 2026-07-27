@@ -292,10 +292,6 @@ void wb_scene_set_layer_camera(wb_scene *scene, int layer_id, float distance, fl
 void wb_scene_set_layer_camera_target(wb_scene *scene, int layer_id, int explicit_target, float x, float y, float z);
 void wb_scene_set_object_jitter(wb_scene *scene, int object_id, float jitter_strength);
 void wb_scene_set_current_layer(wb_scene *scene, int layer_id);
-void wb_scene_move_layer(wb_scene *scene, int layer_id, float start_time, float end_time, float x1, float y1, float x2, float y2);
-void wb_scene_move_camera(wb_scene *scene, int layer_id, float start_time, float end_time, float distance1, float scale1, float yaw1, float cx1, float cy1, int target1_explicit, float tx1, float ty1, float tz1, float distance2, float scale2, float yaw2, float cx2, float cy2, int target2_explicit, float tx2, float ty2, float tz2);
-void wb_scene_orbit_camera(wb_scene *scene, int layer_id, float start_time, float end_time, float yaw1, float yaw2);
-void wb_scene_fade_layer(wb_scene *scene, int layer_id, float start_time, float end_time, float opacity1, float opacity2);
 void wb_scene_fade_patch(wb_scene *scene, int patch_id, float start_time, float end_time, float opacity1, float opacity2);
 void wb_scene_translate_patch(wb_scene *scene, int patch_id, float start_time, float end_time, wb_vec2 from, wb_vec2 to);
 void wb_scene_translate_patch3d(wb_scene *scene, int patch_id, float start_time, float end_time, wb_vec3 from, wb_vec3 to);
