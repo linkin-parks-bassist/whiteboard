@@ -90,6 +90,13 @@ typedef struct
 	struct { wb_vec2 pivot; wb_vec2 scale; float rotation; } render_transforms[8];
 	int n_render_transforms3d;
 	struct { wb_vec3 pivot; wb_vec3 scale; wb_vec3 rotation; } render_transforms3d[8];
+	float camera_distance;
+	float camera_scale;
+	float camera_yaw;
+	int camera_projection;
+	wb_vec2 camera_center;
+	int camera_target_explicit;
+	wb_vec3 camera_target;
 	int layer_id;
 } wb_scene_patch;
 
@@ -285,6 +292,7 @@ void wb_scene_translate_patch(wb_scene *scene, int patch_id, float start_time, f
 void wb_scene_translate_patch3d(wb_scene *scene, int patch_id, float start_time, float end_time, wb_vec3 from, wb_vec3 to);
 void wb_scene_transform_patch(wb_scene *scene, int patch_id, float start_time, float end_time, wb_vec2 pivot, wb_vec2 scale1, float rotation1, wb_vec2 scale2, float rotation2);
 void wb_scene_transform_patch3d(wb_scene *scene, int patch_id, float start_time, float end_time, wb_vec3 pivot, wb_vec3 scale1, wb_vec3 rotation1, wb_vec3 scale2, wb_vec3 rotation2);
+void wb_scene_set_patch_camera(wb_scene *scene, int patch_id, float distance, float scale, float yaw, int projection, wb_vec2 center, int target_explicit, wb_vec3 target);
 void wb_scene_fade_object(wb_scene *scene, int object_id, float start_time, float end_time, float opacity1, float opacity2);
 void wb_scene_translate3d(wb_scene *scene, int object_id, float start_time, float end_time, float x1, float y1, float z1, float x2, float y2, float z2);
 void wb_scene_transform3d(wb_scene *scene, int object_id, float start_time, float end_time, float pivot_x, float pivot_y, float pivot_z, float scale_x1, float scale_y1, float scale_z1, float yaw1, float pitch1, float roll1, float scale_x2, float scale_y2, float scale_z2, float yaw2, float pitch2, float roll2);

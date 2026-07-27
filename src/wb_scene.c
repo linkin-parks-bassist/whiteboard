@@ -422,6 +422,12 @@ int wb_scene_add_patch(wb_scene *scene, const char *name, int parent_id, int dim
 	patch->render_jitter_strength = patch->jitter_strength;
 	patch->render_translation = vec2(0, 0);
 	patch->render_translation3d = vec3(0, 0, 0);
+	patch->camera_distance = WB_DEFAULT_LAYER_CAMERA_DISTANCE;
+	patch->camera_scale = WB_DEFAULT_LAYER_CAMERA_SCALE;
+	patch->camera_yaw = WB_DEFAULT_LAYER_CAMERA_YAW;
+	patch->camera_projection = WB_DEFAULT_LAYER_CAMERA_PROJECTION;
+	patch->camera_center = vec2(WB_DEFAULT_LAYER_CAMERA_CENTER_X, WB_DEFAULT_LAYER_CAMERA_CENTER_Y);
+	patch->camera_target = vec3(0, 0, 0);
 	patch->layer_id = layer_id;
 	return patch->id;
 }
@@ -1539,6 +1545,19 @@ void wb_scene_transform_patch3d(wb_scene *scene, int patch_id, float start_time,
 	scene->total_duration = binary_max(scene->total_duration, end_time);
 }
 
+void wb_scene_set_patch_camera(wb_scene *scene, int patch_id, float distance, float scale, float yaw, int projection, wb_vec2 center, int target_explicit, wb_vec3 target)
+{
+	wb_scene_patch *patch = wb_scene_find_patch(scene, patch_id);
+	if (!patch) return;
+	patch->camera_distance = binary_max(WB_MIN_LAYER_CAMERA_DISTANCE, distance);
+	patch->camera_scale = binary_max(WB_MIN_LAYER_CAMERA_SCALE, scale);
+	patch->camera_yaw = yaw;
+	patch->camera_projection = projection;
+	patch->camera_center = center;
+	patch->camera_target_explicit = target_explicit;
+	patch->camera_target = target;
+}
+
 void wb_scene_fade_object(wb_scene *scene, int object_id, float start_time, float end_time, float opacity1, float opacity2)
 {
 	wb_scene_action *action = append_action(scene);
@@ -2165,6 +2184,7 @@ static wb_vec3 transform_object_point3d_seq(wb_vec3 p, const wb_scene_object *ob
 static void draw_scene_object(wb_scene *scene, wb_scene_object *obj, wb_scene_layer *layer, int frame, uint8_t *buf)
 {
 	wb_scene_object rendered;
+	wb_scene_layer patch_camera;
 	wb_scene_patch *patch;
 	wb_vec2 layer_offset;
 	wb_vec2 object_offset;
@@ -2174,6 +2194,22 @@ static void draw_scene_object(wb_scene *scene, wb_scene_object *obj, wb_scene_la
 	if (!obj || obj->draw_progress <= 0.0f)
 		return;
 	patch = wb_scene_find_patch(scene, obj->patch_id);
+	for (wb_scene_patch *ancestor = patch; ancestor; ancestor = wb_scene_find_patch(scene, ancestor->parent_id))
+	{
+		if (ancestor->dimension == WB_LAYER_3D)
+		{
+			patch_camera = *layer;
+			patch_camera.render_camera_distance = ancestor->camera_distance;
+			patch_camera.render_camera_scale = ancestor->camera_scale;
+			patch_camera.render_camera_yaw = ancestor->camera_yaw;
+			patch_camera.render_camera_projection = ancestor->camera_projection;
+			patch_camera.render_camera_center = ancestor->camera_center;
+			patch_camera.render_camera_target_explicit = ancestor->camera_target_explicit;
+			patch_camera.render_camera_target = ancestor->camera_target;
+			layer = &patch_camera;
+			break;
+		}
+	}
 	rendered = *obj;
 	for (wb_scene_patch *ancestor = patch; ancestor; ancestor = wb_scene_find_patch(scene, ancestor->parent_id))
 	{
