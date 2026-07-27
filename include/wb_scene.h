@@ -161,7 +161,6 @@ typedef struct
 typedef struct
 {
 	int object_id;
-	int layer_id;
 	int patch_id;
 	int type;
 	float start_time;
@@ -210,11 +209,7 @@ typedef struct
 #define WB_OBJECT_SHADE_BLOB 28
 #define WB_ACTION_MOVE 1
 #define WB_ACTION_DRAW 2
-#define WB_ACTION_LAYER_MOVE 3
-#define WB_ACTION_CAMERA_MOVE 4
-#define WB_ACTION_LAYER_FADE 5
 #define WB_ACTION_FADE 6
-#define WB_ACTION_CAMERA_ORBIT 7
 #define WB_ACTION_TRANSLATE 8
 #define WB_ACTION_TRANSFORM 9
 #define WB_ACTION_TRANSLATE3D 10
