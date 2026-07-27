@@ -34,7 +34,6 @@ typedef struct
 	wb_vec3 rotation3;
 	int root_manifold;
 	int patch_id;
-	int previous_layer_id;
 } wb_spec_patch_scope;
 
 typedef struct
@@ -1714,27 +1713,18 @@ static void pop_finished_group_scopes(wb_spec_parser *p, int raw_indent)
 
 static void pop_finished_patch_scopes(wb_spec_parser *p, int raw_indent)
 {
-	int restored_layer_id = 0;
 
 	if (!p)
 		return;
 	while (p->n_patch_scopes > 0 && raw_indent <= p->patch_scopes[p->n_patch_scopes - 1].indent)
 	{
-		restored_layer_id = p->patch_scopes[p->n_patch_scopes - 1].previous_layer_id;
 		p->n_patch_scopes--;
 	}
 	if (p->scene)
 	{
 		int patch_id = p->n_patch_scopes > 0 ? p->patch_scopes[p->n_patch_scopes - 1].patch_id : p->scene->root_patch_id;
 		wb_scene_set_current_patch(p->scene, patch_id);
-		if (p->n_patch_scopes > 0)
-		{
-			wb_scene_patch *patch = wb_scene_find_patch(p->scene, patch_id);
-			if (patch)
-				wb_scene_set_current_layer(p->scene, patch->layer_id);
-		}
-		else if (restored_layer_id > 0)
-			wb_scene_set_current_layer(p->scene, restored_layer_id);
+		(void)patch_id;
 	}
 }
 
@@ -2416,8 +2406,7 @@ static int parse_patch(wb_spec_parser *p, char *line, int line_no)
 			scope.coord_type = WB_PATCH_COORD_CARTESIAN;
 	}
 	scope.patch_id = wb_scene_add_patch(p->scene, scope.name,
-		p->scene->current_patch_id, scope.dimension, scope.coord_type,
-		p->scene->current_layer_id);
+		p->scene->current_patch_id, scope.dimension, scope.coord_type);
 	if (!scope.patch_id)
 		return set_error(p, line_no, "failed to create patch");
 	{
@@ -2434,7 +2423,6 @@ static int parse_patch(wb_spec_parser *p, char *line, int line_no)
 			patch->render_jitter_strength = patch->jitter_strength;
 		}
 	}
-	scope.previous_layer_id = p->scene->current_layer_id;
 	sync_retained_patch_scope(p, &scope);
 	p->patch_scopes[p->n_patch_scopes++] = scope;
 	wb_scene_set_current_patch(p->scene, scope.patch_id);

@@ -104,7 +104,6 @@ typedef struct
 	wb_vec2 render_camera_center;
 	int render_camera_target_explicit;
 	wb_vec3 render_camera_target;
-	int layer_id;
 } wb_scene_patch;
 
 typedef struct
@@ -275,7 +274,7 @@ void wb_scene_set_radial_background(wb_scene *scene, uint32_t center_colour, uin
 void wb_scene_set_paper_background(wb_scene *scene, uint32_t center_colour, uint32_t edge_colour);
 void wb_scene_set_root_viewport(wb_scene *scene, float center_x, float center_y, float half_height);
 int wb_scene_add_layer(wb_scene *scene, const char *name, int type, float opacity);
-int wb_scene_add_patch(wb_scene *scene, const char *name, int parent_id, int dimension, int coord_type, int layer_id);
+int wb_scene_add_patch(wb_scene *scene, const char *name, int parent_id, int dimension, int coord_type);
 void wb_scene_set_current_patch(wb_scene *scene, int patch_id);
 wb_scene_patch *wb_scene_find_patch(wb_scene *scene, int patch_id);
 void wb_scene_set_patch_transform(wb_scene *scene, int patch_id, wb_vec2 origin, wb_vec2 scale, float rotation, wb_vec3 origin3, wb_vec3 scale3, wb_vec3 rotation3);

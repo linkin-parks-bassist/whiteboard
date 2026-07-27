@@ -27,7 +27,7 @@ wb_scene *new_scene()
 	result->root_viewport.half_height = 1.0f;
 	init_camera(&result->camera);
 	wb_scene_add_layer(result, "default", WB_LAYER_2D, WB_DEFAULT_LAYER_OPACITY);
-	result->root_patch_id = wb_scene_add_patch(result, "root", 0, WB_LAYER_2D, 0, result->current_layer_id);
+	result->root_patch_id = wb_scene_add_patch(result, "root", 0, WB_LAYER_2D, 0);
 	result->current_patch_id = result->root_patch_id;
 	
 	return result;
@@ -387,7 +387,7 @@ wb_scene_patch *wb_scene_find_patch(wb_scene *scene, int patch_id)
 	return NULL;
 }
 
-int wb_scene_add_patch(wb_scene *scene, const char *name, int parent_id, int dimension, int coord_type, int layer_id)
+int wb_scene_add_patch(wb_scene *scene, const char *name, int parent_id, int dimension, int coord_type)
 {
 	wb_scene_patch *patch;
 
@@ -434,7 +434,6 @@ int wb_scene_add_patch(wb_scene *scene, const char *name, int parent_id, int dim
 	patch->render_camera_projection = patch->camera_projection;
 	patch->render_camera_center = patch->camera_center;
 	patch->render_camera_target = patch->camera_target;
-	patch->layer_id = layer_id;
 	return patch->id;
 }
 
