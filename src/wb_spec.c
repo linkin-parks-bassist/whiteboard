@@ -2248,7 +2248,7 @@ static int parse_patch(wb_spec_parser *p, char *line, int line_no)
 			scope.coord_type = WB_PATCH_COORD_CARTESIAN;
 	}
 	scope.patch_id = wb_scene_add_patch(p->scene, scope.name,
-		p->scene->current_patch_id, scope.dimension, scope.coord_type);
+		p->scene->current_patch_id, patch_dimension, scope.coord_type);
 	if (!scope.patch_id)
 		return set_error(p, line_no, "failed to create patch");
 	{
