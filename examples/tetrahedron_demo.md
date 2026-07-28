@@ -6,7 +6,7 @@ video fps 60 jitter_fps 15 output "tetrahedron_demo.mp4"
 scene "rotating tetrahedron" duration 5s
   background radial center #ffffff edge #eef1f6
   patch model 3d opacity 1 jitter 1.0
-    camera distance 4.8 scale 470 yaw -0.7 center (960,560)
+    camera distance 4.8 scale 470 yaw -0.7
     axes3d frame at (-1.55,-1.15,-1.25) length 0.65 thickness 2 jitter 0.7
     cube3d backdrop center (1.55,0.05,0.25) size 0.7 thickness 2 colour grey opacity 0.04 jitter 0.7
     tetrahedron3d tet points (0.0,1.1,0.0) (-1.0,-0.6,-0.8) (1.0,-0.6,-0.8) (0.0,-0.2,1.1) thickness 3 colour blue opacity 0.09 jitter 1.0

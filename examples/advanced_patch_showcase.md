@@ -1,7 +1,7 @@
 video:
   output "advanced_patch_showcase.mp4"
 
-scene "advanced patch showcase 2d" 1.7s:
+scene "advanced patch showcase 2d" 6s:
   background radial:
     center #ffffff
     edge #eef1f6
@@ -10,8 +10,8 @@ scene "advanced patch showcase 2d" 1.7s:
     thickness 3.0
 
   patch board:
-    at (0.50w,0.56h)
-    scale (220,-170)
+    at (0,0)
+    scale (0.55,0.55)
 
     patch polar_field:
       coords polar
@@ -36,7 +36,7 @@ scene "advanced patch showcase 2d" 1.7s:
 
       text note "polar local space":
         at (-0.18,0.02)
-        size 34
+        size 0.10
         colour red
 
       arrow cue:
@@ -46,21 +46,21 @@ scene "advanced patch showcase 2d" 1.7s:
 
   turn_patch polar_field:
     0.0 -> 0.62
-    0.0s..1.7s
+    0.0s..6.0s
 
   scale_patch polar_field:
     (1.0,1.0) -> (1.16,0.86)
-    0.0s..1.7s
+    0.0s..6.0s
 
   move_patch label:
     (0.0,0.0) -> (-0.12,0.14)
-    0.0s..1.7s
+    0.0s..6.0s
 
 transition:
   type crossfade
   duration 0.35s
 
-scene "advanced patch showcase 3d" 2.0s:
+scene "advanced patch showcase 3d" 6.5s:
   background radial:
     center #ffffff
     edge #eef1f6
@@ -130,24 +130,24 @@ scene "advanced patch showcase 3d" 2.0s:
 
     turn_patch orbit:
       (0.0,0.0,0.0) -> (0.74,0.28,-0.12)
-      0.0s..2.0s
+    0.0s..6.5s
 
     move_patch orbit:
       (0.0,0.0,0.0) -> (0.00,0.12,0.18)
-      0.0s..2.0s
+    0.0s..6.5s
 
     turn_patch shell:
       (0.0,0.0,0.0) -> (-0.64,0.42,0.18)
-      0.0s..2.0s
+    0.0s..6.5s
 
     scale_patch shell:
       (1.0,1.0,1.0) -> (1.10,0.92,1.12)
-      0.0s..2.0s
+    0.0s..6.5s
 
     move_patch rig:
       (0.0,0.0,0.0) -> (0.28,0.22,0.18)
-      0.0s..2.0s
+    0.0s..6.5s
 
     turn_patch rig:
       (0.0,0.0,0.0) -> (0.88,0.46,-0.30)
-      0.0s..2.0s
+    0.0s..6.5s

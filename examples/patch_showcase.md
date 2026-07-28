@@ -2,7 +2,7 @@ video:
   output "patch_showcase.mp4"
 
 scene "patch showcase 2d":
-  duration 1.6s
+  duration 6s
   background radial:
     center #ffffff
     edge #eef1f6
@@ -11,8 +11,8 @@ scene "patch showcase 2d":
     thickness 3.0
 
   patch board:
-    at (0.50w,0.56h)
-    scale (220,-170)
+    at (0,0)
+    scale (0.60,0.60)
 
     seg x_axis:
       from (-1.4,0.0) to (1.4,0.0)
@@ -44,7 +44,7 @@ scene "patch showcase 2d":
 
       math eq "$y=f(x)$":
         at (0.10,0.72)
-        size 44
+        size 0.12
         colour black
         thickness 1.5
 
@@ -58,35 +58,35 @@ scene "patch showcase 2d":
 
       text note "local patch":
         at (-0.20,0.02)
-        size 34
+        size 0.10
         colour purple
 
   move_patch board:
     (0.0,0.0) -> (0.12,0.05)
-    0.0s..1.6s
+    0.0s..6.0s
 
   turn_patch graph:
     0.0 -> 0.38
-    0.0s..1.6s
+    0.0s..6.0s
 
   scale_patch graph:
     (1.0,1.0) -> (1.22,0.82)
-    0.0s..1.6s
+    0.0s..6.0s
 
   move_patch callout:
     (0.0,0.0) -> (-0.08,0.12)
-    0.0s..1.6s
+    0.0s..6.0s
 
   turn_patch callout:
     0.0 -> -0.62
-    0.0s..1.6s
+    0.0s..6.0s
 
 transition:
   type crossfade
   duration 0.35s
 
 scene "patch showcase 3d":
-  duration 1.8s
+  duration 6.5s
   background radial:
     center #ffffff
     edge #eef1f6
@@ -141,24 +141,24 @@ scene "patch showcase 3d":
 
     move_patch solids:
       (0.0,0.0,0.0) -> (-0.12,0.20,0.12)
-      0.0s..1.8s
+    0.0s..6.5s
 
     turn_patch solids:
       0.0 -> 0.58
-      0.0s..1.8s
+    0.0s..6.5s
 
     scale_patch solids:
       (1.0,1.0,1.0) -> (1.14,0.88,1.08)
-      0.0s..1.8s
+    0.0s..6.5s
 
     move_patch ribbon:
       (0.0,0.0,0.0) -> (0.00,0.28,0.10)
-      0.0s..1.8s
+    0.0s..6.5s
 
     turn_patch ribbon:
       0.0 -> -0.92
-      0.0s..1.8s
+    0.0s..6.5s
 
     scale_patch ribbon:
       (1.0,1.0,1.0) -> (1.28,0.80,1.16)
-      0.0s..1.8s
+    0.0s..6.5s

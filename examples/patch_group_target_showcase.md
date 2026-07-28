@@ -1,14 +1,14 @@
 video:
   output "patch_group_target_showcase.mp4"
 
-scene "patch group target showcase 2d" 1.7s:
+scene "patch group target showcase 2d" 6s:
   background radial:
     center #ffffff
     edge #eef1f6
 
   patch board:
-    at (0.50w,0.56h)
-    scale (210,-170)
+    at (0,0)
+    scale (0.60,0.60)
 
     patch motif:
       at (-0.10,0.06)
@@ -31,25 +31,25 @@ scene "patch group target showcase 2d" 1.7s:
 
       text note "draw/fade/move on patch name":
         at (-0.44,-0.66)
-        size 30
+        size 0.09
         colour red
 
   draw motif:
-    0.0s..0.8s
+    0.0s..2.2s
 
   move motif:
     (0.0,0.0) -> (0.30,0.14)
-    0.4s..1.3s
+    1.0s..4.2s
 
   fade motif:
     1.0 -> 0.18
-    1.0s..1.7s
+    3.5s..6.0s
 
 transition:
   type crossfade
   duration 0.35s
 
-scene "patch group target showcase 3d" 1.9s:
+scene "patch group target showcase 3d" 6.5s:
   background radial:
     center #ffffff
     edge #eef1f6
@@ -89,19 +89,19 @@ scene "patch group target showcase 3d" 1.9s:
           colour purple
 
     draw tet:
-      0.0s..0.8s
+    0.0s..2.4s
 
     draw pointer:
-      0.2s..1.0s
+    0.5s..3.0s
 
     move tet:
       (0.0,0.0,0.0) -> (0.22,0.18,0.14)
-      0.5s..1.5s
+    1.0s..5.0s
 
     move pointer:
       (0.0,0.0,0.0) -> (0.34,0.22,0.18)
-      0.5s..1.5s
+    1.0s..5.0s
 
     fade pointer:
       1.0 -> 0.10
-      1.1s..1.9s
+    4.0s..6.5s
