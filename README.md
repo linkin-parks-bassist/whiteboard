@@ -42,7 +42,7 @@ render again
 publish
 ```
 
-The spec should eventually describe scenes, timing, text, math notation, planar diagrams, 3D diagrams, layers, backgrounds, movement, jitter, blur, glow, fades, and other whiteboard-ish effects.
+The spec should eventually describe scenes, timing, text, math notation, planar diagrams, 3D diagrams, patches, backgrounds, movement, jitter, blur, glow, fades, and other whiteboard-ish effects.
 
 The target use case is maths-heavy video, including things like algebraic topology, where the author needs notation, diagrams, spaces, maps, arrows, quotient-y things, deformations, surfaces, and explanatory motion quickly.
 
@@ -100,11 +100,11 @@ Math strings are parsed directly. Use `"$\alpha+\beta$"`, not doubled backslashe
 
 Structured blocks can also carry scoped defaults. `defaults:` blocks support properties like `colour`, `thickness`, `opacity`, and `jitter`, and they now nest by indentation so inner groups can temporarily override outer styling and then fall back cleanly when that inner scope ends.
 
-There is also now a first pass at `patch:` blocks for local coordinate authoring. In 2D, a patch can translate, scale, rotate, and optionally reinterpret local `(r,theta)` pairs as polar coordinates before flattening its contents back into the current layer. In 3D, the path is still a modest parser-plus-render-time layer rather than a full scene graph, but patches can already translate, scale, and orient nested 3D primitives before they hit the existing renderer, and can now reinterpret local tuples as cartesian, cylindrical, or spherical coordinates before that flattening step.
+Patches provide local coordinate authoring only when a scene needs it. A 2D patch can translate, scale, rotate, and optionally reinterpret local `(r,theta)` pairs as polar coordinates. A 3D `space` is a patch with projection and a camera. Patches nest, compose their transforms and effects hierarchically, and preserve declaration order; a simple 2D scene can ignore all of this and write objects directly into the implicit root patch.
 
-That patch pass now also has first local animation helpers: `move_patch`, `turn_patch`, and `scale_patch`. `move_patch` works for both 2D and first-pass 3D patches by compiling to render-time per-object translations for the patch's current members, and nested parent/child patch translations now compose additively instead of clobbering each other. `turn_patch` and `scale_patch` still drive the 2D affine path, and now also have a first 3D form that applies Euler-style `(yaw,pitch,roll)` rotation plus scalar or `(sx,sy,sz)` scaling around the patch origin before projection; the old scalar `turn_patch` form still means yaw-only rotation for compatibility. Nested parent/child patch transforms now compose in render order instead of only the last one winning. Polygonal, blob-like, curve, and math-stroke 2D primitives now also follow that same patch affine path rather than partially bypassing it, and grouped/generated 3D convenience objects such as `tetra3d`, `cube3d`, and `axes3d` animate correctly inside patches because their generated members stay attached to the patch’s group bookkeeping. Named patches also participate in the same group-targeting path as other grouped objects, so generic `draw`, `fade`, and world-space `move` commands can target a patch name directly in addition to the patch-local helpers, and grouped targets can now also take explicit-pivot world-space `turn name around (...)` and `scale name around (...)` transforms. Inline and structured-block forms both work for these helpers. It is still not a full animated patch scene graph, but it is enough to make nested diagrams feel much more usable.
+`move_patch`, `turn_patch`, and `scale_patch` animate patches in both 2D and 3D. Their transforms compose through nested patches. Patch opacity, blur, glow, jitter, and camera state are likewise patch-owned, so an effect applies to a coherent subtree rather than to a separate global layer system.
 
-Every scene also starts with an implicit default layer, so ordinary single-layer specs do not need to say `layer:` at all. Scenes also default to the standard near-white radial gradient, so you only need `background:` when you want to restate or customize it. Explicit layers are still useful when you want ordering, blur, opacity, camera separation, or named layer actions.
+Every scene starts with an implicit root patch, so ordinary specs never need to declare a container. Scenes also default to the standard near-white radial gradient, so you only need `background:` when you want to restate or customize it.
 
 A rough target should feel more like this:
 
@@ -144,15 +144,13 @@ scene "fibre picture":
     opacity 0.10
 ```
 
-Current parser direction includes scenes, implicit or explicit layers, math, text, points, circles, segments, planar curves, freeform blobs, projected 3D wireframe loops, generic shaded 3D faces, sampled 3D surface patches, first-pass `mesh3d` convenience meshes, first-pass `blob3d` implicit-looking surfaces, first-pass `param3d` sampled parametric curves, first-pass `param_surface3d` sampled parametric surfaces, first-pass `volume3d` translucent shell volumes, perspective/orthographic camera blocks, grouped defaults, moves, fades, and transitions in a first pass at this more indented style.
-
-The parser now also has a first local-coordinate path via nested `patch` blocks with `at`, `scale`, `rotate`, and `coords cartesian|polar`. That is not yet a full scene-graph rewrite or a layer replacement; it is a practical first pass that composes nested local transforms and then hands ordinary flattened objects to the existing renderer.
+Current parser direction includes scenes, implicit root patches and nested patches, math, text, points, circles, segments, planar curves, freeform blobs, projected 3D wireframe loops, generic shaded 3D faces, sampled 3D surfaces, camera blocks, grouped defaults, moves, fades, and transitions.
 
 There is also now a real handwritten `text` object for ordinary labels/subtitles, so specs no longer have to abuse the math parser just to place plain words.
 
-Layers can now also carry a first-pass `glow` effect, which renders a blurred bloom copy behind the layer before compositing the sharp original.
+Patches can carry `glow`, which renders a blurred bloom copy behind the patch subtree before compositing its sharp content.
 
-3D camera blocks now also support `look_at (x,y,z)` / `target (x,y,z)` as a first real world-space aim point. That lets a layer orbit or project around something other than the implicit origin without pretending the camera system is fully finished.
+3D camera blocks support `look_at (x,y,z)` / `target (x,y,z)` as a first real world-space aim point. That lets a space orbit or project around something other than the implicit origin.
 
 `move_camera` can now animate that target too, via `target (x,y,z) -> (x,y,z)` on the camera move command, so tracking shots do not have to snap between static aim points.
 
@@ -165,16 +163,16 @@ Whiteboard should eventually support:
 - multiple scenes per video
 - scene durations and local timelines
 - per-scene backgrounds
-- ordered 2D and 3D layers
-- layer opacity and movement
-- layer-level effects such as Gaussian blur
+- nested 2D and 3D patches
+- patch opacity and movement
+- patch effects such as Gaussian blur
 - ordinary text and LaTeX-ish math text
 - handwritten captured symbols
 - draw-on animations
 - fades
 - easing/timing controls
 - object movement
-- layer movement
+- patch movement
 - camera movement
 - coherent hand-drawn jitter
 - planar figures
@@ -235,15 +233,15 @@ The likely architecture is:
 spec
   -> parser
   -> scene graph
-  -> layers
-  -> objects
-  -> layer buffers
+  -> retained patch tree
+  -> objects and child patches
+  -> private compositing surfaces
   -> effects
   -> compositing
   -> final frames
 ```
 
-Layers are rendered to intermediate buffers, effects are applied at the layer level, and layers are composited in order.
+Patches are traversed in declaration order. A patch with composited effects is rendered to a private surface, has its effects applied, and is then composited into its parent.
 
 This makes blur, glow, opacity, translation, and future effects much easier to reason about.
 
@@ -253,16 +251,16 @@ Some early infrastructure exists, including:
 
 - first minimal spec format
 - radial-gradient background support
-- offscreen layer buffers and compositing
-- layer translation
+- offscreen compositing surfaces
+- patch transforms
 - CPU-side separable Gaussian blur
-- parser work for scenes, layers, math, movement, lines, points, and open points
+- parser work for scenes, patches, math, movement, lines, points, and open points
 
 Near-term priorities:
 
-- replace transparent-black compositing with true alpha-channel layer buffers
+- improve compositing and antialiasing consistency
 - convert primitive line segments and open points to jitterable NURBS-style drawn figures
-- add explicit jitter controls for objects and layers
+- add explicit jitter controls for objects and patches
 - implement antialiasing consistently
 - fix scaling, baselines, descenders, tall operators, and awkward captured symbols
 - add first 3D primitives and camera projection
