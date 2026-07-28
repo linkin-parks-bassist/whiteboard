@@ -15,8 +15,8 @@ scene "rotating tetrahedron" duration 5s
     draw tet during 0s..0.9s
     fade backdrop from 0 to 1 during 0.15s..1.0s
   patch labels opacity 1 jitter 0.7
-    math title "$\Delta^3$" at (270,230) size 82 colour black jitter off
-    math sub "$rotating$ $tetrahedron$" at (270,310) size 52 colour grey jitter off
+    math title "$\Delta^3$" at (-0.72,0.57) size 0.15 colour black jitter off
+    math sub "$rotating$ $tetrahedron$" at (-0.72,0.42) size 0.10 colour grey jitter off
     draw title during 0s..0.7s
     draw sub during 0.2s..0.9s
 ```
