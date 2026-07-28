@@ -1,7 +1,8 @@
 #include "whiteboard.h"
 
-static wb_render_context *find_layer(wb_scene *scene, int layer_id);
 static int ensure_render_buffers(wb_scene *scene);
+static void init_render_context(wb_scene *scene);
+static wb_render_context *find_layer(wb_scene *scene, int layer_id);
 
 void init_camera(wb_camera *camera)
 {
@@ -26,7 +27,7 @@ wb_scene *new_scene()
 	result->root_viewport.center = vec2(0, 0);
 	result->root_viewport.half_height = 1.0f;
 	init_camera(&result->camera);
-	wb_scene_add_layer(result, "default", WB_LAYER_2D, WB_DEFAULT_LAYER_OPACITY);
+	init_render_context(result);
 	result->root_patch_id = wb_scene_add_patch(result, "root", 0, WB_LAYER_2D, 0);
 	result->current_patch_id = result->root_patch_id;
 	
@@ -191,19 +192,19 @@ static void apply_paper_texture(uint8_t *buf)
 	}
 }
 
-int wb_scene_add_layer(wb_scene *scene, const char *name, int type, float opacity)
+static void init_render_context(wb_scene *scene)
 {
 	wb_render_context *layer;
 	
 	if (!scene)
-		return 0;
+		return;
 	
 	layer = &scene->render_context;
 	memset(layer, 0, sizeof(*layer));
 	layer->id = 1;
-	snprintf(layer->name, sizeof(layer->name), "%s", (name && *name) ? name : "layer");
-	layer->type = type ? type : WB_LAYER_2D;
-	layer->opacity = opacity;
+	snprintf(layer->name, sizeof(layer->name), "%s", "render");
+	layer->type = WB_LAYER_2D;
+	layer->opacity = WB_DEFAULT_LAYER_OPACITY;
 	layer->render_opacity = layer->opacity;
 	layer->blur_radius = WB_DEFAULT_LAYER_BLUR_RADIUS;
 	layer->glow_radius = WB_DEFAULT_LAYER_GLOW_RADIUS;
@@ -228,7 +229,6 @@ int wb_scene_add_layer(wb_scene *scene, const char *name, int type, float opacit
 	layer->offset = vec2(WB_DEFAULT_LAYER_OFFSET_X, WB_DEFAULT_LAYER_OFFSET_Y);
 	layer->render_offset = layer->offset;
 	
-	return layer->id;
 }
 
 void wb_scene_set_layer_blur(wb_scene *scene, int layer_id, float blur_radius)
