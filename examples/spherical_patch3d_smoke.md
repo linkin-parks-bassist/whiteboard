@@ -2,7 +2,7 @@ video:
   output "spherical_patch3d_smoke.mp4"
 
 scene "spherical 3d patch smoke" 1.6s:
-  layer space 3d:
+  patch space 3d:
     camera:
       distance 7.8
       yaw 0.48

@@ -4,7 +4,7 @@ video:
 scene "nested 3d patch smoke":
   duration 0.2s
 
-  layer space 3d:
+  patch space 3d:
     camera:
       distance 7.2
       yaw 0.55

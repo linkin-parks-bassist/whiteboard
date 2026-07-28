@@ -4,7 +4,7 @@ video:
 scene "structured patch 3d animation smoke":
   duration 1.2s
 
-  layer space 3d:
+  patch space 3d:
     camera:
       distance 7.2
       yaw 0.46

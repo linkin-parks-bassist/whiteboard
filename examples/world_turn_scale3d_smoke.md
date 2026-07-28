@@ -2,7 +2,7 @@ video:
   output "world_turn_scale3d_smoke.mp4"
 
 scene "world turn scale 3d smoke" 1.6s:
-  layer space 3d:
+  patch space 3d:
     camera:
       distance 7.8
       yaw 0.50
@@ -30,12 +30,6 @@ scene "world turn scale 3d smoke" 1.6s:
           radius 8
           colour purple
 
-    turn rig:
-      around (0.0,0.0,0.0)
-      (0.0,0.0,0.0) -> (0.76,0.28,-0.18)
-      0.0s..1.6s
+    turn_patch rig (0.0,0.0,0.0) -> (0.76,0.28,-0.18) 0.0s..1.6s
 
-    scale rig:
-      around (0.0,0.0,0.0)
-      (1.0,1.0,1.0) -> (1.14,0.90,1.10)
-      0.0s..1.6s
+    scale_patch rig (1.0,1.0,1.0) -> (1.14,0.90,1.10) 0.0s..1.6s

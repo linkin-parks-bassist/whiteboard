@@ -2,7 +2,7 @@ video:
   output "move_group3d_patch_smoke.mp4"
 
 scene "move group 3d patch smoke" 1.4s:
-  layer space 3d:
+  patch space 3d:
     camera:
       distance 7.4
       yaw 0.52

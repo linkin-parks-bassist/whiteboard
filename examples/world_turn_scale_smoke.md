@@ -24,12 +24,6 @@ scene "world turn scale smoke" 1.5s:
         size 30
         colour red
 
-  turn motif:
-    around (0.50w,0.56h)
-    0.0 -> 0.58
-    0.0s..1.5s
+  turn_patch motif 0.0 -> 0.58 0.0s..1.5s
 
-  scale motif:
-    around (0.50w,0.56h)
-    1.0 -> 1.18
-    0.0s..1.5s
+  scale_patch motif 1.0 -> 1.18 0.0s..1.5s

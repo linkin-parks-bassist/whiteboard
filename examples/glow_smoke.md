@@ -7,9 +7,7 @@ scene "glow smoke":
     center #ffffff
     edge #eef1f6
 
-  layer halo:
-    glow 16
-    glow_opacity 0.35
+  patch halo glow 16 glow_opacity 0.35:
 
     text note "glow":
       (0.50w,0.52h)

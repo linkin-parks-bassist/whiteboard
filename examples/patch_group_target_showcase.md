@@ -54,7 +54,7 @@ scene "patch group target showcase 3d" 1.9s:
     center #ffffff
     edge #eef1f6
 
-  layer space 3d:
+  patch space 3d:
     camera:
       distance 7.8
       yaw 0.52

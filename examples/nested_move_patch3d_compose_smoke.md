@@ -4,7 +4,7 @@ video:
 scene "nested move patch 3d compose":
   duration 1.2s
 
-  layer space 3d:
+  patch space 3d:
     camera:
       distance 7.0
       yaw 0.44

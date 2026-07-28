@@ -2,7 +2,7 @@ video:
   output "draw_fade_group3d_smoke.mp4"
 
 scene "draw fade group 3d smoke" 1.7s:
-  layer space 3d:
+  patch space 3d:
     camera:
       distance 7.6
       yaw 0.50

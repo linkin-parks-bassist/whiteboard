@@ -1,8 +1,7 @@
 scene "move-camera target smoke":
   0.20s
 
-  layer space:
-    type 3d
+  space space:
 
     camera:
       distance 6.0

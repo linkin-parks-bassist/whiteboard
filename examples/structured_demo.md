@@ -20,9 +20,7 @@ scene "structured demo":
     at (0.50w,0.42h)
     size 110
 
-  layer halo:
-    glow 14
-    glow_opacity 0.30
+  patch halo glow 14 glow_opacity 0.30:
 
     text note "plain subtitle":
       (0.50w,0.60h)

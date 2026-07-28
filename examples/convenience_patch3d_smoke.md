@@ -4,7 +4,7 @@ video:
 scene "convenience patch 3d smoke":
   duration 1.2s
 
-  layer space 3d:
+  patch space 3d:
     camera:
       distance 7.4
       yaw 0.52

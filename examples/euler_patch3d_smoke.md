@@ -2,7 +2,7 @@ video:
   output "euler_patch3d_smoke.mp4"
 
 scene "euler patch 3d smoke" 1.4s:
-  layer space 3d:
+  patch space 3d:
     camera:
       distance 7.6
       yaw 0.54

@@ -2,7 +2,7 @@ video:
   output "cylindrical_patch3d_smoke.mp4"
 
 scene "cylindrical 3d patch smoke" 1.5s:
-  layer space 3d:
+  patch space 3d:
     camera:
       distance 7.4
       yaw 0.56

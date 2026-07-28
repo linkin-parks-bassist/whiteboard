@@ -91,7 +91,7 @@ scene "patch showcase 3d":
     center #ffffff
     edge #eef1f6
 
-  layer space 3d:
+  patch space 3d:
     camera:
       distance 7.4
       yaw 0.50

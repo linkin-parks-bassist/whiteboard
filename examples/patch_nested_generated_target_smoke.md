@@ -2,7 +2,7 @@ video:
   output "patch_nested_generated_target_smoke.mp4"
 
 scene "patch nested generated target smoke" 1.8s:
-  layer space 3d:
+  patch space 3d:
     camera:
       distance 7.8
       yaw 0.52

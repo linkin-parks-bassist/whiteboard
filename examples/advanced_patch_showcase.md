@@ -65,7 +65,7 @@ scene "advanced patch showcase 3d" 2.0s:
     center #ffffff
     edge #eef1f6
 
-  layer space 3d:
+  patch space 3d:
     camera:
       distance 8.0
       yaw 0.54
