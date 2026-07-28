@@ -2,7 +2,6 @@
 
 static int ensure_render_buffers(wb_scene *scene);
 static void init_render_context(wb_scene *scene);
-static wb_render_context *find_layer(wb_scene *scene, int layer_id);
 
 void init_camera(wb_camera *camera)
 {
@@ -28,7 +27,7 @@ wb_scene *new_scene()
 	result->root_viewport.half_height = 1.0f;
 	init_camera(&result->camera);
 	init_render_context(result);
-	result->root_patch_id = wb_scene_add_patch(result, "root", 0, WB_LAYER_2D, 0);
+	result->root_patch_id = wb_scene_add_patch(result, "root", 0, WB_DIMENSION_2D, 0);
 	result->current_patch_id = result->root_patch_id;
 	
 	return result;
@@ -51,20 +50,20 @@ void free_scene(wb_scene *scene)
 	free(scene->objects);
 	free(scene->actions);
 	free(scene->render_scratch_alpha);
-	free(scene->render_layer_alpha);
+	free(scene->render_content_alpha);
 	free(scene->render_glow_alpha);
 	free(scene->render_scratch_buf);
-	free(scene->render_layer_buf);
+	free(scene->render_content_buf);
 	free(scene->render_glow_buf);
 	free(scene);
 }
 
 static int ensure_render_buffers(wb_scene *scene)
 {
-	uint8_t *layer_buf;
+	uint8_t *content_buf;
 	uint8_t *scratch_buf;
 	uint8_t *glow_buf;
-	uint8_t *layer_alpha;
+	uint8_t *content_alpha;
 	uint8_t *scratch_alpha;
 	uint8_t *glow_alpha;
 	size_t colour_bytes;
@@ -73,60 +72,60 @@ static int ensure_render_buffers(wb_scene *scene)
 	if (!scene)
 		return 0;
 	
-	if (scene->render_layer_buf && scene->render_scratch_buf && scene->render_glow_buf &&
-		scene->render_layer_alpha && scene->render_scratch_alpha && scene->render_glow_alpha)
+	if (scene->render_content_buf && scene->render_scratch_buf && scene->render_glow_buf &&
+		scene->render_content_alpha && scene->render_scratch_alpha && scene->render_glow_alpha)
 		return 1;
 	
 	colour_bytes = (size_t)WIDTH * (size_t)HEIGHT * 3u;
 	alpha_bytes = (size_t)WIDTH * (size_t)HEIGHT;
-	layer_buf = malloc(colour_bytes);
-	if (!layer_buf)
+	content_buf = malloc(colour_bytes);
+	if (!content_buf)
 		return 0;
 	scratch_buf = malloc(colour_bytes);
 	if (!scratch_buf)
 	{
-		free(layer_buf);
+		free(content_buf);
 		return 0;
 	}
 	glow_buf = malloc(colour_bytes);
 	if (!glow_buf)
 	{
 		free(scratch_buf);
-		free(layer_buf);
+		free(content_buf);
 		return 0;
 	}
-	layer_alpha = malloc(alpha_bytes);
-	if (!layer_alpha)
+	content_alpha = malloc(alpha_bytes);
+	if (!content_alpha)
 	{
 		free(glow_buf);
 		free(scratch_buf);
-		free(layer_buf);
+		free(content_buf);
 		return 0;
 	}
 	scratch_alpha = malloc(alpha_bytes);
 	if (!scratch_alpha)
 	{
-		free(layer_alpha);
+		free(content_alpha);
 		free(glow_buf);
 		free(scratch_buf);
-		free(layer_buf);
+		free(content_buf);
 		return 0;
 	}
 	glow_alpha = malloc(alpha_bytes);
 	if (!glow_alpha)
 	{
 		free(scratch_alpha);
-		free(layer_alpha);
+		free(content_alpha);
 		free(glow_buf);
 		free(scratch_buf);
-		free(layer_buf);
+		free(content_buf);
 		return 0;
 	}
 	
-	scene->render_layer_buf = layer_buf;
+	scene->render_content_buf = content_buf;
 	scene->render_scratch_buf = scratch_buf;
 	scene->render_glow_buf = glow_buf;
-	scene->render_layer_alpha = layer_alpha;
+	scene->render_content_alpha = content_alpha;
 	scene->render_scratch_alpha = scratch_alpha;
 	scene->render_glow_alpha = glow_alpha;
 	return 1;
@@ -194,135 +193,41 @@ static void apply_paper_texture(uint8_t *buf)
 
 static void init_render_context(wb_scene *scene)
 {
-	wb_render_context *layer;
+	wb_render_context *context;
 	
 	if (!scene)
 		return;
 	
-	layer = &scene->render_context;
-	memset(layer, 0, sizeof(*layer));
-	layer->id = 1;
-	snprintf(layer->name, sizeof(layer->name), "%s", "render");
-	layer->type = WB_LAYER_2D;
-	layer->opacity = WB_DEFAULT_LAYER_OPACITY;
-	layer->render_opacity = layer->opacity;
-	layer->blur_radius = WB_DEFAULT_LAYER_BLUR_RADIUS;
-	layer->glow_radius = WB_DEFAULT_LAYER_GLOW_RADIUS;
-	layer->glow_opacity = WB_DEFAULT_LAYER_GLOW_OPACITY;
-	layer->jitter_strength = WB_DEFAULT_LAYER_JITTER_STRENGTH;
-	layer->jitter_explicit = 0;
-	layer->render_jitter_strength = layer->jitter_strength;
-	layer->camera_distance = WB_DEFAULT_LAYER_CAMERA_DISTANCE;
-	layer->camera_scale = WB_DEFAULT_LAYER_CAMERA_SCALE;
-	layer->camera_yaw = WB_DEFAULT_LAYER_CAMERA_YAW;
-	layer->camera_projection = WB_DEFAULT_LAYER_CAMERA_PROJECTION;
-	layer->camera_center = vec2(WB_DEFAULT_LAYER_CAMERA_CENTER_X, WB_DEFAULT_LAYER_CAMERA_CENTER_Y);
-	layer->camera_target_explicit = 0;
-	layer->camera_target = vec3(0, 0, 0);
-	layer->render_camera_distance = layer->camera_distance;
-	layer->render_camera_scale = layer->camera_scale;
-	layer->render_camera_yaw = layer->camera_yaw;
-	layer->render_camera_projection = layer->camera_projection;
-	layer->render_camera_center = layer->camera_center;
-	layer->render_camera_target_explicit = layer->camera_target_explicit;
-	layer->render_camera_target = layer->camera_target;
-	layer->offset = vec2(WB_DEFAULT_LAYER_OFFSET_X, WB_DEFAULT_LAYER_OFFSET_Y);
-	layer->render_offset = layer->offset;
+	context = &scene->render_context;
+	memset(context, 0, sizeof(*context));
+	context->id = 1;
+	snprintf(context->name, sizeof(context->name), "%s", "render");
+	context->type = WB_DIMENSION_2D;
+	context->opacity = WB_DEFAULT_PATCH_OPACITY;
+	context->render_opacity = context->opacity;
+	context->blur_radius = WB_DEFAULT_PATCH_BLUR_RADIUS;
+	context->glow_radius = WB_DEFAULT_PATCH_GLOW_RADIUS;
+	context->glow_opacity = WB_DEFAULT_PATCH_GLOW_OPACITY;
+	context->jitter_strength = WB_DEFAULT_PATCH_JITTER_STRENGTH;
+	context->jitter_explicit = 0;
+	context->render_jitter_strength = context->jitter_strength;
+	context->camera_distance = WB_DEFAULT_PATCH_CAMERA_DISTANCE;
+	context->camera_scale = WB_DEFAULT_PATCH_CAMERA_SCALE;
+	context->camera_yaw = WB_DEFAULT_PATCH_CAMERA_YAW;
+	context->camera_projection = WB_DEFAULT_PATCH_CAMERA_PROJECTION;
+	context->camera_center = vec2(WB_DEFAULT_PATCH_CAMERA_CENTER_X, WB_DEFAULT_PATCH_CAMERA_CENTER_Y);
+	context->camera_target_explicit = 0;
+	context->camera_target = vec3(0, 0, 0);
+	context->render_camera_distance = context->camera_distance;
+	context->render_camera_scale = context->camera_scale;
+	context->render_camera_yaw = context->camera_yaw;
+	context->render_camera_projection = context->camera_projection;
+	context->render_camera_center = context->camera_center;
+	context->render_camera_target_explicit = context->camera_target_explicit;
+	context->render_camera_target = context->camera_target;
+	context->offset = vec2(WB_DEFAULT_PATCH_OFFSET_X, WB_DEFAULT_PATCH_OFFSET_Y);
+	context->render_offset = context->offset;
 	
-}
-
-void wb_scene_set_layer_blur(wb_scene *scene, int layer_id, float blur_radius)
-{
-	wb_render_context *layer = find_layer(scene, layer_id);
-	
-	if (!layer)
-		return;
-	
-	if (blur_radius < WB_MIN_OPACITY)
-		blur_radius = WB_MIN_OPACITY;
-	if (blur_radius > WB_MAX_LAYER_BLUR_RADIUS)
-		blur_radius = WB_MAX_LAYER_BLUR_RADIUS;
-	
-	layer->blur_radius = blur_radius;
-}
-
-void wb_scene_set_layer_glow(wb_scene *scene, int layer_id, float glow_radius, float glow_opacity)
-{
-	wb_render_context *layer = find_layer(scene, layer_id);
-	
-	if (!layer)
-		return;
-	
-	if (glow_radius < WB_MIN_OPACITY)
-		glow_radius = WB_MIN_OPACITY;
-	if (glow_radius > WB_MAX_LAYER_BLUR_RADIUS)
-		glow_radius = WB_MAX_LAYER_BLUR_RADIUS;
-	if (glow_opacity < WB_MIN_OPACITY)
-		glow_opacity = WB_MIN_OPACITY;
-	if (glow_opacity > WB_MAX_OPACITY)
-		glow_opacity = WB_MAX_OPACITY;
-	
-	layer->glow_radius = glow_radius;
-	layer->glow_opacity = glow_opacity;
-}
-
-void wb_scene_set_layer_jitter(wb_scene *scene, int layer_id, float jitter_strength)
-{
-	wb_render_context *layer = find_layer(scene, layer_id);
-	
-	if (!layer)
-		return;
-	
-	if (jitter_strength < WB_MIN_JITTER_STRENGTH)
-		jitter_strength = WB_MIN_JITTER_STRENGTH;
-	layer->jitter_strength = jitter_strength;
-	layer->jitter_explicit = 1;
-	layer->render_jitter_strength = jitter_strength;
-}
-
-void wb_scene_set_layer_camera(wb_scene *scene, int layer_id, float distance, float scale, float yaw, int projection, float center_x, float center_y)
-{
-	wb_render_context *layer = find_layer(scene, layer_id);
-	
-	if (!layer)
-		return;
-	
-	if (distance < WB_MIN_LAYER_CAMERA_DISTANCE)
-		distance = WB_MIN_LAYER_CAMERA_DISTANCE;
-	if (scale < WB_MIN_LAYER_CAMERA_SCALE)
-		scale = WB_MIN_LAYER_CAMERA_SCALE;
-	
-	layer->camera_distance = distance;
-	layer->camera_scale = scale;
-	layer->camera_yaw = yaw;
-	layer->camera_projection = projection == WB_CAMERA_PROJECTION_ORTHOGRAPHIC ? WB_CAMERA_PROJECTION_ORTHOGRAPHIC : WB_CAMERA_PROJECTION_PERSPECTIVE;
-	layer->camera_center = vec2(center_x, center_y);
-	layer->render_camera_distance = layer->camera_distance;
-	layer->render_camera_scale = layer->camera_scale;
-	layer->render_camera_yaw = layer->camera_yaw;
-	layer->render_camera_projection = layer->camera_projection;
-	layer->render_camera_center = layer->camera_center;
-}
-
-void wb_scene_set_layer_camera_target(wb_scene *scene, int layer_id, int explicit_target, float x, float y, float z)
-{
-	wb_render_context *layer = find_layer(scene, layer_id);
-	
-	if (!layer)
-		return;
-	
-	layer->camera_target_explicit = explicit_target ? 1 : 0;
-	layer->camera_target = vec3(x, y, z);
-	layer->render_camera_target_explicit = layer->camera_target_explicit;
-	layer->render_camera_target = layer->camera_target;
-}
-
-void wb_scene_set_current_layer(wb_scene *scene, int layer_id)
-{
-	if (!scene)
-		return;
-	
-	(void)layer_id;
 }
 
 static wb_scene_object *find_object(wb_scene *scene, int object_id)
@@ -337,14 +242,6 @@ static wb_scene_object *find_object(wb_scene *scene, int object_id)
 	}
 	
 	return NULL;
-}
-
-static wb_render_context *find_layer(wb_scene *scene, int layer_id)
-{
-	if (!scene)
-		return NULL;
-	
-	return scene->render_context.id == layer_id ? &scene->render_context : NULL;
 }
 
 wb_scene_patch *wb_scene_find_patch(wb_scene *scene, int patch_id)
@@ -383,22 +280,22 @@ int wb_scene_add_patch(wb_scene *scene, const char *name, int parent_id, int dim
 	patch->parent_id = parent_id;
 	patch->draw_order = ++scene->next_draw_order;
 	snprintf(patch->name, sizeof(patch->name), "%s", (name && *name) ? name : "patch");
-	patch->dimension = dimension == WB_LAYER_3D ? WB_LAYER_3D : WB_LAYER_2D;
+	patch->dimension = dimension == WB_DIMENSION_3D ? WB_DIMENSION_3D : WB_DIMENSION_2D;
 	patch->coord_type = coord_type;
 	patch->scale = vec2(1, 1);
 	patch->scale3 = vec3(1, 1, 1);
 	patch->opacity = 1.0f;
 	patch->render_opacity = patch->opacity;
-	patch->glow_opacity = WB_DEFAULT_LAYER_GLOW_OPACITY;
-	patch->jitter_strength = WB_DEFAULT_LAYER_JITTER_STRENGTH;
+	patch->glow_opacity = WB_DEFAULT_PATCH_GLOW_OPACITY;
+	patch->jitter_strength = WB_DEFAULT_PATCH_JITTER_STRENGTH;
 	patch->render_jitter_strength = patch->jitter_strength;
 	patch->render_translation = vec2(0, 0);
 	patch->render_translation3d = vec3(0, 0, 0);
-	patch->camera_distance = WB_DEFAULT_LAYER_CAMERA_DISTANCE;
-	patch->camera_scale = WB_DEFAULT_LAYER_CAMERA_SCALE;
-	patch->camera_yaw = WB_DEFAULT_LAYER_CAMERA_YAW;
-	patch->camera_projection = WB_DEFAULT_LAYER_CAMERA_PROJECTION;
-	patch->camera_center = vec2(WB_DEFAULT_LAYER_CAMERA_CENTER_X, WB_DEFAULT_LAYER_CAMERA_CENTER_Y);
+	patch->camera_distance = WB_DEFAULT_PATCH_CAMERA_DISTANCE;
+	patch->camera_scale = WB_DEFAULT_PATCH_CAMERA_SCALE;
+	patch->camera_yaw = WB_DEFAULT_PATCH_CAMERA_YAW;
+	patch->camera_projection = WB_DEFAULT_PATCH_CAMERA_PROJECTION;
+	patch->camera_center = vec2(WB_DEFAULT_PATCH_CAMERA_CENTER_X, WB_DEFAULT_PATCH_CAMERA_CENTER_Y);
 	patch->camera_target = vec3(0, 0, 0);
 	patch->render_camera_distance = patch->camera_distance;
 	patch->render_camera_scale = patch->camera_scale;
@@ -1421,8 +1318,8 @@ void wb_scene_set_patch_camera(wb_scene *scene, int patch_id, float distance, fl
 {
 	wb_scene_patch *patch = wb_scene_find_patch(scene, patch_id);
 	if (!patch) return;
-	patch->camera_distance = binary_max(WB_MIN_LAYER_CAMERA_DISTANCE, distance);
-	patch->camera_scale = binary_max(WB_MIN_LAYER_CAMERA_SCALE, scale);
+	patch->camera_distance = binary_max(WB_MIN_PATCH_CAMERA_DISTANCE, distance);
+	patch->camera_scale = binary_max(WB_MIN_PATCH_CAMERA_SCALE, scale);
 	patch->camera_yaw = yaw;
 	patch->camera_projection = projection;
 	patch->camera_center = center;
@@ -1870,7 +1767,7 @@ static int unpack_object_points(const wb_scene_object *obj, wb_vec2 *points, int
 	return n_points;
 }
 
-static int build_blob_outline_points(const wb_scene_object *obj, wb_vec2 layer_offset, wb_vec2 *out_points, int cap)
+static int build_blob_outline_points(const wb_scene_object *obj, wb_vec2 context_offset, wb_vec2 *out_points, int cap)
 {
 	wb_vec2 controls[7];
 	int n_controls;
@@ -1898,8 +1795,8 @@ static int build_blob_outline_points(const wb_scene_object *obj, wb_vec2 layer_o
 			if (out_n >= cap)
 				return out_n;
 			out_points[out_n++] = vec2(
-				(start.x * u * u + 2.0f * curr.x * u * t + end.x * t * t) + layer_offset.x,
-				(start.y * u * u + 2.0f * curr.y * u * t + end.y * t * t) + layer_offset.y);
+				(start.x * u * u + 2.0f * curr.x * u * t + end.x * t * t) + context_offset.x,
+				(start.y * u * u + 2.0f * curr.y * u * t + end.y * t * t) + context_offset.y);
 		}
 	}
 	
@@ -1938,15 +1835,15 @@ static void draw_hand_ellipse(uint8_t *buf, float x, float y, float radius_x, fl
 	free_nurbs_pcurve(curve);
 }
 
-static int project_3d_point(wb_vec3 p, wb_render_context *layer, wb_vec2 *out)
+static int project_3d_point(wb_vec3 p, wb_render_context *context, wb_vec2 *out)
 {
-	float camera_distance = layer ? layer->render_camera_distance : WB_DEFAULT_LAYER_CAMERA_DISTANCE;
-	float scale = layer ? layer->render_camera_scale : WB_DEFAULT_LAYER_CAMERA_SCALE;
-	float yaw = layer ? layer->render_camera_yaw : WB_DEFAULT_LAYER_CAMERA_YAW;
-	int projection = layer ? layer->render_camera_projection : WB_DEFAULT_LAYER_CAMERA_PROJECTION;
-	wb_vec2 center = layer ? layer->render_camera_center : vec2(WB_DEFAULT_LAYER_CAMERA_CENTER_X, WB_DEFAULT_LAYER_CAMERA_CENTER_Y);
-	wb_vec3 target = layer ? layer->render_camera_target : vec3(0, 0, 0);
-	int target_explicit = layer ? layer->render_camera_target_explicit : 0;
+	float camera_distance = context ? context->render_camera_distance : WB_DEFAULT_PATCH_CAMERA_DISTANCE;
+	float scale = context ? context->render_camera_scale : WB_DEFAULT_PATCH_CAMERA_SCALE;
+	float yaw = context ? context->render_camera_yaw : WB_DEFAULT_PATCH_CAMERA_YAW;
+	int projection = context ? context->render_camera_projection : WB_DEFAULT_PATCH_CAMERA_PROJECTION;
+	wb_vec2 center = context ? context->render_camera_center : vec2(WB_DEFAULT_PATCH_CAMERA_CENTER_X, WB_DEFAULT_PATCH_CAMERA_CENTER_Y);
+	wb_vec3 target = context ? context->render_camera_target : vec3(0, 0, 0);
+	int target_explicit = context ? context->render_camera_target_explicit : 0;
 	float c = cosf(yaw);
 	float s = sinf(yaw);
 	if (target_explicit)
@@ -1963,20 +1860,20 @@ static int project_3d_point(wb_vec3 p, wb_render_context *layer, wb_vec2 *out)
 		out->y = center.y - p.y * scale;
 		return 1;
 	}
-	if (z <= WB_MIN_LAYER_CAMERA_DISTANCE)
+	if (z <= WB_MIN_PATCH_CAMERA_DISTANCE)
 		return 0;
 	out->x = center.x + (rx / z) * scale;
 	out->y = center.y - (p.y / z) * scale;
 	return 1;
 }
 
-static int build_projected_curve3d(wb_stack_quad_curve *storage, wb_vec3 q0, wb_vec3 q1, wb_vec3 q2, wb_render_context *layer)
+static int build_projected_curve3d(wb_stack_quad_curve *storage, wb_vec3 q0, wb_vec3 q1, wb_vec3 q2, wb_render_context *context)
 {
 	wb_vec2 p0;
 	wb_vec2 p1;
 	wb_vec2 p2;
 	
-	if (!storage || !project_3d_point(q0, layer, &p0) || !project_3d_point(q1, layer, &p1) || !project_3d_point(q2, layer, &p2))
+	if (!storage || !project_3d_point(q0, context, &p0) || !project_3d_point(q1, context, &p1) || !project_3d_point(q2, context, &p2))
 		return 0;
 	
 	init_stack_nurbs(&storage->nx, 2, 3, storage->x_knots, storage->x_control_points, storage->x_weights);
@@ -2083,12 +1980,12 @@ static wb_vec3 transform_object_point3d_seq(wb_vec3 p, const wb_scene_object *ob
 	return p;
 }
 
-static void draw_scene_object(wb_scene *scene, wb_scene_object *obj, wb_render_context *layer, int frame, uint8_t *buf)
+static void draw_scene_object(wb_scene *scene, wb_scene_object *obj, wb_render_context *context, int frame, uint8_t *buf)
 {
 	wb_scene_object rendered;
 	wb_render_context patch_camera;
 	wb_scene_patch *patch;
-	wb_vec2 layer_offset;
+	wb_vec2 context_offset;
 	wb_vec2 object_offset;
 	wb_vec3 object_offset3d;
 	float jitter_strength;
@@ -2098,9 +1995,9 @@ static void draw_scene_object(wb_scene *scene, wb_scene_object *obj, wb_render_c
 	patch = wb_scene_find_patch(scene, obj->patch_id);
 	for (wb_scene_patch *ancestor = patch; ancestor; ancestor = wb_scene_find_patch(scene, ancestor->parent_id))
 	{
-		if (ancestor->dimension == WB_LAYER_3D)
+		if (ancestor->dimension == WB_DIMENSION_3D)
 		{
-			patch_camera = *layer;
+			patch_camera = *context;
 			patch_camera.render_camera_distance = ancestor->render_camera_distance;
 			patch_camera.render_camera_scale = ancestor->render_camera_scale;
 			patch_camera.render_camera_yaw = ancestor->render_camera_yaw;
@@ -2108,7 +2005,7 @@ static void draw_scene_object(wb_scene *scene, wb_scene_object *obj, wb_render_c
 			patch_camera.render_camera_center = ancestor->render_camera_center;
 			patch_camera.render_camera_target_explicit = ancestor->render_camera_target_explicit;
 			patch_camera.render_camera_target = ancestor->render_camera_target;
-			layer = &patch_camera;
+			context = &patch_camera;
 			break;
 		}
 	}
@@ -2132,7 +2029,7 @@ static void draw_scene_object(wb_scene *scene, wb_scene_object *obj, wb_render_c
 	}
 	obj = &rendered;
 	
-	layer_offset = layer ? layer->render_offset : vec2(0, 0);
+	context_offset = context ? context->render_offset : vec2(0, 0);
 	object_offset = obj->render_translation;
 	object_offset3d = obj->render_translation3d;
 	for (wb_scene_patch *ancestor = patch; ancestor; ancestor = wb_scene_find_patch(scene, ancestor->parent_id))
@@ -2147,14 +2044,14 @@ static void draw_scene_object(wb_scene *scene, wb_scene_object *obj, wb_render_c
 		jitter_strength = obj->render_jitter_strength;
 	else if (patch && patch->jitter_explicit)
 		jitter_strength = patch->render_jitter_strength;
-	else if (layer && layer->jitter_explicit)
-		jitter_strength = layer->render_jitter_strength;
+	else if (context && context->jitter_explicit)
+		jitter_strength = context->render_jitter_strength;
 	else
-		jitter_strength = binary_max(obj->render_jitter_strength, (layer ? layer->render_jitter_strength : WB_DEFAULT_LAYER_JITTER_STRENGTH));
+		jitter_strength = binary_max(obj->render_jitter_strength, (context ? context->render_jitter_strength : WB_DEFAULT_PATCH_JITTER_STRENGTH));
 	
 	if (obj->type == WB_OBJECT_MATH)
 	{
-		wb_vec2 anchor = transform_object_point_seq(vec2(obj->x + layer_offset.x + object_offset.x, obj->y + layer_offset.y + object_offset.y), obj);
+		wb_vec2 anchor = transform_object_point_seq(vec2(obj->x + context_offset.x + object_offset.x, obj->y + context_offset.y + object_offset.y), obj);
 		float size = transform_object_radius_seq(obj->size, obj);
 		float stroke_scale = transform_object_radius_seq(obj->thickness, obj);
 		wb_set_math_jitter_strength(jitter_strength);
@@ -2165,16 +2062,16 @@ static void draw_scene_object(wb_scene *scene, wb_scene_object *obj, wb_render_c
 	}
 	else if (obj->type == WB_OBJECT_TEXT)
 	{
-		wb_vec2 anchor = transform_object_point_seq(vec2(obj->x + layer_offset.x + object_offset.x, obj->y + layer_offset.y + object_offset.y), obj);
+		wb_vec2 anchor = transform_object_point_seq(vec2(obj->x + context_offset.x + object_offset.x, obj->y + context_offset.y + object_offset.y), obj);
 		float size = transform_object_radius_seq(obj->size, obj);
 		draw_string_with_alpha(buf, obj->text, (int)roundf(anchor.x), (int)roundf(anchor.y), (int)roundf(size), obj->colour, jitter_strength, obj->render_alpha, obj->draw_progress);
 	}
 	else if (obj->type == WB_OBJECT_CURVE)
 	{
 		wb_stack_quad_curve curve_storage;
-		wb_vec2 a = transform_object_point_seq(vec2(obj->p0.x + layer_offset.x + object_offset.x, obj->p0.y + layer_offset.y + object_offset.y), obj);
-		wb_vec2 b = transform_object_point_seq(vec2(obj->p1.x + layer_offset.x + object_offset.x, obj->p1.y + layer_offset.y + object_offset.y), obj);
-		wb_vec2 c = transform_object_point_seq(vec2(obj->x + layer_offset.x + object_offset.x, obj->y + layer_offset.y + object_offset.y), obj);
+		wb_vec2 a = transform_object_point_seq(vec2(obj->p0.x + context_offset.x + object_offset.x, obj->p0.y + context_offset.y + object_offset.y), obj);
+		wb_vec2 b = transform_object_point_seq(vec2(obj->p1.x + context_offset.x + object_offset.x, obj->p1.y + context_offset.y + object_offset.y), obj);
+		wb_vec2 c = transform_object_point_seq(vec2(obj->x + context_offset.x + object_offset.x, obj->y + context_offset.y + object_offset.y), obj);
 		
 		if (!build_curve2d(&curve_storage, a, b, c))
 			return;
@@ -2185,54 +2082,54 @@ static void draw_scene_object(wb_scene *scene, wb_scene_object *obj, wb_render_c
 	}
 	else if (obj->type == WB_OBJECT_LINE)
 	{
-		wb_vec2 a = transform_object_point_seq(vec2(obj->x + obj->p0.x + layer_offset.x + object_offset.x, obj->y + obj->p0.y + layer_offset.y + object_offset.y), obj);
-		wb_vec2 b = transform_object_point_seq(vec2(obj->x + obj->p1.x + layer_offset.x + object_offset.x, obj->y + obj->p1.y + layer_offset.y + object_offset.y), obj);
+		wb_vec2 a = transform_object_point_seq(vec2(obj->x + obj->p0.x + context_offset.x + object_offset.x, obj->y + obj->p0.y + context_offset.y + object_offset.y), obj);
+		wb_vec2 b = transform_object_point_seq(vec2(obj->x + obj->p1.x + context_offset.x + object_offset.x, obj->y + obj->p1.y + context_offset.y + object_offset.y), obj);
 		draw_hand_line(buf, a, b, transform_object_radius_seq(obj->thickness, obj), obj->colour, jitter_strength, frame + obj->id * 4099, obj->draw_progress);
 	}
 	else if (obj->type == WB_OBJECT_RAY)
 	{
-		wb_vec2 a = transform_object_point_seq(vec2(obj->x + obj->p0.x + layer_offset.x + object_offset.x, obj->y + obj->p0.y + layer_offset.y + object_offset.y), obj);
-		wb_vec2 through = transform_object_point_seq(vec2(obj->x + obj->p1.x + layer_offset.x + object_offset.x, obj->y + obj->p1.y + layer_offset.y + object_offset.y), obj);
+		wb_vec2 a = transform_object_point_seq(vec2(obj->x + obj->p0.x + context_offset.x + object_offset.x, obj->y + obj->p0.y + context_offset.y + object_offset.y), obj);
+		wb_vec2 through = transform_object_point_seq(vec2(obj->x + obj->p1.x + context_offset.x + object_offset.x, obj->y + obj->p1.y + context_offset.y + object_offset.y), obj);
 		draw_hand_line(buf, a, extend_ray_endpoint(a, through), transform_object_radius_seq(obj->thickness, obj), obj->colour, jitter_strength, frame + obj->id * 4421, obj->draw_progress);
 	}
 	else if (obj->type == WB_OBJECT_DOTTED_LINE)
 	{
-		wb_vec2 a = transform_object_point_seq(vec2(obj->x + obj->p0.x + layer_offset.x + object_offset.x, obj->y + obj->p0.y + layer_offset.y + object_offset.y), obj);
-		wb_vec2 b = transform_object_point_seq(vec2(obj->x + obj->p1.x + layer_offset.x + object_offset.x, obj->y + obj->p1.y + layer_offset.y + object_offset.y), obj);
+		wb_vec2 a = transform_object_point_seq(vec2(obj->x + obj->p0.x + context_offset.x + object_offset.x, obj->y + obj->p0.y + context_offset.y + object_offset.y), obj);
+		wb_vec2 b = transform_object_point_seq(vec2(obj->x + obj->p1.x + context_offset.x + object_offset.x, obj->y + obj->p1.y + context_offset.y + object_offset.y), obj);
 		draw_hand_dotted_line(buf, a, b, transform_object_radius_seq(obj->thickness, obj), transform_object_radius_seq(obj->size, obj), obj->colour, jitter_strength, frame + obj->id * 5003, obj->draw_progress);
 	}
 	else if (obj->type == WB_OBJECT_DASHED_LINE)
 	{
-		wb_vec2 a = transform_object_point_seq(vec2(obj->x + obj->p0.x + layer_offset.x + object_offset.x, obj->y + obj->p0.y + layer_offset.y + object_offset.y), obj);
-		wb_vec2 b = transform_object_point_seq(vec2(obj->x + obj->p1.x + layer_offset.x + object_offset.x, obj->y + obj->p1.y + layer_offset.y + object_offset.y), obj);
+		wb_vec2 a = transform_object_point_seq(vec2(obj->x + obj->p0.x + context_offset.x + object_offset.x, obj->y + obj->p0.y + context_offset.y + object_offset.y), obj);
+		wb_vec2 b = transform_object_point_seq(vec2(obj->x + obj->p1.x + context_offset.x + object_offset.x, obj->y + obj->p1.y + context_offset.y + object_offset.y), obj);
 		draw_hand_dashed_line(buf, a, b, transform_object_radius_seq(obj->thickness, obj), transform_object_radius_seq(obj->size, obj), obj->colour, jitter_strength, frame + obj->id * 5333, obj->draw_progress);
 	}
 	else if (obj->type == WB_OBJECT_ARROW)
 	{
-		wb_vec2 a = transform_object_point_seq(vec2(obj->x + obj->p0.x + layer_offset.x + object_offset.x, obj->y + obj->p0.y + layer_offset.y + object_offset.y), obj);
-		wb_vec2 b = transform_object_point_seq(vec2(obj->x + obj->p1.x + layer_offset.x + object_offset.x, obj->y + obj->p1.y + layer_offset.y + object_offset.y), obj);
+		wb_vec2 a = transform_object_point_seq(vec2(obj->x + obj->p0.x + context_offset.x + object_offset.x, obj->y + obj->p0.y + context_offset.y + object_offset.y), obj);
+		wb_vec2 b = transform_object_point_seq(vec2(obj->x + obj->p1.x + context_offset.x + object_offset.x, obj->y + obj->p1.y + context_offset.y + object_offset.y), obj);
 		draw_hand_arrow(buf, a, b, transform_object_radius_seq(obj->thickness, obj), transform_object_radius_seq(obj->size, obj), obj->colour, jitter_strength, frame + obj->id * 6947, obj->draw_progress);
 	}
 	else if (obj->type == WB_OBJECT_TRIANGLE)
 	{
-		wb_vec2 a = transform_object_point_seq(vec2(obj->p0.x + layer_offset.x + object_offset.x, obj->p0.y + layer_offset.y + object_offset.y), obj);
-		wb_vec2 b = transform_object_point_seq(vec2(obj->p1.x + layer_offset.x + object_offset.x, obj->p1.y + layer_offset.y + object_offset.y), obj);
-		wb_vec2 c = transform_object_point_seq(vec2(obj->x + layer_offset.x + object_offset.x, obj->y + layer_offset.y + object_offset.y), obj);
+		wb_vec2 a = transform_object_point_seq(vec2(obj->p0.x + context_offset.x + object_offset.x, obj->p0.y + context_offset.y + object_offset.y), obj);
+		wb_vec2 b = transform_object_point_seq(vec2(obj->p1.x + context_offset.x + object_offset.x, obj->p1.y + context_offset.y + object_offset.y), obj);
+		wb_vec2 c = transform_object_point_seq(vec2(obj->x + context_offset.x + object_offset.x, obj->y + context_offset.y + object_offset.y), obj);
 		draw_hand_triangle(buf, a, b, c, transform_object_radius_seq(obj->thickness, obj), obj->colour, jitter_strength, frame + obj->id * 7103, obj->draw_progress);
 	}
 	else if (obj->type == WB_OBJECT_SHADE_TRIANGLE)
 	{
-		wb_vec2 a = transform_object_point_seq(vec2(obj->p0.x + layer_offset.x + object_offset.x, obj->p0.y + layer_offset.y + object_offset.y), obj);
-		wb_vec2 b = transform_object_point_seq(vec2(obj->p1.x + layer_offset.x + object_offset.x, obj->p1.y + layer_offset.y + object_offset.y), obj);
-		wb_vec2 c = transform_object_point_seq(vec2(obj->x + layer_offset.x + object_offset.x, obj->y + layer_offset.y + object_offset.y), obj);
+		wb_vec2 a = transform_object_point_seq(vec2(obj->p0.x + context_offset.x + object_offset.x, obj->p0.y + context_offset.y + object_offset.y), obj);
+		wb_vec2 b = transform_object_point_seq(vec2(obj->p1.x + context_offset.x + object_offset.x, obj->p1.y + context_offset.y + object_offset.y), obj);
+		wb_vec2 c = transform_object_point_seq(vec2(obj->x + context_offset.x + object_offset.x, obj->y + context_offset.y + object_offset.y), obj);
 		draw_triangle_with_alpha(buf, a, b, c, obj->colour, obj->size * obj->draw_progress * obj->render_alpha);
 	}
 	else if (obj->type == WB_OBJECT_QUAD)
 	{
-		wb_vec2 a = transform_object_point_seq(vec2(obj->p0.x + layer_offset.x + object_offset.x, obj->p0.y + layer_offset.y + object_offset.y), obj);
-		wb_vec2 b = transform_object_point_seq(vec2(obj->p1.x + layer_offset.x + object_offset.x, obj->p1.y + layer_offset.y + object_offset.y), obj);
-		wb_vec2 c = transform_object_point_seq(vec2(obj->q0.x + layer_offset.x + object_offset.x, obj->q0.y + layer_offset.y + object_offset.y), obj);
-		wb_vec2 d = transform_object_point_seq(vec2(obj->q1.x + layer_offset.x + object_offset.x, obj->q1.y + layer_offset.y + object_offset.y), obj);
+		wb_vec2 a = transform_object_point_seq(vec2(obj->p0.x + context_offset.x + object_offset.x, obj->p0.y + context_offset.y + object_offset.y), obj);
+		wb_vec2 b = transform_object_point_seq(vec2(obj->p1.x + context_offset.x + object_offset.x, obj->p1.y + context_offset.y + object_offset.y), obj);
+		wb_vec2 c = transform_object_point_seq(vec2(obj->q0.x + context_offset.x + object_offset.x, obj->q0.y + context_offset.y + object_offset.y), obj);
+		wb_vec2 d = transform_object_point_seq(vec2(obj->q1.x + context_offset.x + object_offset.x, obj->q1.y + context_offset.y + object_offset.y), obj);
 		draw_hand_quad(buf, a, b, c, d, transform_object_radius_seq(obj->thickness, obj), obj->colour, jitter_strength, frame + obj->id * 7349, obj->draw_progress);
 	}
 	else if (obj->type == WB_OBJECT_POLYGON)
@@ -2241,7 +2138,7 @@ static void draw_scene_object(wb_scene *scene, wb_scene_object *obj, wb_render_c
 		int n_points = unpack_object_points(obj, points, 7);
 		
 		for (int i = 0; i < n_points; i++)
-			points[i] = transform_object_point_seq(vec2(points[i].x + layer_offset.x + object_offset.x, points[i].y + layer_offset.y + object_offset.y), obj);
+			points[i] = transform_object_point_seq(vec2(points[i].x + context_offset.x + object_offset.x, points[i].y + context_offset.y + object_offset.y), obj);
 		draw_hand_polygon(buf, points, n_points, transform_object_radius_seq(obj->thickness, obj), obj->colour, jitter_strength, frame + obj->id * 7523, obj->draw_progress);
 	}
 	else if (obj->type == WB_OBJECT_SHADE_POLYGON)
@@ -2250,13 +2147,13 @@ static void draw_scene_object(wb_scene *scene, wb_scene_object *obj, wb_render_c
 		int n_points = unpack_object_points(obj, points, 7);
 		
 		for (int i = 0; i < n_points; i++)
-			points[i] = transform_object_point_seq(vec2(points[i].x + layer_offset.x + object_offset.x, points[i].y + layer_offset.y + object_offset.y), obj);
+			points[i] = transform_object_point_seq(vec2(points[i].x + context_offset.x + object_offset.x, points[i].y + context_offset.y + object_offset.y), obj);
 		draw_polygon_with_alpha(buf, points, n_points, obj->colour, obj->thickness * obj->draw_progress * obj->render_alpha);
 	}
 	else if (obj->type == WB_OBJECT_BLOB)
 	{
 		wb_vec2 points[64];
-		int n_points = build_blob_outline_points(obj, vec2(layer_offset.x + object_offset.x, layer_offset.y + object_offset.y), points, 64);
+		int n_points = build_blob_outline_points(obj, vec2(context_offset.x + object_offset.x, context_offset.y + object_offset.y), points, 64);
 		for (int i = 0; i < n_points; i++)
 			points[i] = transform_object_point_seq(points[i], obj);
 		if (n_points >= 3)
@@ -2265,7 +2162,7 @@ static void draw_scene_object(wb_scene *scene, wb_scene_object *obj, wb_render_c
 	else if (obj->type == WB_OBJECT_SHADE_BLOB)
 	{
 		wb_vec2 points[64];
-		int n_points = build_blob_outline_points(obj, vec2(layer_offset.x + object_offset.x, layer_offset.y + object_offset.y), points, 64);
+		int n_points = build_blob_outline_points(obj, vec2(context_offset.x + object_offset.x, context_offset.y + object_offset.y), points, 64);
 		for (int i = 0; i < n_points; i++)
 			points[i] = transform_object_point_seq(points[i], obj);
 		if (n_points >= 3)
@@ -2273,42 +2170,42 @@ static void draw_scene_object(wb_scene *scene, wb_scene_object *obj, wb_render_c
 	}
 	else if (obj->type == WB_OBJECT_SHADE_DISC)
 	{
-		wb_vec2 center = transform_object_point_seq(vec2(obj->x + layer_offset.x + object_offset.x, obj->y + layer_offset.y + object_offset.y), obj);
+		wb_vec2 center = transform_object_point_seq(vec2(obj->x + context_offset.x + object_offset.x, obj->y + context_offset.y + object_offset.y), obj);
 		draw_disc_with_alpha(buf, center.x, center.y, transform_object_radius_seq(obj->radius, obj), obj->colour, obj->size * obj->draw_progress * obj->render_alpha);
 	}
 	else if (obj->type == WB_OBJECT_POINT)
 	{
-		wb_vec2 center = transform_object_point_seq(vec2(obj->x + layer_offset.x + object_offset.x, obj->y + layer_offset.y + object_offset.y), obj);
+		wb_vec2 center = transform_object_point_seq(vec2(obj->x + context_offset.x + object_offset.x, obj->y + context_offset.y + object_offset.y), obj);
 		draw_disc(buf, center.x, center.y, transform_object_radius_seq(obj->radius, obj), obj->colour);
 	}
 	else if (obj->type == WB_OBJECT_OPEN_POINT)
 	{
-		wb_vec2 center = transform_object_point_seq(vec2(obj->x + layer_offset.x + object_offset.x, obj->y + layer_offset.y + object_offset.y), obj);
+		wb_vec2 center = transform_object_point_seq(vec2(obj->x + context_offset.x + object_offset.x, obj->y + context_offset.y + object_offset.y), obj);
 		draw_hand_open_point(buf, center.x, center.y, transform_object_radius_seq(obj->radius, obj), transform_object_radius_seq(obj->thickness, obj), obj->colour, jitter_strength, frame + obj->id * 6151, obj->draw_progress);
 	}
 	else if (obj->type == WB_OBJECT_CIRCLE)
 	{
-		wb_vec2 center = transform_object_point_seq(vec2(obj->x + layer_offset.x + object_offset.x, obj->y + layer_offset.y + object_offset.y), obj);
+		wb_vec2 center = transform_object_point_seq(vec2(obj->x + context_offset.x + object_offset.x, obj->y + context_offset.y + object_offset.y), obj);
 		draw_hand_open_point(buf, center.x, center.y, transform_object_radius_seq(obj->radius, obj), transform_object_radius_seq(obj->thickness, obj), obj->colour, jitter_strength, frame + obj->id * 6151, obj->draw_progress);
 	}
 	else if (obj->type == WB_OBJECT_ELLIPSE)
 	{
-		wb_vec2 center = transform_object_point_seq(vec2(obj->x + layer_offset.x + object_offset.x, obj->y + layer_offset.y + object_offset.y), obj);
+		wb_vec2 center = transform_object_point_seq(vec2(obj->x + context_offset.x + object_offset.x, obj->y + context_offset.y + object_offset.y), obj);
 		draw_hand_ellipse(buf, center.x, center.y, transform_object_radius_seq(obj->p0.x, obj), transform_object_radius_seq(obj->p0.y, obj), transform_object_radius_seq(obj->thickness, obj), obj->colour, jitter_strength, frame + obj->id * 6553, obj->draw_progress);
 	}
 	else if (obj->type == WB_OBJECT_POINT3D)
 	{
 		wb_vec2 p;
 		
-		if (project_3d_point(transform_object_point3d_seq(vec3_sum(obj->q0, object_offset3d), obj), layer, &p))
-			draw_disc(buf, p.x + layer_offset.x + object_offset.x, p.y + layer_offset.y + object_offset.y, obj->radius, obj->colour);
+		if (project_3d_point(transform_object_point3d_seq(vec3_sum(obj->q0, object_offset3d), obj), context, &p))
+			draw_disc(buf, p.x + context_offset.x + object_offset.x, p.y + context_offset.y + object_offset.y, obj->radius, obj->colour);
 	}
 	else if (obj->type == WB_OBJECT_OPEN_POINT3D)
 	{
 		wb_vec2 p;
 		
-		if (project_3d_point(transform_object_point3d_seq(vec3_sum(obj->q0, object_offset3d), obj), layer, &p))
-			draw_hand_open_point(buf, p.x + layer_offset.x + object_offset.x, p.y + layer_offset.y + object_offset.y, obj->radius, obj->thickness, obj->colour, jitter_strength, frame + obj->id * 6197, obj->draw_progress);
+		if (project_3d_point(transform_object_point3d_seq(vec3_sum(obj->q0, object_offset3d), obj), context, &p))
+			draw_hand_open_point(buf, p.x + context_offset.x + object_offset.x, p.y + context_offset.y + object_offset.y, obj->radius, obj->thickness, obj->colour, jitter_strength, frame + obj->id * 6197, obj->draw_progress);
 	}
 	else if (obj->type == WB_OBJECT_TRIANGLE3D)
 	{
@@ -2316,8 +2213,8 @@ static void draw_scene_object(wb_scene *scene, wb_scene_object *obj, wb_render_c
 		wb_vec2 b;
 		wb_vec2 c;
 		
-		if (project_3d_point(transform_object_point3d_seq(vec3_sum(obj->q0, object_offset3d), obj), layer, &a) && project_3d_point(transform_object_point3d_seq(vec3_sum(obj->q1, object_offset3d), obj), layer, &b) && project_3d_point(transform_object_point3d_seq(vec3_sum(obj->q2, object_offset3d), obj), layer, &c))
-			draw_hand_triangle(buf, vec2(a.x + layer_offset.x + object_offset.x, a.y + layer_offset.y + object_offset.y), vec2(b.x + layer_offset.x + object_offset.x, b.y + layer_offset.y + object_offset.y), vec2(c.x + layer_offset.x + object_offset.x, c.y + layer_offset.y + object_offset.y), obj->thickness, obj->colour, jitter_strength, frame + obj->id * 8003, obj->draw_progress);
+		if (project_3d_point(transform_object_point3d_seq(vec3_sum(obj->q0, object_offset3d), obj), context, &a) && project_3d_point(transform_object_point3d_seq(vec3_sum(obj->q1, object_offset3d), obj), context, &b) && project_3d_point(transform_object_point3d_seq(vec3_sum(obj->q2, object_offset3d), obj), context, &c))
+			draw_hand_triangle(buf, vec2(a.x + context_offset.x + object_offset.x, a.y + context_offset.y + object_offset.y), vec2(b.x + context_offset.x + object_offset.x, b.y + context_offset.y + object_offset.y), vec2(c.x + context_offset.x + object_offset.x, c.y + context_offset.y + object_offset.y), obj->thickness, obj->colour, jitter_strength, frame + obj->id * 8003, obj->draw_progress);
 	}
 	else if (obj->type == WB_OBJECT_SHADE_TRIANGLE3D)
 	{
@@ -2325,25 +2222,25 @@ static void draw_scene_object(wb_scene *scene, wb_scene_object *obj, wb_render_c
 		wb_vec2 b;
 		wb_vec2 c;
 		
-		if (project_3d_point(transform_object_point3d_seq(vec3_sum(obj->q0, object_offset3d), obj), layer, &a) && project_3d_point(transform_object_point3d_seq(vec3_sum(obj->q1, object_offset3d), obj), layer, &b) && project_3d_point(transform_object_point3d_seq(vec3_sum(obj->q2, object_offset3d), obj), layer, &c))
-			draw_triangle_with_alpha(buf, vec2(a.x + layer_offset.x + object_offset.x, a.y + layer_offset.y + object_offset.y), vec2(b.x + layer_offset.x + object_offset.x, b.y + layer_offset.y + object_offset.y), vec2(c.x + layer_offset.x + object_offset.x, c.y + layer_offset.y + object_offset.y), obj->colour, obj->size * obj->draw_progress * obj->render_alpha);
+		if (project_3d_point(transform_object_point3d_seq(vec3_sum(obj->q0, object_offset3d), obj), context, &a) && project_3d_point(transform_object_point3d_seq(vec3_sum(obj->q1, object_offset3d), obj), context, &b) && project_3d_point(transform_object_point3d_seq(vec3_sum(obj->q2, object_offset3d), obj), context, &c))
+			draw_triangle_with_alpha(buf, vec2(a.x + context_offset.x + object_offset.x, a.y + context_offset.y + object_offset.y), vec2(b.x + context_offset.x + object_offset.x, b.y + context_offset.y + object_offset.y), vec2(c.x + context_offset.x + object_offset.x, c.y + context_offset.y + object_offset.y), obj->colour, obj->size * obj->draw_progress * obj->render_alpha);
 	}
 	else if (obj->type == WB_OBJECT_LINE3D)
 	{
 		wb_vec2 a;
 		wb_vec2 b;
 		
-		if (project_3d_point(transform_object_point3d_seq(vec3_sum(obj->q0, object_offset3d), obj), layer, &a) && project_3d_point(transform_object_point3d_seq(vec3_sum(obj->q1, object_offset3d), obj), layer, &b))
-			draw_hand_line(buf, vec2(a.x + layer_offset.x + object_offset.x, a.y + layer_offset.y + object_offset.y), vec2(b.x + layer_offset.x + object_offset.x, b.y + layer_offset.y + object_offset.y), obj->thickness, obj->colour, jitter_strength, frame + obj->id * 7901, obj->draw_progress);
+		if (project_3d_point(transform_object_point3d_seq(vec3_sum(obj->q0, object_offset3d), obj), context, &a) && project_3d_point(transform_object_point3d_seq(vec3_sum(obj->q1, object_offset3d), obj), context, &b))
+			draw_hand_line(buf, vec2(a.x + context_offset.x + object_offset.x, a.y + context_offset.y + object_offset.y), vec2(b.x + context_offset.x + object_offset.x, b.y + context_offset.y + object_offset.y), obj->thickness, obj->colour, jitter_strength, frame + obj->id * 7901, obj->draw_progress);
 	}
 	else if (obj->type == WB_OBJECT_CURVE3D)
 	{
 		wb_stack_quad_curve curve_storage;
 		
-		if (!build_projected_curve3d(&curve_storage, transform_object_point3d_seq(vec3_sum(obj->q0, object_offset3d), obj), transform_object_point3d_seq(vec3_sum(obj->q1, object_offset3d), obj), transform_object_point3d_seq(vec3_sum(obj->q2, object_offset3d), obj), layer))
+		if (!build_projected_curve3d(&curve_storage, transform_object_point3d_seq(vec3_sum(obj->q0, object_offset3d), obj), transform_object_point3d_seq(vec3_sum(obj->q1, object_offset3d), obj), transform_object_point3d_seq(vec3_sum(obj->q2, object_offset3d), obj), context))
 			return;
 		
-		translate_nurbs_pcurve(&curve_storage.curve, layer_offset.x + object_offset.x, layer_offset.y + object_offset.y);
+		translate_nurbs_pcurve(&curve_storage.curve, context_offset.x + object_offset.x, context_offset.y + object_offset.y);
 		if (jitter_strength > 0.0f)
 			jitter_nurbs_pcurve(&curve_storage.curve, binary_max(0.6f, obj->thickness * 0.45f) * jitter_strength);
 		draw_curve_stroke_progress(buf, &curve_storage.curve, obj->thickness, obj->colour, obj->draw_progress);
@@ -2357,9 +2254,9 @@ static void draw_scene_object(wb_scene *scene, wb_scene_object *obj, wb_render_c
 			return;
 		for (int i = 0; i < n_points; i++)
 		{
-			if (!project_3d_point(transform_object_point3d_seq(vec3_sum(obj->points3d[i], object_offset3d), obj), layer, &points[i]))
+			if (!project_3d_point(transform_object_point3d_seq(vec3_sum(obj->points3d[i], object_offset3d), obj), context, &points[i]))
 				return;
-			points[i] = vec2(points[i].x + layer_offset.x + object_offset.x, points[i].y + layer_offset.y + object_offset.y);
+			points[i] = vec2(points[i].x + context_offset.x + object_offset.x, points[i].y + context_offset.y + object_offset.y);
 		}
 		draw_hand_polygon(buf, points, n_points, obj->thickness, obj->colour, jitter_strength, frame + obj->id * 8123, obj->draw_progress);
 	}
@@ -2372,17 +2269,16 @@ static void draw_scene_object(wb_scene *scene, wb_scene_object *obj, wb_render_c
 			return;
 		for (int i = 0; i < n_points; i++)
 		{
-			if (!project_3d_point(transform_object_point3d_seq(vec3_sum(obj->points3d[i], object_offset3d), obj), layer, &points[i]))
+			if (!project_3d_point(transform_object_point3d_seq(vec3_sum(obj->points3d[i], object_offset3d), obj), context, &points[i]))
 				return;
-			points[i] = vec2(points[i].x + layer_offset.x + object_offset.x, points[i].y + layer_offset.y + object_offset.y);
+			points[i] = vec2(points[i].x + context_offset.x + object_offset.x, points[i].y + context_offset.y + object_offset.y);
 		}
 		draw_polygon_with_alpha(buf, points, n_points, obj->colour, obj->thickness * obj->draw_progress * obj->render_alpha);
 	}
 }
 
-/* Patches now own the painter order of their direct content.  Layers are
- * still the temporary compositing backend, so this traversal renders only
- * content assigned to the requested layer while preserving the patch tree's
+/* Patches own painter order.  The compositor is private implementation
+ * machinery; traversal is driven solely by the patch tree and preserves
  * source order. */
 static int object_draw_order(const wb_scene *scene, int index)
 {
@@ -2400,10 +2296,10 @@ static int patch_draw_order(const wb_scene *scene, int index)
 
 static void composite_patch_buffer(uint8_t *dst, uint8_t *dst_alpha,
 		uint8_t *src, const uint8_t *src_alpha, float opacity);
-static void render_patch_layer_contents(wb_scene *scene, int patch_id,
-		wb_render_context *layer, int frame, uint8_t *buf, uint8_t *alpha, int depth);
+static void render_patch_contents(wb_scene *scene, int patch_id,
+		wb_render_context *context, int frame, uint8_t *buf, uint8_t *alpha, int depth);
 
-static void clear_layer_buffer(uint8_t *buf)
+static void clear_content_buffer(uint8_t *buf)
 {
 	if (!buf)
 		return;
@@ -2417,7 +2313,7 @@ static void clear_alpha_buffer(uint8_t *alpha)
 	memset(alpha, 0, WIDTH * HEIGHT);
 }
 
-static void composite_layer_buffer(uint8_t *dst, uint8_t *src, uint8_t *alpha, float opacity)
+static void composite_content_buffer(uint8_t *dst, uint8_t *src, uint8_t *alpha, float opacity)
 {
 	if (!dst || !src || !alpha || opacity <= 0.0f)
 		return;
@@ -2514,7 +2410,7 @@ static void blur_alpha_buffer(uint8_t *buf, uint8_t *scratch, float radius)
 	}
 }
 
-static void blur_layer_buffer(uint8_t *buf, uint8_t *scratch, float radius)
+static void blur_content_buffer(uint8_t *buf, uint8_t *scratch, float radius)
 {
 	int r = (int)ceilf(radius);
 	float weights[65];
@@ -2624,12 +2520,12 @@ static void composite_patch_buffer(uint8_t *dst, uint8_t *dst_alpha,
 	}
 }
 
-static void render_patch_layer_contents(wb_scene *scene, int patch_id,
-		wb_render_context *layer, int frame, uint8_t *buf, uint8_t *alpha, int depth)
+static void render_patch_contents(wb_scene *scene, int patch_id,
+		wb_render_context *context, int frame, uint8_t *buf, uint8_t *alpha, int depth)
 {
 	int previous_order = -1;
 
-	if (!scene || !layer || !buf || !alpha || depth > scene->n_patches ||
+	if (!scene || !context || !buf || !alpha || depth > scene->n_patches ||
 		!wb_scene_find_patch(scene, patch_id))
 		return;
 
@@ -2668,7 +2564,7 @@ static void render_patch_layer_contents(wb_scene *scene, int patch_id,
 		if (next_object >= 0)
 		{
 			set_draw_alpha_buffer(alpha);
-			draw_scene_object(scene, &scene->objects[next_object], layer, frame, buf);
+			draw_scene_object(scene, &scene->objects[next_object], context, frame, buf);
 		}
 		else
 		{
@@ -2681,20 +2577,20 @@ static void render_patch_layer_contents(wb_scene *scene, int patch_id,
 				free(child_alpha);
 				continue;
 			}
-			render_patch_layer_contents(scene, patch->id, layer, frame,
+			render_patch_contents(scene, patch->id, context, frame,
 				child_buf, child_alpha, depth + 1);
 			if (patch->glow_radius > 0.0f && patch->glow_opacity > 0.0f)
 			{
 				memcpy(scene->render_glow_buf, child_buf, WIDTH * HEIGHT * 3);
 				memcpy(scene->render_glow_alpha, child_alpha, WIDTH * HEIGHT);
-				blur_layer_buffer(scene->render_glow_buf, scene->render_scratch_buf, patch->glow_radius);
+				blur_content_buffer(scene->render_glow_buf, scene->render_scratch_buf, patch->glow_radius);
 				blur_alpha_buffer(scene->render_glow_alpha, scene->render_scratch_alpha, patch->glow_radius);
 				composite_patch_buffer(buf, alpha, scene->render_glow_buf,
 					scene->render_glow_alpha, patch->render_opacity * patch->glow_opacity);
 			}
 			if (patch->blur_radius > 0.0f)
 			{
-				blur_layer_buffer(child_buf, scene->render_scratch_buf, patch->blur_radius);
+				blur_content_buffer(child_buf, scene->render_scratch_buf, patch->blur_radius);
 				blur_alpha_buffer(child_alpha, scene->render_scratch_alpha, patch->blur_radius);
 			}
 			composite_patch_buffer(buf, alpha, child_buf, child_alpha, patch->render_opacity);
@@ -2707,10 +2603,10 @@ static void render_patch_layer_contents(wb_scene *scene, int patch_id,
 
 void wb_scene_render(wb_scene *scene, float time, int frame, uint8_t *buf)
 {
-	uint8_t *layer_buf;
+	uint8_t *content_buf;
 	uint8_t *scratch_buf;
 	uint8_t *glow_buf;
-	uint8_t *layer_alpha;
+	uint8_t *content_alpha;
 	uint8_t *scratch_alpha;
 	uint8_t *glow_alpha;
 	
@@ -2745,7 +2641,7 @@ void wb_scene_render(wb_scene *scene, float time, int frame, uint8_t *buf)
 	}
 	scene->render_context.render_opacity = scene->render_context.opacity;
 	scene->render_context.render_offset = scene->render_context.offset;
-	scene->render_context.render_jitter_strength = scene->render_context.jitter_explicit ? scene->render_context.jitter_strength : WB_DEFAULT_LAYER_JITTER_STRENGTH;
+	scene->render_context.render_jitter_strength = scene->render_context.jitter_explicit ? scene->render_context.jitter_strength : WB_DEFAULT_PATCH_JITTER_STRENGTH;
 	scene->render_context.render_camera_distance = scene->render_context.camera_distance;
 	scene->render_context.render_camera_scale = scene->render_context.camera_scale;
 	scene->render_context.render_camera_yaw = scene->render_context.camera_yaw;
@@ -2757,7 +2653,7 @@ void wb_scene_render(wb_scene *scene, float time, int frame, uint8_t *buf)
 	{
 		scene->patches[i].render_opacity = scene->patches[i].opacity;
 		scene->patches[i].render_jitter_strength = scene->patches[i].jitter_explicit ?
-			scene->patches[i].jitter_strength : WB_DEFAULT_LAYER_JITTER_STRENGTH;
+			scene->patches[i].jitter_strength : WB_DEFAULT_PATCH_JITTER_STRENGTH;
 		scene->patches[i].render_translation = vec2(0, 0);
 		scene->patches[i].render_translation3d = vec3(0, 0, 0);
 		scene->patches[i].n_render_transforms = 0;
@@ -2964,55 +2860,54 @@ void wb_scene_render(wb_scene *scene, float time, int frame, uint8_t *buf)
 	if (!ensure_render_buffers(scene))
 		return;
 	
-	layer_buf = scene->render_layer_buf;
+	content_buf = scene->render_content_buf;
 	scratch_buf = scene->render_scratch_buf;
 	glow_buf = scene->render_glow_buf;
-	layer_alpha = scene->render_layer_alpha;
+	content_alpha = scene->render_content_alpha;
 	scratch_alpha = scene->render_scratch_alpha;
 	glow_alpha = scene->render_glow_alpha;
 	
-	/* Layers no longer partition painter traversal.  The retained root patch is
-	 * rendered once; the default layer is only a temporary draw-context shell
-	 * for old primitive helpers while the layer type is removed. */
+	/* The retained root patch is rendered once.  Its private draw context is
+	 * only compatibility machinery for primitive drawing helpers. */
 	{
-		wb_render_context *layer = &scene->render_context;
+		wb_render_context *context = &scene->render_context;
 		wb_scene_patch *root_patch = wb_scene_find_patch(scene, scene->root_patch_id);
-		clear_layer_buffer(layer_buf);
-		clear_alpha_buffer(layer_alpha);
-		set_draw_alpha_buffer(layer_alpha);
+		clear_content_buffer(content_buf);
+		clear_alpha_buffer(content_alpha);
+		set_draw_alpha_buffer(content_alpha);
 		
-		render_patch_layer_contents(scene, scene->root_patch_id, layer,
-			frame, layer_buf, layer_alpha, 0);
+		render_patch_contents(scene, scene->root_patch_id, context,
+			frame, content_buf, content_alpha, 0);
 		
 		set_draw_alpha_buffer(NULL);
 		if (root_patch && root_patch->glow_radius > 0.0f && root_patch->glow_opacity > 0.0f)
 		{
-			memcpy(glow_buf, layer_buf, WIDTH * HEIGHT * 3);
-			memcpy(glow_alpha, layer_alpha, WIDTH * HEIGHT);
-			blur_layer_buffer(glow_buf, scratch_buf, root_patch->glow_radius);
+			memcpy(glow_buf, content_buf, WIDTH * HEIGHT * 3);
+			memcpy(glow_alpha, content_alpha, WIDTH * HEIGHT);
+			blur_content_buffer(glow_buf, scratch_buf, root_patch->glow_radius);
 			blur_alpha_buffer(glow_alpha, scratch_alpha, root_patch->glow_radius);
-			composite_layer_buffer(buf, glow_buf, glow_alpha,
+			composite_content_buffer(buf, glow_buf, glow_alpha,
 				root_patch->render_opacity * root_patch->glow_opacity);
 		}
 		if (root_patch && root_patch->blur_radius > 0.0f)
 		{
-			blur_layer_buffer(layer_buf, scratch_buf, root_patch->blur_radius);
-			blur_alpha_buffer(layer_alpha, scratch_alpha, root_patch->blur_radius);
+			blur_content_buffer(content_buf, scratch_buf, root_patch->blur_radius);
+			blur_alpha_buffer(content_alpha, scratch_alpha, root_patch->blur_radius);
 		}
-		if (layer->glow_radius > 0.0f && layer->glow_opacity > 0.0f)
+		if (context->glow_radius > 0.0f && context->glow_opacity > 0.0f)
 		{
-			memcpy(glow_buf, layer_buf, WIDTH * HEIGHT * 3);
-			memcpy(glow_alpha, layer_alpha, WIDTH * HEIGHT);
-			blur_layer_buffer(glow_buf, scratch_buf, layer->glow_radius);
-			blur_alpha_buffer(glow_alpha, scratch_alpha, layer->glow_radius);
-			composite_layer_buffer(buf, glow_buf, glow_alpha, layer->render_opacity * layer->glow_opacity);
+			memcpy(glow_buf, content_buf, WIDTH * HEIGHT * 3);
+			memcpy(glow_alpha, content_alpha, WIDTH * HEIGHT);
+			blur_content_buffer(glow_buf, scratch_buf, context->glow_radius);
+			blur_alpha_buffer(glow_alpha, scratch_alpha, context->glow_radius);
+			composite_content_buffer(buf, glow_buf, glow_alpha, context->render_opacity * context->glow_opacity);
 		}
-		if (layer->blur_radius > 0.0f)
+		if (context->blur_radius > 0.0f)
 		{
-			blur_layer_buffer(layer_buf, scratch_buf, layer->blur_radius);
-			blur_alpha_buffer(layer_alpha, scratch_alpha, layer->blur_radius);
+			blur_content_buffer(content_buf, scratch_buf, context->blur_radius);
+			blur_alpha_buffer(content_alpha, scratch_alpha, context->blur_radius);
 		}
-		composite_layer_buffer(buf, layer_buf, layer_alpha,
-			layer->render_opacity * (root_patch ? root_patch->render_opacity : 1.0f));
+		composite_content_buffer(buf, content_buf, content_alpha,
+			context->render_opacity * (root_patch ? root_patch->render_opacity : 1.0f));
 	}
 }

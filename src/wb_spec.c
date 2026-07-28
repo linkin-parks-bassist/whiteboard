@@ -66,10 +66,8 @@ typedef struct
 	int cap_scenes;
 	wb_spec_name names[256];
 	wb_spec_group groups[64];
-	wb_spec_name layers[64];
 	int n_names;
 	int n_groups;
-	int n_layers;
 	float duration;
 	int in_block;
 	int saw_block;
@@ -156,7 +154,6 @@ enum
 	WB_PATCH_COORD_SPHERICAL = 3,
 };
 
-static void remember_layer(wb_spec_parser *p, const char *name, int id);
 static void sync_retained_patch_scope(wb_spec_parser *p, const wb_spec_patch_scope *scope);
 static int parse_patch(wb_spec_parser *p, char *line, int line_no);
 
@@ -339,13 +336,13 @@ static int starts_with_word(const char *s, const char *word)
 	return s[n] == 0 || s[n] == ' ' || s[n] == '\t';
 }
 
-static int current_layer_type(const wb_spec_parser *p)
+static int current_patch_dimension(const wb_spec_parser *p)
 {
 	if (p && p->n_patch_scopes > 0)
-		return p->patch_scopes[p->n_patch_scopes - 1].dimension == 3 ? WB_LAYER_3D : WB_LAYER_2D;
+		return p->patch_scopes[p->n_patch_scopes - 1].dimension == 3 ? WB_DIMENSION_3D : WB_DIMENSION_2D;
 	if (!p || !p->scene)
-		return WB_LAYER_2D;
-	return WB_LAYER_2D;
+		return WB_DIMENSION_2D;
+	return WB_DIMENSION_2D;
 }
 
 /* The implicit root patch is a mathematical viewport.  Its vertical span is
@@ -747,7 +744,7 @@ static void apply_active_patch_to_line(wb_spec_parser *p, char *line, size_t cap
 			if ((sscanf(line + i, "(%f,%f,%f)%n", &x, &y, &z, &consumed) == 3 ||
 				 sscanf(line + i, "(%f, %f, %f)%n", &x, &y, &z, &consumed) == 3) && consumed > 0)
 			{
-				if (current_layer_type(p) == WB_LAYER_3D)
+				if (current_patch_dimension(p) == WB_DIMENSION_3D)
 				{
 					wb_vec3 mapped = apply_active_patch_to_point3d(p, vec3(x, y, z));
 					int written = snprintf(out + j, sizeof(out) - j, "(%.3f,%.3f,%.3f)", mapped.x, mapped.y, mapped.z);
@@ -768,7 +765,7 @@ static void apply_active_patch_to_line(wb_spec_parser *p, char *line, size_t cap
 			if ((sscanf(line + i, "(%f,%f)%n", &x, &y, &consumed) == 2 ||
 				 sscanf(line + i, "(%f, %f)%n", &x, &y, &consumed) == 2) && consumed > 0)
 			{
-				if (current_layer_type(p) == WB_LAYER_2D)
+				if (current_patch_dimension(p) == WB_DIMENSION_2D)
 				{
 					wb_vec2 mapped = apply_active_patch_to_point(p, vec2(x, y));
 					int written = snprintf(out + j, sizeof(out) - j, "(%.3f,%.3f)", mapped.x, mapped.y);
@@ -1417,7 +1414,6 @@ static int start_new_scene(wb_spec_parser *p, float duration)
 	p->duration = duration > 0.0f ? duration : (float)FRAMES_PER_SCENE / FPS;
 	p->n_names = 0;
 	p->n_groups = 0;
-	p->n_layers = 0;
 	p->n_group_scopes = 0;
 	p->n_patch_scopes = 0;
 	p->n_patch_defs = 0;
@@ -1589,14 +1585,6 @@ static wb_spec_group *find_group(wb_spec_parser *p, const char *name)
 	return NULL;
 }
 
-static int scene_layer_type_by_id(const wb_scene *scene, int layer_id)
-{
-	if (!scene)
-		return WB_LAYER_2D;
-	(void)layer_id;
-	return WB_LAYER_2D;
-}
-
 static int scene_object_is_3d(const wb_scene *scene, int object_id)
 {
 	if (!scene || object_id <= 0)
@@ -1606,7 +1594,7 @@ static int scene_object_is_3d(const wb_scene *scene, int object_id)
 		if (scene->objects[i].id == object_id)
 		{
 			wb_scene_patch *patch = wb_scene_find_patch((wb_scene *)scene, scene->objects[i].patch_id);
-			return patch && patch->dimension == WB_LAYER_3D;
+			return patch && patch->dimension == WB_DIMENSION_3D;
 		}
 	}
 	return 0;
@@ -1716,25 +1704,6 @@ static void pop_finished_patch_scopes(wb_spec_parser *p, int raw_indent)
 		wb_scene_set_current_patch(p->scene, patch_id);
 		(void)patch_id;
 	}
-}
-
-static void remember_layer(wb_spec_parser *p, const char *name, int id)
-{
-	if (!name || !*name || id <= 0 || p->n_layers >= (int)(sizeof(p->layers) / sizeof(p->layers[0])))
-		return;
-	snprintf(p->layers[p->n_layers].name, sizeof(p->layers[p->n_layers].name), "%s", name);
-	p->layers[p->n_layers].id = id;
-	p->n_layers++;
-}
-
-static int find_layer_name(wb_spec_parser *p, const char *name)
-{
-	for (int i = 0; i < p->n_layers; i++)
-	{
-		if (strcmp(p->layers[i].name, name) == 0)
-			return p->layers[i].id;
-	}
-	return 0;
 }
 
 static int parse_scene(wb_spec_parser *p, char *line, int line_no)
@@ -2076,123 +2045,6 @@ static int parse_layer(wb_spec_parser *p, char *line, int line_no)
 {
 	(void)line;
 	return set_error(p, line_no, "layers have been replaced by patches; use patch for 2d or space for 3d");
-	/* Legacy implementation retained below temporarily while its runtime
-	 * helpers are removed in the next Manifold pass. */
-	#if 0
-	char name[64] = "";
-	char type_name[32] = "2d";
-	char opacity_word[32];
-	float opacity = WB_DEFAULT_LAYER_OPACITY;
-	float blur_radius = WB_DEFAULT_LAYER_BLUR_RADIUS;
-	float glow_radius = WB_DEFAULT_LAYER_GLOW_RADIUS;
-	float glow_opacity = WB_DEFAULT_LAYER_GLOW_OPACITY;
-	float jitter_strength = WB_DEFAULT_LAYER_JITTER_STRENGTH;
-	int matched = 0;
-	int type = WB_LAYER_2D;
-	int id = 0;
-
-	matched = sscanf(line, "layer %63s %31s opacity %f", name, type_name, &opacity);
-	if (matched < 2)
-		matched = sscanf(line, "layer %63s %31s", name, type_name);
-	if (matched < 2)
-		matched = sscanf(line, "layer %63s %31s o %f", name, type_name, &opacity);
-	if (matched < 2)
-		matched = sscanf(line, "layer %63s %31s", name, type_name);
-	if (matched < 1)
-		matched = sscanf(line, "layer %63s", name);
-	if (matched < 1)
-	{
-		if (strcmp(line, "layer") == 0)
-			matched = 0;
-		else if (starts_with(line, "layer type ") || starts_with(line, "layer opacity ") ||
-			starts_with(line, "layer o ") || starts_with(line, "layer blur ") ||
-			starts_with(line, "layer glow ") || starts_with(line, "layer glow_opacity ") ||
-			starts_with(line, "layer jitter "))
-			matched = 0;
-		else
-			return set_error(p, line_no, "expected layer [name] [2d|3d] [opacity N]");
-	}
-	if (matched == 1 &&
-		(strcmp(name, "2d") == 0 || strcmp(name, "3d") == 0 ||
-		 strcmp(name, "type") == 0 || strcmp(name, "opacity") == 0 ||
-		 strcmp(name, "o") == 0 || strcmp(name, "blur") == 0 ||
-		 strcmp(name, "glow") == 0 || strcmp(name, "glow_opacity") == 0 ||
-		 strcmp(name, "jitter") == 0))
-	{
-		snprintf(type_name, sizeof(type_name), "%s", name);
-		name[0] = 0;
-		matched = 0;
-	}
-	if (matched >= 2 &&
-		(strcmp(type_name, "opacity") == 0 || strcmp(type_name, "o") == 0 ||
-		 strcmp(type_name, "blur") == 0 || strcmp(type_name, "glow") == 0 ||
-		 strcmp(type_name, "glow_opacity") == 0 || strcmp(type_name, "jitter") == 0))
-	{
-		matched = 1;
-		snprintf(type_name, sizeof(type_name), "2d");
-	}
-	
-	if (strcmp(type_name, "3d") == 0)
-		type = WB_LAYER_3D;
-	else if (strcmp(type_name, "2d") == 0)
-		type = WB_LAYER_2D;
-	else if (strcmp(type_name, "type") == 0)
-		type = WB_LAYER_2D;
-	else if (matched == 0)
-		type = WB_LAYER_2D;
-	else if (matched == 1)
-		type = WB_LAYER_2D;
-	else if (sscanf(line, "layer %63s opacity %f", name, &opacity) == 2)
-		type = WB_LAYER_2D;
-	else if (sscanf(line, "layer %63s %31s", name, opacity_word) == 2 && strcmp(opacity_word, "opacity") == 0)
-		return set_error(p, line_no, "expected opacity value after layer opacity");
-	else
-		return set_error(p, line_no, "layer type must be 2d or 3d");
-	
-	if (strstr(line, " type 3d"))
-		type = WB_LAYER_3D;
-	else if (strstr(line, " type 2d"))
-		type = WB_LAYER_2D;
-	else if (starts_with(line, "layer 3d"))
-		type = WB_LAYER_3D;
-	else if (starts_with(line, "layer 2d"))
-		type = WB_LAYER_2D;
-	
-	if (opacity < WB_MIN_OPACITY)
-		opacity = WB_MIN_OPACITY;
-	if (opacity > WB_MAX_OPACITY)
-		opacity = WB_MAX_OPACITY;
-	
-	ensure_object_name(p, name, sizeof(name), "layer");
-	id = wb_scene_add_layer(p->scene, name, type, opacity);
-	if (!id)
-		return set_error(p, line_no, "failed to create layer");
-	
-	char *blur = strstr(line, " blur ");
-	if (blur && sscanf(blur, " blur %f", &blur_radius) == 1)
-		wb_scene_set_layer_blur(p->scene, id, blur_radius);
-	if (strstr(line, " glow "))
-		sscanf(strstr(line, " glow "), " glow %f", &glow_radius);
-	if (strstr(line, " glow_opacity "))
-		sscanf(strstr(line, " glow_opacity "), " glow_opacity %f", &glow_opacity);
-	if (glow_radius > 0.0f || strstr(line, " glow_opacity "))
-		wb_scene_set_layer_glow(p->scene, id, glow_radius, glow_opacity);
-	if (strstr(line, " opacity "))
-		sscanf(strstr(line, " opacity "), " opacity %f", &opacity);
-	else if (strstr(line, " o "))
-		sscanf(strstr(line, " o "), " o %f", &opacity);
-	if (opacity < WB_MIN_OPACITY)
-		opacity = WB_MIN_OPACITY;
-	if (opacity > WB_MAX_OPACITY)
-		opacity = WB_MAX_OPACITY;
-	p->scene->render_contexts[p->scene->n_render_contexts - 1].opacity = opacity;
-	p->scene->render_contexts[p->scene->n_render_contexts - 1].render_opacity = opacity;
-	if (parse_jitter_token(line, &jitter_strength))
-		wb_scene_set_layer_jitter(p->scene, id, jitter_strength);
-	
-	remember_layer(p, name, id);
-	return 1;
-	#endif
 }
 
 /* `space` is the progressive-disclosure spelling for a camera-backed 3D
@@ -2231,26 +2083,26 @@ static int parse_patch(wb_spec_parser *p, char *line, int line_no)
 	float opacity = 1.0f;
 	float blur_radius = 0.0f;
 	float glow_radius = 0.0f;
-	float glow_opacity = WB_DEFAULT_LAYER_GLOW_OPACITY;
-	float jitter_strength = WB_DEFAULT_LAYER_JITTER_STRENGTH;
+	float glow_opacity = WB_DEFAULT_PATCH_GLOW_OPACITY;
+	float jitter_strength = WB_DEFAULT_PATCH_JITTER_STRENGTH;
 	int jitter_explicit = 0;
 	int have_origin = 0;
 	int have_scale = 0;
-	int layer_type;
+	int patch_dimension;
 	wb_spec_patch_scope scope;
 	
 	if (!p || !p->scene)
 		return set_error(p, line_no, "patch must appear inside a scene");
-	layer_type = strstr(line, " 3d") ? WB_LAYER_3D : current_layer_type(p);
-	if (layer_type != WB_LAYER_2D && layer_type != WB_LAYER_3D)
-		return set_error(p, line_no, "patch must appear inside a 2d or 3d layer");
+	patch_dimension = strstr(line, " 3d") ? WB_DIMENSION_3D : current_patch_dimension(p);
+	if (patch_dimension != WB_DIMENSION_2D && patch_dimension != WB_DIMENSION_3D)
+		return set_error(p, line_no, "patch must appear inside a 2d or 3d patch");
 	if (p->n_patch_scopes >= (int)(sizeof(p->patch_scopes) / sizeof(p->patch_scopes[0])))
 		return set_error(p, line_no, "too many nested patches");
 	if (sscanf(line, "patch %63s", name) != 1 && strcmp(line, "patch") != 0)
 		return set_error(p, line_no, "expected patch [name]");
 	if (strstr(line, " at "))
 	{
-		if (layer_type == WB_LAYER_3D)
+		if (patch_dimension == WB_DIMENSION_3D)
 		{
 			if (sscanf(strstr(line, " at "), " at (%f,%f,%f)", &ox, &oy, &oz) == 3 ||
 				sscanf(strstr(line, " at "), " at (%f, %f, %f)", &ox, &oy, &oz) == 3)
@@ -2262,7 +2114,7 @@ static int parse_patch(wb_spec_parser *p, char *line, int line_no)
 	}
 	else if (strstr(line, " origin "))
 	{
-		if (layer_type == WB_LAYER_3D)
+		if (patch_dimension == WB_DIMENSION_3D)
 		{
 			if (sscanf(strstr(line, " origin "), " origin (%f,%f,%f)", &ox, &oy, &oz) == 3 ||
 				sscanf(strstr(line, " origin "), " origin (%f, %f, %f)", &ox, &oy, &oz) == 3)
@@ -2274,7 +2126,7 @@ static int parse_patch(wb_spec_parser *p, char *line, int line_no)
 	}
 	else if (strstr(line, " @ "))
 	{
-		if (layer_type == WB_LAYER_3D)
+		if (patch_dimension == WB_DIMENSION_3D)
 		{
 			if (sscanf(strstr(line, " @ "), " @ (%f,%f,%f)", &ox, &oy, &oz) == 3 ||
 				sscanf(strstr(line, " @ "), " @ (%f, %f, %f)", &ox, &oy, &oz) == 3)
@@ -2286,7 +2138,7 @@ static int parse_patch(wb_spec_parser *p, char *line, int line_no)
 	}
 	if (strstr(line, " scale "))
 	{
-		if (layer_type == WB_LAYER_3D &&
+		if (patch_dimension == WB_DIMENSION_3D &&
 			(sscanf(strstr(line, " scale "), " scale (%f,%f,%f)", &sx, &sy, &sz) == 3 ||
 			 sscanf(strstr(line, " scale "), " scale (%f, %f, %f)", &sx, &sy, &sz) == 3))
 			have_scale = 1;
@@ -2302,7 +2154,7 @@ static int parse_patch(wb_spec_parser *p, char *line, int line_no)
 	}
 	else if (strstr(line, " s "))
 	{
-		if (layer_type == WB_LAYER_3D &&
+		if (patch_dimension == WB_DIMENSION_3D &&
 			(sscanf(strstr(line, " s "), " s (%f,%f,%f)", &sx, &sy, &sz) == 3 ||
 			 sscanf(strstr(line, " s "), " s (%f, %f, %f)", &sx, &sy, &sz) == 3))
 			have_scale = 1;
@@ -2322,11 +2174,11 @@ static int parse_patch(wb_spec_parser *p, char *line, int line_no)
 		sscanf(strstr(line, " pitch "), " pitch %f", &pitch);
 	if (strstr(line, " roll "))
 		sscanf(strstr(line, " roll "), " roll %f", &roll);
-	if (layer_type == WB_LAYER_2D && strstr(line, " yaw "))
+	if (patch_dimension == WB_DIMENSION_2D && strstr(line, " yaw "))
 		rotation = yaw;
 	else if (strstr(line, " rotate "))
 	{
-		if (layer_type == WB_LAYER_3D &&
+		if (patch_dimension == WB_DIMENSION_3D &&
 			(sscanf(strstr(line, " rotate "), " rotate (%f,%f,%f)", &yaw, &pitch, &roll) == 3 ||
 			 sscanf(strstr(line, " rotate "), " rotate (%f, %f, %f)", &yaw, &pitch, &roll) == 3))
 		{
@@ -2336,7 +2188,7 @@ static int parse_patch(wb_spec_parser *p, char *line, int line_no)
 	}
 	else if (strstr(line, " rotation "))
 	{
-		if (layer_type == WB_LAYER_3D &&
+		if (patch_dimension == WB_DIMENSION_3D &&
 			(sscanf(strstr(line, " rotation "), " rotation (%f,%f,%f)", &yaw, &pitch, &roll) == 3 ||
 			 sscanf(strstr(line, " rotation "), " rotation (%f, %f, %f)", &yaw, &pitch, &roll) == 3))
 		{
@@ -2346,7 +2198,7 @@ static int parse_patch(wb_spec_parser *p, char *line, int line_no)
 	}
 	else if (strstr(line, " angle "))
 		sscanf(strstr(line, " angle "), " angle %f", &rotation);
-	if (layer_type == WB_LAYER_3D && (rotation != 0.0f || strstr(line, " angle ") || strstr(line, " rotate ") || strstr(line, " rotation ")))
+	if (patch_dimension == WB_DIMENSION_3D && (rotation != 0.0f || strstr(line, " angle ") || strstr(line, " rotate ") || strstr(line, " rotation ")))
 		yaw = rotation;
 	if (strstr(line, " coords "))
 		sscanf(strstr(line, " coords "), " coords %31s", coord_name);
@@ -2369,7 +2221,7 @@ static int parse_patch(wb_spec_parser *p, char *line, int line_no)
 	memset(&scope, 0, sizeof(scope));
 	snprintf(scope.name, sizeof(scope.name), "%s", name);
 	scope.indent = p->current_line_indent;
-	scope.dimension = layer_type == WB_LAYER_3D ? 3 : 2;
+	scope.dimension = patch_dimension == WB_DIMENSION_3D ? 3 : 2;
 	scope.coord_type = (strcmp(coord_name, "polar") == 0) ? WB_PATCH_COORD_POLAR : WB_PATCH_COORD_CARTESIAN;
 	scope.origin = have_origin ? vec2(ox, oy) : vec2(0, 0);
 	scope.scale = have_scale ? vec2(sx, sy) : vec2(1, 1);
@@ -2405,8 +2257,8 @@ static int parse_patch(wb_spec_parser *p, char *line, int line_no)
 		{
 			patch->opacity = binary_max(WB_MIN_OPACITY, binary_min(WB_MAX_OPACITY, opacity));
 			patch->render_opacity = patch->opacity;
-			patch->blur_radius = binary_max(0.0f, binary_min(WB_MAX_LAYER_BLUR_RADIUS, blur_radius));
-			patch->glow_radius = binary_max(0.0f, binary_min(WB_MAX_LAYER_BLUR_RADIUS, glow_radius));
+			patch->blur_radius = binary_max(0.0f, binary_min(WB_MAX_PATCH_BLUR_RADIUS, blur_radius));
+			patch->glow_radius = binary_max(0.0f, binary_min(WB_MAX_PATCH_BLUR_RADIUS, glow_radius));
 			patch->glow_opacity = binary_max(WB_MIN_OPACITY, binary_min(WB_MAX_OPACITY, glow_opacity));
 			patch->jitter_strength = binary_max(WB_MIN_JITTER_STRENGTH, jitter_strength);
 			patch->jitter_explicit = jitter_explicit;
@@ -2598,11 +2450,11 @@ static int parse_patch_property(wb_spec_parser *p, const char *line, int line_no
 
 static int parse_camera(wb_spec_parser *p, char *line, int line_no)
 {
-	float distance = WB_DEFAULT_LAYER_CAMERA_DISTANCE;
-	float scale = WB_DEFAULT_LAYER_CAMERA_SCALE;
-	float yaw = WB_DEFAULT_LAYER_CAMERA_YAW;
-	float cx = WB_DEFAULT_LAYER_CAMERA_CENTER_X;
-	float cy = WB_DEFAULT_LAYER_CAMERA_CENTER_Y;
+	float distance = WB_DEFAULT_PATCH_CAMERA_DISTANCE;
+	float scale = WB_DEFAULT_PATCH_CAMERA_SCALE;
+	float yaw = WB_DEFAULT_PATCH_CAMERA_YAW;
+	float cx = WB_DEFAULT_PATCH_CAMERA_CENTER_X;
+	float cy = WB_DEFAULT_PATCH_CAMERA_CENTER_Y;
 	float tx = 0.0f, ty = 0.0f, tz = 0.0f;
 	char projection_name[32] = "perspective";
 	int projection = WB_CAMERA_PROJECTION_PERSPECTIVE;
@@ -2889,24 +2741,6 @@ static int parse_move_layer(wb_spec_parser *p, char *line, int line_no)
 {
 	(void)line;
 	return set_error(p, line_no, "move_layer has been replaced by move_patch");
-	#if 0
-	char name[64];
-	float x1 = 0.0f, y1 = 0.0f, x2 = 0.0f, y2 = 0.0f, t0 = 0.0f, t1 = 0.0f;
-	
-	if (sscanf(line, "move_layer %63s from (%f,%f) to (%f,%f) during %fs..%fs", name, &x1, &y1, &x2, &y2, &t0, &t1) == 7 ||
-		sscanf(line, "move_layer %63s from (%f, %f) to (%f, %f) during %fs..%fs", name, &x1, &y1, &x2, &y2, &t0, &t1) == 7 ||
-		sscanf(line, "move_layer %63s (%f,%f) -> (%f,%f) %fs..%fs", name, &x1, &y1, &x2, &y2, &t0, &t1) == 7 ||
-		sscanf(line, "move_layer %63s (%f, %f) -> (%f, %f) %fs..%fs", name, &x1, &y1, &x2, &y2, &t0, &t1) == 7)
-	{
-		int id = find_layer_name(p, name);
-		if (!id)
-			return set_error(p, line_no, "move_layer references unknown layer");
-		wb_scene_move_layer(p->scene, id, t0, t1, x1, y1, x2, y2);
-		return 1;
-	}
-	
-	return set_error(p, line_no, "expected move_layer name from (x,y) to (x,y) during Ts..Ts");
-	#endif
 }
 
 static int parse_move_patch(wb_spec_parser *p, char *line, int line_no)
@@ -3225,8 +3059,8 @@ static int parse_scale_patch(wb_spec_parser *p, char *line, int line_no)
 static int parse_move_camera(wb_spec_parser *p, char *line, int line_no)
 {
 	char name[64];
-	float d1 = WB_DEFAULT_LAYER_CAMERA_DISTANCE, s1 = WB_DEFAULT_LAYER_CAMERA_SCALE, y1 = WB_DEFAULT_LAYER_CAMERA_YAW, cx1 = WB_DEFAULT_LAYER_CAMERA_CENTER_X, cy1 = WB_DEFAULT_LAYER_CAMERA_CENTER_Y;
-	float d2 = WB_DEFAULT_LAYER_CAMERA_DISTANCE, s2 = WB_DEFAULT_LAYER_CAMERA_SCALE, y2 = WB_DEFAULT_LAYER_CAMERA_YAW, cx2 = WB_DEFAULT_LAYER_CAMERA_CENTER_X, cy2 = WB_DEFAULT_LAYER_CAMERA_CENTER_Y;
+	float d1 = WB_DEFAULT_PATCH_CAMERA_DISTANCE, s1 = WB_DEFAULT_PATCH_CAMERA_SCALE, y1 = WB_DEFAULT_PATCH_CAMERA_YAW, cx1 = WB_DEFAULT_PATCH_CAMERA_CENTER_X, cy1 = WB_DEFAULT_PATCH_CAMERA_CENTER_Y;
+	float d2 = WB_DEFAULT_PATCH_CAMERA_DISTANCE, s2 = WB_DEFAULT_PATCH_CAMERA_SCALE, y2 = WB_DEFAULT_PATCH_CAMERA_YAW, cx2 = WB_DEFAULT_PATCH_CAMERA_CENTER_X, cy2 = WB_DEFAULT_PATCH_CAMERA_CENTER_Y;
 	float tx1 = 0.0f, ty1 = 0.0f, tz1 = 0.0f, tx2 = 0.0f, ty2 = 0.0f, tz2 = 0.0f;
 	int target1_explicit = 0, target2_explicit = 0;
 	float t0 = 0.0f, t1 = 0.0f;
@@ -3278,13 +3112,13 @@ static int parse_move_camera(wb_spec_parser *p, char *line, int line_no)
 		return 1;
 	}
 	
-	return set_error(p, line_no, "expected move_camera layer from distance D scale S [yaw A] center (x,y) to distance D scale S [yaw A] center (x,y) during Ts..Ts");
+	return set_error(p, line_no, "expected move_camera patch from distance D scale S [yaw A] center (x,y) to distance D scale S [yaw A] center (x,y) during Ts..Ts");
 }
 
 static int parse_orbit_camera(wb_spec_parser *p, char *line, int line_no)
 {
 	char name[64];
-	float y0 = WB_DEFAULT_LAYER_CAMERA_YAW, y1 = WB_DEFAULT_LAYER_CAMERA_YAW, t0 = 0.0f, t1 = 0.0f;
+	float y0 = WB_DEFAULT_PATCH_CAMERA_YAW, y1 = WB_DEFAULT_PATCH_CAMERA_YAW, t0 = 0.0f, t1 = 0.0f;
 	
 	if (sscanf(line, "orbit_camera %63s from %f to %f during %fs..%fs", name, &y0, &y1, &t0, &t1) == 5 ||
 		sscanf(line, "orbit_camera %63s %f -> %f %fs..%fs", name, &y0, &y1, &t0, &t1) == 5)
@@ -3299,43 +3133,19 @@ static int parse_orbit_camera(wb_spec_parser *p, char *line, int line_no)
 		return 1;
 	}
 	
-	return set_error(p, line_no, "expected orbit_camera layer from A to A during Ts..Ts");
+	return set_error(p, line_no, "expected orbit_camera patch from A to A during Ts..Ts");
 }
 
 static int parse_fade_layer(wb_spec_parser *p, char *line, int line_no)
 {
 	(void)line;
 	return set_error(p, line_no, "fade_layer has been replaced by fade patch_name");
-	#if 0
-	char name[64];
-	float a0 = WB_DEFAULT_LAYER_OPACITY, a1 = WB_DEFAULT_LAYER_OPACITY, t0 = 0.0f, t1 = 0.0f;
-	
-	if (sscanf(line, "fade_layer %63s from %f to %f during %fs..%fs", name, &a0, &a1, &t0, &t1) == 5 ||
-		sscanf(line, "fade_layer %63s %f -> %f %fs..%fs", name, &a0, &a1, &t0, &t1) == 5)
-	{
-		int id = find_layer_name(p, name);
-		if (!id)
-			return set_error(p, line_no, "fade_layer references unknown layer");
-		if (a0 < WB_MIN_OPACITY)
-			a0 = WB_MIN_OPACITY;
-		if (a0 > WB_MAX_OPACITY)
-			a0 = WB_MAX_OPACITY;
-		if (a1 < WB_MIN_OPACITY)
-			a1 = WB_MIN_OPACITY;
-		if (a1 > WB_MAX_OPACITY)
-			a1 = WB_MAX_OPACITY;
-		wb_scene_fade_layer(p->scene, id, t0, t1, a0, a1);
-		return 1;
-	}
-	
-	return set_error(p, line_no, "expected fade_layer layer from A to A during Ts..Ts");
-	#endif
 }
 
 static int parse_fade(wb_spec_parser *p, char *line, int line_no)
 {
 	char name[64];
-	float a0 = WB_DEFAULT_LAYER_OPACITY, a1 = WB_DEFAULT_LAYER_OPACITY, t0 = 0.0f, t1 = 0.0f;
+	float a0 = WB_DEFAULT_PATCH_OPACITY, a1 = WB_DEFAULT_PATCH_OPACITY, t0 = 0.0f, t1 = 0.0f;
 	
 	if (sscanf(line, "fade %63s from %f to %f during %fs..%fs", name, &a0, &a1, &t0, &t1) == 5 ||
 		sscanf(line, "fade %63s %f -> %f %fs..%fs", name, &a0, &a1, &t0, &t1) == 5)
@@ -7125,14 +6935,14 @@ pending_flushed:
 			/* Flat scene content belongs to the implicit root manifold.  Explicit
 			 * patches retain their own local coordinates and are flattened by the
 			 * existing patch path. */
-			if (p->scene && p->n_patch_scopes == 0 && current_layer_type(p) == WB_LAYER_2D)
+			if (p->scene && p->n_patch_scopes == 0 && current_patch_dimension(p) == WB_DIMENSION_2D)
 			{
 				for (int i = objects_before; i < p->scene->n_objects; i++)
 					root_worldify_object(p->scene, &p->scene->objects[i]);
 				for (int i = actions_before; i < p->scene->n_actions; i++)
 					root_worldify_action(p->scene, &p->scene->actions[i]);
 			}
-			else if (p->scene && p->n_patch_scopes > 0 && current_layer_type(p) == WB_LAYER_2D)
+			else if (p->scene && p->n_patch_scopes > 0 && current_patch_dimension(p) == WB_DIMENSION_2D)
 			{
 				float length_scale = active_patch_length_scale(p);
 				for (int i = objects_before; i < p->scene->n_objects; i++)

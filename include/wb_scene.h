@@ -59,8 +59,8 @@ typedef struct
 	wb_vec2 render_offset;
 } wb_render_context;
 
-/* Retained authoring-space node.  Layers remain a transitional compositor
- * implementation detail until recursive patch rendering replaces them. */
+/* Retained authoring-space node. Patches own composition, transforms, and
+ * effects; rendering storage is private implementation machinery. */
 typedef struct
 {
 	int id;
@@ -246,10 +246,10 @@ typedef struct
 	int background_type;
 	uint32_t background_center_colour;
 	uint32_t background_edge_colour;
-	uint8_t *render_layer_buf;
+	uint8_t *render_content_buf;
 	uint8_t *render_scratch_buf;
 	uint8_t *render_glow_buf;
-	uint8_t *render_layer_alpha;
+	uint8_t *render_content_alpha;
 	uint8_t *render_scratch_alpha;
 	uint8_t *render_glow_alpha;
 	
@@ -259,8 +259,8 @@ typedef struct
 
 #define WB_BACKGROUND_RADIAL 1
 #define WB_BACKGROUND_PAPER 2
-#define WB_LAYER_2D 1
-#define WB_LAYER_3D 2
+#define WB_DIMENSION_2D 1
+#define WB_DIMENSION_3D 2
 
 #define WB_CAMERA_PROJECTION_PERSPECTIVE 1
 #define WB_CAMERA_PROJECTION_ORTHOGRAPHIC 2
