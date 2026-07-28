@@ -46,7 +46,6 @@ void free_scene(wb_scene *scene)
 		free(scene->objects[i].points3d);
 	}
 	
-	free(scene->render_contexts);
 	free(scene->patches);
 	free(scene->objects);
 	free(scene->actions);
@@ -199,21 +198,9 @@ int wb_scene_add_layer(wb_scene *scene, const char *name, int type, float opacit
 	if (!scene)
 		return 0;
 	
-	if (scene->n_render_contexts >= scene->cap_render_contexts)
-	{
-		int new_cap = scene->cap_render_contexts ? scene->cap_render_contexts * 2 : 4;
-		wb_render_context *layers = realloc(scene->render_contexts, sizeof(wb_render_context) * new_cap);
-		
-		if (!layers)
-			return 0;
-		
-		scene->render_contexts = layers;
-		scene->cap_render_contexts = new_cap;
-	}
-	
-	layer = &scene->render_contexts[scene->n_render_contexts];
+	layer = &scene->render_context;
 	memset(layer, 0, sizeof(*layer));
-	layer->id = scene->n_render_contexts + 1;
+	layer->id = 1;
 	snprintf(layer->name, sizeof(layer->name), "%s", (name && *name) ? name : "layer");
 	layer->type = type ? type : WB_LAYER_2D;
 	layer->opacity = opacity;
@@ -240,8 +227,6 @@ int wb_scene_add_layer(wb_scene *scene, const char *name, int type, float opacit
 	layer->render_camera_target = layer->camera_target;
 	layer->offset = vec2(WB_DEFAULT_LAYER_OFFSET_X, WB_DEFAULT_LAYER_OFFSET_Y);
 	layer->render_offset = layer->offset;
-	scene->n_render_contexts++;
-	scene->current_render_context_id = layer->id;
 	
 	return layer->id;
 }
@@ -337,14 +322,7 @@ void wb_scene_set_current_layer(wb_scene *scene, int layer_id)
 	if (!scene)
 		return;
 	
-	for (int i = 0; i < scene->n_render_contexts; i++)
-	{
-		if (scene->render_contexts[i].id == layer_id)
-		{
-			scene->current_render_context_id = layer_id;
-			return;
-		}
-	}
+	(void)layer_id;
 }
 
 static wb_scene_object *find_object(wb_scene *scene, int object_id)
@@ -366,13 +344,7 @@ static wb_render_context *find_layer(wb_scene *scene, int layer_id)
 	if (!scene)
 		return NULL;
 	
-	for (int i = 0; i < scene->n_render_contexts; i++)
-	{
-		if (scene->render_contexts[i].id == layer_id)
-			return &scene->render_contexts[i];
-	}
-	
-	return NULL;
+	return scene->render_context.id == layer_id ? &scene->render_context : NULL;
 }
 
 wb_scene_patch *wb_scene_find_patch(wb_scene *scene, int patch_id)
@@ -2771,19 +2743,16 @@ void wb_scene_render(wb_scene *scene, float time, int frame, uint8_t *buf)
 		scene->objects[i].n_render_patch_transforms = 0;
 		scene->objects[i].n_render_patch_transforms3d = 0;
 	}
-	for (int i = 0; i < scene->n_render_contexts; i++)
-	{
-		scene->render_contexts[i].render_opacity = scene->render_contexts[i].opacity;
-		scene->render_contexts[i].render_offset = scene->render_contexts[i].offset;
-		scene->render_contexts[i].render_jitter_strength = scene->render_contexts[i].jitter_explicit ? scene->render_contexts[i].jitter_strength : WB_DEFAULT_LAYER_JITTER_STRENGTH;
-		scene->render_contexts[i].render_camera_distance = scene->render_contexts[i].camera_distance;
-		scene->render_contexts[i].render_camera_scale = scene->render_contexts[i].camera_scale;
-		scene->render_contexts[i].render_camera_yaw = scene->render_contexts[i].camera_yaw;
-		scene->render_contexts[i].render_camera_projection = scene->render_contexts[i].camera_projection;
-		scene->render_contexts[i].render_camera_center = scene->render_contexts[i].camera_center;
-		scene->render_contexts[i].render_camera_target_explicit = scene->render_contexts[i].camera_target_explicit;
-		scene->render_contexts[i].render_camera_target = scene->render_contexts[i].camera_target;
-	}
+	scene->render_context.render_opacity = scene->render_context.opacity;
+	scene->render_context.render_offset = scene->render_context.offset;
+	scene->render_context.render_jitter_strength = scene->render_context.jitter_explicit ? scene->render_context.jitter_strength : WB_DEFAULT_LAYER_JITTER_STRENGTH;
+	scene->render_context.render_camera_distance = scene->render_context.camera_distance;
+	scene->render_context.render_camera_scale = scene->render_context.camera_scale;
+	scene->render_context.render_camera_yaw = scene->render_context.camera_yaw;
+	scene->render_context.render_camera_projection = scene->render_context.camera_projection;
+	scene->render_context.render_camera_center = scene->render_context.camera_center;
+	scene->render_context.render_camera_target_explicit = scene->render_context.camera_target_explicit;
+	scene->render_context.render_camera_target = scene->render_context.camera_target;
 	for (int i = 0; i < scene->n_patches; i++)
 	{
 		scene->patches[i].render_opacity = scene->patches[i].opacity;
@@ -3005,9 +2974,8 @@ void wb_scene_render(wb_scene *scene, float time, int frame, uint8_t *buf)
 	/* Layers no longer partition painter traversal.  The retained root patch is
 	 * rendered once; the default layer is only a temporary draw-context shell
 	 * for old primitive helpers while the layer type is removed. */
-	for (int layer_i = 0; layer_i < 1 && scene->n_render_contexts > 0; layer_i++)
 	{
-		wb_render_context *layer = &scene->render_contexts[layer_i];
+		wb_render_context *layer = &scene->render_context;
 		wb_scene_patch *root_patch = wb_scene_find_patch(scene, scene->root_patch_id);
 		clear_layer_buffer(layer_buf);
 		clear_alpha_buffer(layer_alpha);
