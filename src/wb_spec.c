@@ -210,6 +210,26 @@ static void expand_dimension_units(char *line, size_t cap)
 			continue;
 		}
 		
+		/* Screen-relative coordinate pairs are legacy spelling for positions.
+		 * Normalize them directly into the centred root manifold, rather than
+		 * first expanding to pixels and accidentally treating those pixels as
+		 * world coordinates. */
+		if (!in_quotes && line[i] == '(')
+		{
+			double x = 0.0, y = 0.0;
+			int consumed = 0;
+			if (sscanf(line + i, "(%lfw,%lfh)%n", &x, &y, &consumed) == 2 ||
+				sscanf(line + i, "(%lfw, %lfh)%n", &x, &y, &consumed) == 2)
+			{
+				int written = snprintf(out + j, sizeof(out) - j, "(%.3f,%.3f)",
+					(x - 0.5) * 2.0 * ((double)WIDTH / (double)HEIGHT), (0.5 - y) * 2.0);
+				if (written <= 0 || (size_t)written >= sizeof(out) - j)
+					break;
+				j += (size_t)written;
+				i += (size_t)consumed;
+				continue;
+			}
+		}
 		if (!in_quotes &&
 			((line[i] >= '0' && line[i] <= '9') ||
 			 ((line[i] == '-' || line[i] == '+') && ((line[i + 1] >= '0' && line[i + 1] <= '9') || line[i + 1] == '.')) ||
@@ -225,11 +245,11 @@ static void expand_dimension_units(char *line, size_t cap)
 				int written;
 				
 				if (*end == 'w')
-					scale = WIDTH;
+					scale = 2.0 * ((double)WIDTH / (double)HEIGHT);
 				else if (*end == 'h')
-					scale = HEIGHT;
+					scale = 2.0;
 				else
-					scale = binary_min(WIDTH, HEIGHT);
+					scale = 2.0;
 				written = snprintf(out + j, sizeof(out) - j, "%.3f", value * scale);
 				if (written <= 0 || (size_t)written >= sizeof(out) - j)
 					break;
@@ -2483,7 +2503,8 @@ static int parse_camera(wb_spec_parser *p, char *line, int line_no)
 			(sscanf(strstr(line, " look_at "), " look_at (%f,%f,%f)", &tx, &ty, &tz) != 3 &&
 			 sscanf(strstr(line, " look_at "), " look_at (%f, %f, %f)", &tx, &ty, &tz) != 3))
 			return set_error(p, line_no, "expected look_at (x,y,z)");
-		wb_scene_set_patch_camera(p->scene, p->scene->current_patch_id, distance, scale, matched == 5 ? yaw : 0.0f, projection, vec2(cx, cy), strstr(line, " look_at ") || strstr(line, " target "), vec3(tx, ty, tz));
+		wb_scene_set_patch_camera(p->scene, p->scene->current_patch_id, distance, scale, matched == 5 ? yaw : 0.0f, projection,
+			root_world_to_pixel(p->scene, vec2(cx, cy)), strstr(line, " look_at ") || strstr(line, " target "), vec3(tx, ty, tz));
 		return 1;
 	}
 	if (strcmp(line, "camera") == 0 || strcmp(line, "cam") == 0)
@@ -2548,7 +2569,9 @@ static int parse_camera(wb_spec_parser *p, char *line, int line_no)
 		projection = WB_CAMERA_PROJECTION_PERSPECTIVE;
 	if (saw_any)
 	{
-		wb_scene_set_patch_camera(p->scene, p->scene->current_patch_id, distance, scale, yaw, projection, vec2(cx, cy), target_explicit, vec3(tx, ty, tz));
+		wb_scene_set_patch_camera(p->scene, p->scene->current_patch_id, distance, scale, yaw, projection,
+			(strstr(line, " center ") || strstr(line, " @ ")) ? root_world_to_pixel(p->scene, vec2(cx, cy)) : vec2(cx, cy),
+			target_explicit, vec3(tx, ty, tz));
 		return 1;
 	}
 	
